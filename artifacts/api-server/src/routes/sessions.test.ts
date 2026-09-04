@@ -196,6 +196,52 @@ describe("session authorization", () => {
     expect(mocks.getUser).not.toHaveBeenCalled();
   });
 
+  it("calculates cumulative winnings and losses from the $500 starting balance", async () => {
+    const firstSession = {
+      ...session,
+      playerBalances: [
+        { name: "Tom", endingAmount: 565, zhaHuCount: 0 },
+        { name: "Dick", endingAmount: 510, zhaHuCount: 0 },
+        { name: "Harry", endingAmount: 450, zhaHuCount: 0 },
+        { name: "Ben", endingAmount: 400, zhaHuCount: 0 },
+      ],
+    };
+    const secondSession = {
+      ...session,
+      id: 2,
+      playerBalances: [
+        { name: "tom", endingAmount: 500, zhaHuCount: 0 },
+        { name: "DICK", endingAmount: 490, zhaHuCount: 0 },
+        { name: "Ivy", endingAmount: 500, zhaHuCount: 0 },
+        { name: "Zoe", endingAmount: 565, zhaHuCount: 0 },
+      ],
+    };
+    const legacySession = {
+      ...session,
+      id: 3,
+      playerBalances: [],
+    };
+    mocks.selectResults.push(
+      [{ totalSessions: 3, totalRounds: 12, totalAmount: 3980 }],
+      [firstSession, secondSession, legacySession],
+      [],
+    );
+
+    const response = await request("/api/sessions/summary");
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      playerWinnings: [
+        { playerName: "Tom", netAmount: 65 },
+        { playerName: "Zoe", netAmount: 65 },
+        { playerName: "Dick", netAmount: 0 },
+        { playerName: "Ivy", netAmount: 0 },
+        { playerName: "Harry", netAmount: -50 },
+        { playerName: "Ben", netAmount: -100 },
+      ],
+    });
+  });
+
   it.each([
     ["POST", "/api/sessions", createBody],
     ["PATCH", "/api/sessions/1", { rounds: 5 }],

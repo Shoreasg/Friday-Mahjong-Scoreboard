@@ -85,6 +85,11 @@ export interface ZhaHuCount {
   count: number;
 }
 
+export interface PlayerWinnings {
+  playerName: string;
+  netAmount: number;
+}
+
 export interface SessionSummary {
   totalSessions: number;
   totalRounds: number;
@@ -92,5 +97,6 @@ export interface SessionSummary {
   latestSession: MahjongSession | null;
   winnerCounts: WinnerCount[];
   zhaHuCounts: ZhaHuCount[];
+  playerWinnings: PlayerWinnings[];
 }
 

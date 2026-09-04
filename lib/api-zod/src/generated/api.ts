@@ -105,7 +105,7 @@ export const CreateSessionResponse = zod.object({
 
 
 /**
- * Returns lightweight totals, winner counts, and Zha Hu counts for the dashboard.
+ * Returns lightweight totals, cumulative player winnings, winner counts, and Zha Hu counts for the dashboard.
  * @summary Get Mahjong scoreboard summary
  */
 
@@ -145,6 +145,10 @@ export const GetSessionSummaryResponse = zod.object({
   "zhaHuCounts": zod.array(zod.object({
   "playerName": zod.string(),
   "count": zod.int().min(getSessionSummaryResponseZhaHuCountsItemCountMin)
+})),
+  "playerWinnings": zod.array(zod.object({
+  "playerName": zod.string(),
+  "netAmount": zod.number()
 }))
 })
 

@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { MahjongSession } from './mahjongSession';
+import type { PlayerWinnings } from './playerWinnings';
 import type { WinnerCount } from './winnerCount';
 import type { ZhaHuCount } from './zhaHuCount';
 
@@ -16,4 +17,5 @@ export interface SessionSummary {
   latestSession: MahjongSession | null;
   winnerCounts: WinnerCount[];
   zhaHuCounts: ZhaHuCount[];
+  playerWinnings: PlayerWinnings[];
 }

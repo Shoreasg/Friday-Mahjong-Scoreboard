@@ -21,6 +21,7 @@ import {
 } from "express";
 
 const router: IRouter = Router();
+const STARTING_BALANCE_CENTS = 50000;
 
 type SubmittedBalance = {
   name: string;
@@ -199,16 +200,32 @@ router.get("/sessions/summary", async (req, res): Promise<void> => {
     string,
     { playerName: string; count: number }
   >();
+  const winningsByPlayer = new Map<
+    string,
+    { playerName: string; netCents: number }
+  >();
   for (const session of sessions) {
     for (const player of normalizePlayerBalances(session.playerBalances)) {
       const normalizedName = player.name.trim().toLocaleLowerCase();
-      const existing = zhaHuByPlayer.get(normalizedName);
-      if (existing) {
-        existing.count += player.zhaHuCount;
+      const existingZhaHu = zhaHuByPlayer.get(normalizedName);
+      if (existingZhaHu) {
+        existingZhaHu.count += player.zhaHuCount;
       } else {
         zhaHuByPlayer.set(normalizedName, {
           playerName: player.name.trim(),
           count: player.zhaHuCount,
+        });
+      }
+
+      const netCents =
+        Math.round(player.endingAmount * 100) - STARTING_BALANCE_CENTS;
+      const existingWinnings = winningsByPlayer.get(normalizedName);
+      if (existingWinnings) {
+        existingWinnings.netCents += netCents;
+      } else {
+        winningsByPlayer.set(normalizedName, {
+          playerName: player.name.trim(),
+          netCents,
         });
       }
     }
@@ -217,6 +234,16 @@ router.get("/sessions/summary", async (req, res): Promise<void> => {
     (a, b) =>
       b.count - a.count || a.playerName.localeCompare(b.playerName),
   );
+  const playerWinnings = [...winningsByPlayer.values()]
+    .map(({ playerName, netCents }) => ({
+      playerName,
+      netAmount: netCents / 100,
+    }))
+    .sort(
+      (a, b) =>
+        b.netAmount - a.netAmount ||
+        a.playerName.localeCompare(b.playerName),
+    );
 
   res.json(
     GetSessionSummaryResponse.parse({
@@ -226,6 +253,7 @@ router.get("/sessions/summary", async (req, res): Promise<void> => {
       latestSession: latestSession ? normalizeSession(latestSession) : null,
       winnerCounts,
       zhaHuCounts,
+      playerWinnings,
     }),
   );
 });

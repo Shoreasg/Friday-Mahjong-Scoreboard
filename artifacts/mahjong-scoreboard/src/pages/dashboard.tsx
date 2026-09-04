@@ -13,6 +13,11 @@ import { toast } from "sonner";
 import type { MahjongSession } from "@workspace/api-client-react";
 import { Link } from "wouter";
 
+function formatSignedCurrency(amount: number) {
+  const sign = amount > 0 ? "+" : amount < 0 ? "-" : "";
+  return `${sign}$${Math.abs(amount).toFixed(2)}`;
+}
+
 export default function Dashboard() {
   const { signOut } = useClerk();
   const { isSignedIn, user } = useUser();
@@ -139,13 +144,40 @@ export default function Dashboard() {
               <div className="text-xs sm:text-sm text-muted-foreground mt-1 uppercase tracking-wider font-semibold">Rounds</div>
             </CardContent>
           </Card>
-          <Card className="border-t-4 border-t-destructive shadow-sm hover-elevate col-span-2 md:col-span-2">
-            <CardContent className="p-4 sm:p-6 flex flex-col items-center text-center">
-              <Coins className="w-6 h-6 text-destructive mb-2 opacity-80" />
-              <div className="text-3xl font-serif text-foreground" data-testid="text-total-amount">
-                ${summary?.totalAmount?.toFixed(2) || "0.00"}
+          <Card className="border-t-4 border-t-primary shadow-sm hover-elevate col-span-2 md:col-span-2">
+            <CardContent className="p-4 sm:p-6">
+              <div className="mb-3 flex items-center justify-center gap-2">
+                <Coins className="w-5 h-5 text-primary opacity-80" />
+                <div className="text-xs sm:text-sm text-muted-foreground uppercase tracking-wider font-semibold">Cumulative Winnings</div>
               </div>
-              <div className="text-xs sm:text-sm text-muted-foreground mt-1 uppercase tracking-wider font-semibold">Total Pot</div>
+              {summary?.playerWinnings.length ? (
+                <div className="grid grid-cols-2 gap-x-5 gap-y-2">
+                  {summary.playerWinnings.map((player) => (
+                    <div
+                      key={player.playerName.toLocaleLowerCase()}
+                      className="flex min-w-0 items-center justify-between gap-2 rounded-md bg-muted/50 px-2.5 py-1.5 text-sm"
+                    >
+                      <span className="truncate font-medium text-foreground">{player.playerName}</span>
+                      <span
+                        className={`shrink-0 font-semibold tabular-nums ${
+                          player.netAmount > 0
+                            ? "text-primary"
+                            : player.netAmount < 0
+                              ? "text-destructive"
+                              : "text-muted-foreground"
+                        }`}
+                        data-testid={`text-player-winnings-${player.playerName.toLocaleLowerCase()}`}
+                      >
+                        {formatSignedCurrency(player.netAmount)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="py-2 text-center text-sm text-muted-foreground">
+                  Player winnings will appear after balances are recorded.
+                </p>
+              )}
             </CardContent>
           </Card>
         </section>
