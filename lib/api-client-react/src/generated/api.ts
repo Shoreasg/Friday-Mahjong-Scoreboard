@@ -291,7 +291,7 @@ export const getGetSessionSummaryUrl = () => {
 }
 
 /**
- * Returns lightweight totals, cumulative player winnings, winner counts, and Zha Hu counts for the dashboard.
+ * Returns lightweight totals, cumulative player winnings, winner counts, Zha Hu counts, and 谢谢 Kai Xiang counts for the dashboard.
  * @summary Get Mahjong scoreboard summary
  */
 export const getSessionSummary = async ( options?: Parameters<typeof customFetch>[1]): Promise<SessionSummary> => {

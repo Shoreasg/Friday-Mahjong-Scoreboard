@@ -6,7 +6,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { SessionForm } from "@/components/SessionForm";
 import { format, parseISO } from "date-fns";
-import { Trophy, Plus, LogOut, Coins, Activity, Trash2, Edit2, ChevronDown, LogIn, Flame } from "lucide-react";
+import { Trophy, Plus, LogOut, Coins, Activity, Trash2, Edit2, ChevronDown, LogIn, Flame, Flower2 } from "lucide-react";
 import { useState } from "react";
 import { useClerk, useUser } from "@clerk/react";
 import { toast } from "sonner";
@@ -97,6 +97,11 @@ export default function Dashboard() {
     : [];
   const sortedZhaHu = summary?.zhaHuCounts
     ? [...summary.zhaHuCounts].sort(
+        (a, b) => b.count - a.count || a.playerName.localeCompare(b.playerName),
+      )
+    : [];
+  const sortedXieXieKaiXiang = summary?.xieXieKaiXiangCounts
+    ? [...summary.xieXieKaiXiangCounts].sort(
         (a, b) => b.count - a.count || a.playerName.localeCompare(b.playerName),
       )
     : [];
@@ -262,6 +267,50 @@ export default function Dashboard() {
                 </CardContent>
               </Card>
             </div>
+
+            <div>
+              <h2 className="font-sans font-black text-2xl text-foreground flex items-center gap-2 uppercase mb-4">
+                <Flower2 className="w-6 h-6 text-primary" strokeWidth={3} />
+                谢谢 Kai Xiang
+              </h2>
+              <Card className="bg-card overflow-hidden">
+                <CardContent className="p-0">
+                  {sortedXieXieKaiXiang.length === 0 ? (
+                    <div className="p-8 text-center font-bold text-muted-foreground uppercase tracking-wide">
+                      NO 谢谢 KAI XIANG YET.
+                    </div>
+                  ) : (
+                    <ul className="divide-y-2 divide-ink">
+                      {sortedXieXieKaiXiang.map((player, index) => (
+                        <li
+                          key={player.playerName.toLocaleLowerCase()}
+                          className="flex items-center justify-between p-4"
+                          data-testid={`row-xie-xie-kai-xiang-${index}`}
+                        >
+                          <div className="flex min-w-0 items-center gap-4">
+                            <div className={`w-10 h-10 shrink-0 border-2 border-ink brutal-shadow-sm flex items-center justify-center font-mono text-lg font-bold ${
+                              index === 0
+                                ? "bg-primary text-primary-foreground"
+                                : index === 1
+                                  ? "bg-secondary text-black"
+                                  : "bg-tile text-foreground"
+                            }`}>
+                              {index + 1}
+                            </div>
+                            <span className="truncate font-black text-lg text-foreground uppercase">
+                              {player.playerName}
+                            </span>
+                          </div>
+                          <div className="ml-3 shrink-0 text-sm font-black px-3 py-1 bg-accent text-accent-foreground border-2 border-ink brutal-shadow-sm tracking-widest">
+                            {player.count} {player.count === 1 ? "TIME" : "TIMES"}
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
           </section>
 
           {/* History */}
@@ -331,7 +380,7 @@ export default function Dashboard() {
                       </div>
 
                       {session.playerBalances.length > 0 ? (
-                        <div className="mt-8 grid grid-cols-2 gap-3 sm:gap-4">
+                        <div className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
                           {session.playerBalances.map((player) => (
                             <div
                               key={player.name}
@@ -342,10 +391,15 @@ export default function Dashboard() {
                               }`}
                             >
                               <span className="truncate font-black uppercase text-sm sm:text-base tracking-wide">{player.name}</span>
-                              <span className="flex shrink-0 items-center gap-3">
+                              <span className="flex shrink-0 flex-wrap items-center justify-end gap-2">
                                 {player.zhaHuCount > 0 && (
                                   <span className="bg-destructive text-destructive-foreground border-2 border-ink px-1.5 py-0.5 font-black text-xs brutal-shadow-sm">
                                     ZH {player.zhaHuCount}
+                                  </span>
+                                )}
+                                {player.xieXieKaiXiangCount > 0 && (
+                                  <span className="bg-accent text-accent-foreground border-2 border-ink px-1.5 py-0.5 font-black text-xs brutal-shadow-sm">
+                                    谢谢 {player.xieXieKaiXiangCount}
                                   </span>
                                 )}
                                 <span className="font-mono font-bold text-base sm:text-lg">${player.endingAmount.toFixed(2)}</span>

@@ -84,10 +84,10 @@ const session = {
   totalAmount: 400,
   winnerName: "Alice",
   playerBalances: [
-    { name: "Alice", endingAmount: 130, zhaHuCount: 1 },
-    { name: "Bob", endingAmount: 100, zhaHuCount: 0 },
-    { name: "Carol", endingAmount: 90, zhaHuCount: 2 },
-    { name: "Dave", endingAmount: 80, zhaHuCount: 0 },
+    { name: "Alice", endingAmount: 130, zhaHuCount: 1, xieXieKaiXiangCount: 1 },
+    { name: "Bob", endingAmount: 100, zhaHuCount: 0, xieXieKaiXiangCount: 2 },
+    { name: "Carol", endingAmount: 90, zhaHuCount: 2, xieXieKaiXiangCount: 0 },
+    { name: "Dave", endingAmount: 80, zhaHuCount: 0, xieXieKaiXiangCount: 0 },
   ],
   notes: null,
   createdByUserId: adminUserId,
@@ -147,20 +147,26 @@ beforeEach(() => {
 });
 
 describe("session authorization", () => {
-  it("allows public reads and defaults legacy Zha Hu counts to zero", async () => {
+  it("allows public reads and defaults legacy incident counts to zero", async () => {
     const legacySession = {
       ...session,
-      playerBalances: session.playerBalances.map(({ zhaHuCount: _count, ...player }) => player),
+      playerBalances: session.playerBalances.map(
+        ({
+          zhaHuCount: _zhaHuCount,
+          xieXieKaiXiangCount: _xieXieKaiXiangCount,
+          ...player
+        }) => player,
+      ),
     };
     mocks.selectResults.push([legacySession]);
     const listResponse = await request("/api/sessions");
     expect(listResponse.status).toBe(200);
     expect(await listResponse.json()).toMatchObject([{
       playerBalances: [
-        { name: "Alice", zhaHuCount: 0 },
-        { name: "Bob", zhaHuCount: 0 },
-        { name: "Carol", zhaHuCount: 0 },
-        { name: "Dave", zhaHuCount: 0 },
+        { name: "Alice", zhaHuCount: 0, xieXieKaiXiangCount: 0 },
+        { name: "Bob", zhaHuCount: 0, xieXieKaiXiangCount: 0 },
+        { name: "Carol", zhaHuCount: 0, xieXieKaiXiangCount: 0 },
+        { name: "Dave", zhaHuCount: 0, xieXieKaiXiangCount: 0 },
       ],
     }]);
 
@@ -168,10 +174,10 @@ describe("session authorization", () => {
       ...session,
       id: 2,
       playerBalances: [
-        { name: "alice", endingAmount: 120, zhaHuCount: 2 },
-        { name: "BOB", endingAmount: 110, zhaHuCount: 1 },
-        { name: "Eve", endingAmount: 90, zhaHuCount: 4 },
-        { name: "Frank", endingAmount: 80, zhaHuCount: 0 },
+        { name: "alice", endingAmount: 120, zhaHuCount: 2, xieXieKaiXiangCount: 2 },
+        { name: "BOB", endingAmount: 110, zhaHuCount: 1, xieXieKaiXiangCount: 0 },
+        { name: "Eve", endingAmount: 90, zhaHuCount: 4, xieXieKaiXiangCount: 4 },
+        { name: "Frank", endingAmount: 80, zhaHuCount: 0, xieXieKaiXiangCount: 0 },
       ],
     };
     mocks.selectResults.push(
@@ -189,6 +195,14 @@ describe("session authorization", () => {
         { playerName: "Alice", count: 3 },
         { playerName: "Carol", count: 2 },
         { playerName: "Bob", count: 1 },
+        { playerName: "Dave", count: 0 },
+        { playerName: "Frank", count: 0 },
+      ],
+      xieXieKaiXiangCounts: [
+        { playerName: "Eve", count: 4 },
+        { playerName: "Alice", count: 3 },
+        { playerName: "Bob", count: 2 },
+        { playerName: "Carol", count: 0 },
         { playerName: "Dave", count: 0 },
         { playerName: "Frank", count: 0 },
       ],
@@ -336,6 +350,25 @@ describe("session authorization", () => {
         ...createBody,
         playerBalances: createBody.playerBalances.map((player, index) =>
           index === 0 ? { ...player, zhaHuCount } : player,
+        ),
+      };
+      const response = await request(
+        "/api/sessions",
+        { method: "POST", body: JSON.stringify(invalidBody) },
+        adminUserId,
+      );
+      expect(response.status).toBe(400);
+      expect(mocks.db.insert).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([-1, 1.5])(
+    "rejects an invalid 谢谢 Kai Xiang count of %s",
+    async (xieXieKaiXiangCount) => {
+      const invalidBody = {
+        ...createBody,
+        playerBalances: createBody.playerBalances.map((player, index) =>
+          index === 0 ? { ...player, xieXieKaiXiangCount } : player,
         ),
       };
       const response = await request(

@@ -15,6 +15,7 @@ export type PlayerBalance = {
   name: string;
   endingAmount: number;
   zhaHuCount: number;
+  xieXieKaiXiangCount: number;
 };
 
 export const mahjongSessionsTable = pgTable("mahjong_sessions", {

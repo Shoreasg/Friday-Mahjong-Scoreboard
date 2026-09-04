@@ -28,6 +28,8 @@ export const listSessionsResponsePlayerBalancesItemEndingAmountMin = 0;
 
 export const listSessionsResponsePlayerBalancesItemZhaHuCountMin = 0;
 
+export const listSessionsResponsePlayerBalancesItemXieXieKaiXiangCountMin = 0;
+
 
 
 export const ListSessionsResponseItem = zod.object({
@@ -39,7 +41,8 @@ export const ListSessionsResponseItem = zod.object({
   "playerBalances": zod.array(zod.object({
   "name": zod.string().min(1).max(listSessionsResponsePlayerBalancesItemNameMax),
   "endingAmount": zod.number().min(listSessionsResponsePlayerBalancesItemEndingAmountMin),
-  "zhaHuCount": zod.int().min(listSessionsResponsePlayerBalancesItemZhaHuCountMin)
+  "zhaHuCount": zod.int().min(listSessionsResponsePlayerBalancesItemZhaHuCountMin),
+  "xieXieKaiXiangCount": zod.int().min(listSessionsResponsePlayerBalancesItemXieXieKaiXiangCountMin)
 })),
   "notes": zod.string().nullable(),
   "createdByUserId": zod.string().nullable(),
@@ -60,6 +63,8 @@ export const createSessionBodyPlayerBalancesItemEndingAmountMin = 0;
 
 export const createSessionBodyPlayerBalancesItemZhaHuCountMin = 0;
 
+export const createSessionBodyPlayerBalancesItemXieXieKaiXiangCountMin = 0;
+
 export const createSessionBodyPlayerBalancesMin = 4;
 export const createSessionBodyPlayerBalancesMax = 4;
 
@@ -73,7 +78,8 @@ export const CreateSessionBody = zod.object({
   "playerBalances": zod.array(zod.object({
   "name": zod.string().min(1).max(createSessionBodyPlayerBalancesItemNameMax),
   "endingAmount": zod.number().min(createSessionBodyPlayerBalancesItemEndingAmountMin),
-  "zhaHuCount": zod.int().min(createSessionBodyPlayerBalancesItemZhaHuCountMin)
+  "zhaHuCount": zod.int().min(createSessionBodyPlayerBalancesItemZhaHuCountMin),
+  "xieXieKaiXiangCount": zod.int().min(createSessionBodyPlayerBalancesItemXieXieKaiXiangCountMin)
 })).min(createSessionBodyPlayerBalancesMin).max(createSessionBodyPlayerBalancesMax),
   "notes": zod.string().max(createSessionBodyNotesMax).nullish()
 })
@@ -84,6 +90,8 @@ export const createSessionResponsePlayerBalancesItemNameMax = 80;
 export const createSessionResponsePlayerBalancesItemEndingAmountMin = 0;
 
 export const createSessionResponsePlayerBalancesItemZhaHuCountMin = 0;
+
+export const createSessionResponsePlayerBalancesItemXieXieKaiXiangCountMin = 0;
 
 
 
@@ -96,7 +104,8 @@ export const CreateSessionResponse = zod.object({
   "playerBalances": zod.array(zod.object({
   "name": zod.string().min(1).max(createSessionResponsePlayerBalancesItemNameMax),
   "endingAmount": zod.number().min(createSessionResponsePlayerBalancesItemEndingAmountMin),
-  "zhaHuCount": zod.int().min(createSessionResponsePlayerBalancesItemZhaHuCountMin)
+  "zhaHuCount": zod.int().min(createSessionResponsePlayerBalancesItemZhaHuCountMin),
+  "xieXieKaiXiangCount": zod.int().min(createSessionResponsePlayerBalancesItemXieXieKaiXiangCountMin)
 })),
   "notes": zod.string().nullable(),
   "createdByUserId": zod.string().nullable(),
@@ -105,7 +114,7 @@ export const CreateSessionResponse = zod.object({
 
 
 /**
- * Returns lightweight totals, cumulative player winnings, winner counts, and Zha Hu counts for the dashboard.
+ * Returns lightweight totals, cumulative player winnings, winner counts, Zha Hu counts, and 谢谢 Kai Xiang counts for the dashboard.
  * @summary Get Mahjong scoreboard summary
  */
 
@@ -115,7 +124,11 @@ export const getSessionSummaryResponseLatestSessionOnePlayerBalancesItemEndingAm
 
 export const getSessionSummaryResponseLatestSessionOnePlayerBalancesItemZhaHuCountMin = 0;
 
+export const getSessionSummaryResponseLatestSessionOnePlayerBalancesItemXieXieKaiXiangCountMin = 0;
+
 export const getSessionSummaryResponseZhaHuCountsItemCountMin = 0;
+
+export const getSessionSummaryResponseXieXieKaiXiangCountsItemCountMin = 0;
 
 
 
@@ -132,7 +145,8 @@ export const GetSessionSummaryResponse = zod.object({
   "playerBalances": zod.array(zod.object({
   "name": zod.string().min(1).max(getSessionSummaryResponseLatestSessionOnePlayerBalancesItemNameMax),
   "endingAmount": zod.number().min(getSessionSummaryResponseLatestSessionOnePlayerBalancesItemEndingAmountMin),
-  "zhaHuCount": zod.int().min(getSessionSummaryResponseLatestSessionOnePlayerBalancesItemZhaHuCountMin)
+  "zhaHuCount": zod.int().min(getSessionSummaryResponseLatestSessionOnePlayerBalancesItemZhaHuCountMin),
+  "xieXieKaiXiangCount": zod.int().min(getSessionSummaryResponseLatestSessionOnePlayerBalancesItemXieXieKaiXiangCountMin)
 })),
   "notes": zod.string().nullable(),
   "createdByUserId": zod.string().nullable(),
@@ -145,6 +159,10 @@ export const GetSessionSummaryResponse = zod.object({
   "zhaHuCounts": zod.array(zod.object({
   "playerName": zod.string(),
   "count": zod.int().min(getSessionSummaryResponseZhaHuCountsItemCountMin)
+})),
+  "xieXieKaiXiangCounts": zod.array(zod.object({
+  "playerName": zod.string(),
+  "count": zod.int().min(getSessionSummaryResponseXieXieKaiXiangCountsItemCountMin)
 })),
   "playerWinnings": zod.array(zod.object({
   "playerName": zod.string(),
@@ -170,6 +188,8 @@ export const getSessionResponsePlayerBalancesItemEndingAmountMin = 0;
 
 export const getSessionResponsePlayerBalancesItemZhaHuCountMin = 0;
 
+export const getSessionResponsePlayerBalancesItemXieXieKaiXiangCountMin = 0;
+
 
 
 export const GetSessionResponse = zod.object({
@@ -181,7 +201,8 @@ export const GetSessionResponse = zod.object({
   "playerBalances": zod.array(zod.object({
   "name": zod.string().min(1).max(getSessionResponsePlayerBalancesItemNameMax),
   "endingAmount": zod.number().min(getSessionResponsePlayerBalancesItemEndingAmountMin),
-  "zhaHuCount": zod.int().min(getSessionResponsePlayerBalancesItemZhaHuCountMin)
+  "zhaHuCount": zod.int().min(getSessionResponsePlayerBalancesItemZhaHuCountMin),
+  "xieXieKaiXiangCount": zod.int().min(getSessionResponsePlayerBalancesItemXieXieKaiXiangCountMin)
 })),
   "notes": zod.string().nullable(),
   "createdByUserId": zod.string().nullable(),
@@ -207,6 +228,8 @@ export const updateSessionBodyPlayerBalancesItemEndingAmountMin = 0;
 
 export const updateSessionBodyPlayerBalancesItemZhaHuCountMin = 0;
 
+export const updateSessionBodyPlayerBalancesItemXieXieKaiXiangCountMin = 0;
+
 export const updateSessionBodyPlayerBalancesMin = 4;
 export const updateSessionBodyPlayerBalancesMax = 4;
 
@@ -220,7 +243,8 @@ export const UpdateSessionBody = zod.object({
   "playerBalances": zod.array(zod.object({
   "name": zod.string().min(1).max(updateSessionBodyPlayerBalancesItemNameMax),
   "endingAmount": zod.number().min(updateSessionBodyPlayerBalancesItemEndingAmountMin),
-  "zhaHuCount": zod.int().min(updateSessionBodyPlayerBalancesItemZhaHuCountMin)
+  "zhaHuCount": zod.int().min(updateSessionBodyPlayerBalancesItemZhaHuCountMin),
+  "xieXieKaiXiangCount": zod.int().min(updateSessionBodyPlayerBalancesItemXieXieKaiXiangCountMin)
 })).min(updateSessionBodyPlayerBalancesMin).max(updateSessionBodyPlayerBalancesMax).optional(),
   "notes": zod.string().max(updateSessionBodyNotesMax).nullish()
 })
@@ -231,6 +255,8 @@ export const updateSessionResponsePlayerBalancesItemNameMax = 80;
 export const updateSessionResponsePlayerBalancesItemEndingAmountMin = 0;
 
 export const updateSessionResponsePlayerBalancesItemZhaHuCountMin = 0;
+
+export const updateSessionResponsePlayerBalancesItemXieXieKaiXiangCountMin = 0;
 
 
 
@@ -243,7 +269,8 @@ export const UpdateSessionResponse = zod.object({
   "playerBalances": zod.array(zod.object({
   "name": zod.string().min(1).max(updateSessionResponsePlayerBalancesItemNameMax),
   "endingAmount": zod.number().min(updateSessionResponsePlayerBalancesItemEndingAmountMin),
-  "zhaHuCount": zod.int().min(updateSessionResponsePlayerBalancesItemZhaHuCountMin)
+  "zhaHuCount": zod.int().min(updateSessionResponsePlayerBalancesItemZhaHuCountMin),
+  "xieXieKaiXiangCount": zod.int().min(updateSessionResponsePlayerBalancesItemXieXieKaiXiangCountMin)
 })),
   "notes": zod.string().nullable(),
   "createdByUserId": zod.string().nullable(),

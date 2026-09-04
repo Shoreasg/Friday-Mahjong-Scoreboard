@@ -16,6 +16,7 @@ const sessionSchema = z.object({
     name: z.string().trim().min(1, "Player name is required").max(80),
     endingAmount: z.coerce.number().min(0, "Amount cannot be negative"),
     zhaHuCount: z.coerce.number().int("Use a whole number").min(0, "Count cannot be negative"),
+    xieXieKaiXiangCount: z.coerce.number().int("Use a whole number").min(0, "Count cannot be negative"),
   })).length(4, "Enter all four players"),
   notes: z.string().max(500).nullable().optional(),
 });
@@ -43,8 +44,17 @@ export function SessionForm({
       playerBalances: Array.from({ length: 4 }, (_, index) => {
         const player = defaultValues?.playerBalances?.[index];
         return player
-          ? { ...player, zhaHuCount: player.zhaHuCount ?? 0 }
-          : { name: "", endingAmount: 500, zhaHuCount: 0 };
+          ? {
+              ...player,
+              zhaHuCount: player.zhaHuCount ?? 0,
+              xieXieKaiXiangCount: player.xieXieKaiXiangCount ?? 0,
+            }
+          : {
+              name: "",
+              endingAmount: 500,
+              zhaHuCount: 0,
+              xieXieKaiXiangCount: 0,
+            };
       }),
       notes: defaultValues?.notes || "",
     },
@@ -90,7 +100,9 @@ export function SessionForm({
           <div className="flex items-center justify-between gap-4 bg-tile border-4 border-ink p-4 brutal-shadow">
             <div>
               <h3 className="font-black text-foreground uppercase tracking-widest text-lg">Player balances</h3>
-              <p className="text-sm font-bold text-muted-foreground">All four players start with $500. Highest ending wins.</p>
+              <p className="text-sm font-bold text-muted-foreground">
+                All four players start with $500. Count each time “谢谢 Kai Xiang” is said.
+              </p>
             </div>
           </div>
 
@@ -99,8 +111,8 @@ export function SessionForm({
               <div
                 key={`player-slot-${index}`}
                 className={cn(
-                  "grid grid-cols-1 items-end gap-4 border-4 border-ink bg-tile p-5 brutal-shadow sm:grid-cols-[1fr_9rem_7rem]",
-                  compact && "grid-cols-2 gap-4 p-4 sm:grid-cols-2",
+                  "grid grid-cols-1 items-end gap-4 border-4 border-ink bg-tile p-5 brutal-shadow sm:grid-cols-[1fr_9rem_7rem_9rem]",
+                  compact && "grid-cols-3 gap-4 p-4 sm:grid-cols-3",
                 )}
               >
                 <div className="flex items-center justify-between col-span-full mb-1">
@@ -113,7 +125,7 @@ export function SessionForm({
                   control={form.control}
                   name={`playerBalances.${index}.name`}
                   render={({ field }) => (
-                    <FormItem className={cn(compact && "col-span-2")}>
+                    <FormItem className={cn(compact && "col-span-3")}>
                       <FormLabel className="font-black uppercase tracking-wide text-xs">Name</FormLabel>
                       <FormControl>
                         <Input placeholder="e.g. Alice" {...field} data-testid={`input-player-name-${index}`} className="border-2" />
@@ -143,6 +155,28 @@ export function SessionForm({
                       <FormLabel className="font-black uppercase tracking-wide text-xs">Zha Hu</FormLabel>
                       <FormControl>
                         <Input type="number" min="0" step="1" {...field} data-testid={`input-player-zha-hu-${index}`} className="border-2 font-mono" />
+                      </FormControl>
+                      <FormMessage className="font-bold text-destructive text-xs" />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name={`playerBalances.${index}.xieXieKaiXiangCount`}
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="font-black uppercase tracking-wide text-xs">
+                        谢谢 Kai Xiang
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="1"
+                          {...field}
+                          data-testid={`input-player-xie-xie-kai-xiang-${index}`}
+                          className="border-2 font-mono"
+                        />
                       </FormControl>
                       <FormMessage className="font-bold text-destructive text-xs" />
                     </FormItem>

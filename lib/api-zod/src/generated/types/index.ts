@@ -14,4 +14,5 @@ export * from './playerBalance';
 export * from './playerWinnings';
 export * from './sessionSummary';
 export * from './winnerCount';
+export * from './xieXieKaiXiangCount';
 export * from './zhaHuCount';

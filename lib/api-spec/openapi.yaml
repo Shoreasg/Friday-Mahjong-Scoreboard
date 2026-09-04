@@ -70,7 +70,7 @@ paths:
       operationId: getSessionSummary
       tags: [sessions]
       summary: Get Mahjong scoreboard summary
-      description: Returns lightweight totals, cumulative player winnings, winner counts, and Zha Hu counts for the dashboard.
+      description: Returns lightweight totals, cumulative player winnings, winner counts, Zha Hu counts, and 谢谢 Kai Xiang counts for the dashboard.
       responses:
         "200":
           description: Scoreboard summary
@@ -253,10 +253,15 @@ components:
           type: integer
           format: int32
           minimum: 0
+        xieXieKaiXiangCount:
+          type: integer
+          format: int32
+          minimum: 0
       required:
         - name
         - endingAmount
         - zhaHuCount
+        - xieXieKaiXiangCount
     WinnerCount:
       type: object
       properties:
@@ -269,6 +274,18 @@ components:
         - winnerName
         - wins
     ZhaHuCount:
+      type: object
+      properties:
+        playerName:
+          type: string
+        count:
+          type: integer
+          format: int32
+          minimum: 0
+      required:
+        - playerName
+        - count
+    XieXieKaiXiangCount:
       type: object
       properties:
         playerName:
@@ -315,6 +332,10 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ZhaHuCount"
+        xieXieKaiXiangCounts:
+          type: array
+          items:
+            $ref: "#/components/schemas/XieXieKaiXiangCount"
         playerWinnings:
           type: array
           items:
@@ -326,5 +347,6 @@ components:
         - latestSession
         - winnerCounts
         - zhaHuCounts
+        - xieXieKaiXiangCounts
         - playerWinnings
 

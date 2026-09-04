@@ -27,17 +27,27 @@ type SubmittedBalance = {
   name: string;
   endingAmount: number;
   zhaHuCount: number;
+  xieXieKaiXiangCount?: number;
 };
 
 function normalizePlayerBalances(playerBalances: SubmittedBalance[]) {
-  return playerBalances.map((balance) => ({
-    name: balance.name,
-    endingAmount: balance.endingAmount,
-    zhaHuCount:
-      Number.isInteger(balance.zhaHuCount) && balance.zhaHuCount >= 0
-        ? balance.zhaHuCount
-        : 0,
-  }));
+  return playerBalances.map((balance) => {
+    const xieXieKaiXiangCount = balance.xieXieKaiXiangCount;
+    return {
+      name: balance.name,
+      endingAmount: balance.endingAmount,
+      zhaHuCount:
+        Number.isInteger(balance.zhaHuCount) && balance.zhaHuCount >= 0
+          ? balance.zhaHuCount
+          : 0,
+      xieXieKaiXiangCount:
+        Number.isInteger(xieXieKaiXiangCount) &&
+        xieXieKaiXiangCount !== undefined &&
+        xieXieKaiXiangCount >= 0
+          ? xieXieKaiXiangCount
+          : 0,
+    };
+  });
 }
 
 function normalizeSession(
@@ -58,6 +68,7 @@ function sessionResult(playerBalances: SubmittedBalance[]) {
     name: balance.name.trim(),
     endingAmount: balance.endingAmount,
     zhaHuCount: balance.zhaHuCount,
+    xieXieKaiXiangCount: balance.xieXieKaiXiangCount ?? 0,
   }));
   const seenNames = new Set<string>();
   for (const balance of balances) {
@@ -200,6 +211,10 @@ router.get("/sessions/summary", async (req, res): Promise<void> => {
     string,
     { playerName: string; count: number }
   >();
+  const xieXieKaiXiangByPlayer = new Map<
+    string,
+    { playerName: string; count: number }
+  >();
   const winningsByPlayer = new Map<
     string,
     { playerName: string; netCents: number }
@@ -217,6 +232,17 @@ router.get("/sessions/summary", async (req, res): Promise<void> => {
         });
       }
 
+      const existingXieXieKaiXiang =
+        xieXieKaiXiangByPlayer.get(normalizedName);
+      if (existingXieXieKaiXiang) {
+        existingXieXieKaiXiang.count += player.xieXieKaiXiangCount;
+      } else {
+        xieXieKaiXiangByPlayer.set(normalizedName, {
+          playerName: player.name.trim(),
+          count: player.xieXieKaiXiangCount,
+        });
+      }
+
       const netCents =
         Math.round(player.endingAmount * 100) - STARTING_BALANCE_CENTS;
       const existingWinnings = winningsByPlayer.get(normalizedName);
@@ -231,6 +257,10 @@ router.get("/sessions/summary", async (req, res): Promise<void> => {
     }
   }
   const zhaHuCounts = [...zhaHuByPlayer.values()].sort(
+    (a, b) =>
+      b.count - a.count || a.playerName.localeCompare(b.playerName),
+  );
+  const xieXieKaiXiangCounts = [...xieXieKaiXiangByPlayer.values()].sort(
     (a, b) =>
       b.count - a.count || a.playerName.localeCompare(b.playerName),
   );
@@ -253,6 +283,7 @@ router.get("/sessions/summary", async (req, res): Promise<void> => {
       latestSession: latestSession ? normalizeSession(latestSession) : null,
       winnerCounts,
       zhaHuCounts,
+      xieXieKaiXiangCounts,
       playerWinnings,
     }),
   );

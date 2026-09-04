@@ -8,6 +8,7 @@
 import type { MahjongSession } from './mahjongSession';
 import type { PlayerWinnings } from './playerWinnings';
 import type { WinnerCount } from './winnerCount';
+import type { XieXieKaiXiangCount } from './xieXieKaiXiangCount';
 import type { ZhaHuCount } from './zhaHuCount';
 
 export interface SessionSummary {
@@ -17,5 +18,6 @@ export interface SessionSummary {
   latestSession: MahjongSession | null;
   winnerCounts: WinnerCount[];
   zhaHuCounts: ZhaHuCount[];
+  xieXieKaiXiangCounts: XieXieKaiXiangCount[];
   playerWinnings: PlayerWinnings[];
 }
