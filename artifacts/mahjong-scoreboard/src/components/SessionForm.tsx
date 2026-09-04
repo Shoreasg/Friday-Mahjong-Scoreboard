@@ -87,9 +87,9 @@ export function SessionForm({
         </div>
 
         <div className="space-y-4">
-          <div className="flex items-center justify-between gap-4 bg-white border-4 border-black p-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+          <div className="flex items-center justify-between gap-4 bg-tile border-4 border-ink p-4 brutal-shadow">
             <div>
-              <h3 className="font-black text-black uppercase tracking-widest text-lg">Player balances</h3>
+              <h3 className="font-black text-foreground uppercase tracking-widest text-lg">Player balances</h3>
               <p className="text-sm font-bold text-muted-foreground">All four players start with $500. Highest ending wins.</p>
             </div>
           </div>
@@ -99,14 +99,14 @@ export function SessionForm({
               <div
                 key={`player-slot-${index}`}
                 className={cn(
-                  "grid grid-cols-1 items-end gap-4 border-4 border-black bg-white p-5 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] sm:grid-cols-[1fr_9rem_7rem]",
+                  "grid grid-cols-1 items-end gap-4 border-4 border-ink bg-tile p-5 brutal-shadow sm:grid-cols-[1fr_9rem_7rem]",
                   compact && "grid-cols-2 gap-4 p-4 sm:grid-cols-2",
                 )}
               >
                 <div className="flex items-center justify-between col-span-full mb-1">
-                  <span className="text-sm font-black uppercase text-black bg-secondary border-2 border-black px-2 py-1 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] tracking-widest">Player {index + 1}</span>
+                  <span className="text-sm font-black uppercase text-secondary-foreground bg-secondary border-2 border-ink px-2 py-1 brutal-shadow-sm tracking-widest">Player {index + 1}</span>
                   {!compact && (
-                    <span className="bg-white border-2 border-black px-2.5 py-1 text-xs font-black text-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">Starts at $500</span>
+                    <span className="bg-tile border-2 border-ink px-2.5 py-1 text-xs font-black text-foreground brutal-shadow-sm">Starts at $500</span>
                   )}
                 </div>
                 <FormField
@@ -152,7 +152,7 @@ export function SessionForm({
             ))}
           </div>
           {form.formState.errors.playerBalances?.root?.message && (
-            <p className="text-sm font-black uppercase text-white bg-destructive border-2 border-black p-2 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+            <p className="text-sm font-black uppercase text-destructive-foreground bg-destructive border-2 border-ink p-2 brutal-shadow-sm">
               {form.formState.errors.playerBalances.root.message}
             </p>
           )}
@@ -181,14 +181,14 @@ export function SessionForm({
 
         <div className={cn(
           "flex justify-end gap-4 pt-6 mt-2",
-          compact && "sticky bottom-0 border-t-4 border-black bg-background py-6 px-1",
+          compact && "sticky bottom-0 border-t-4 border-ink bg-background py-6 px-1",
         )}>
           {compact && onCancel && (
             <Button type="button" variant="outline" onClick={onCancel} className="text-sm">
               CANCEL
             </Button>
           )}
-          <Button type="submit" size="lg" disabled={isSubmitting} data-testid="button-submit-session" className="border-2 text-sm shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+          <Button type="submit" size="lg" disabled={isSubmitting} data-testid="button-submit-session" className="border-2 text-sm brutal-shadow">
             {isSubmitting ? "SAVING..." : compact ? "SAVE CHANGES" : "SAVE RECORD"}
           </Button>
         </div>

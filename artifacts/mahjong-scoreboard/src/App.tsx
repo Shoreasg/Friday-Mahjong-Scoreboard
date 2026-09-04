@@ -1,7 +1,8 @@
 import { useEffect, useRef } from "react";
 import { ClerkProvider, Show, useClerk } from "@clerk/react";
 import { publishableKeyFromHost } from "@clerk/react/internal";
-import { shadcn } from "@clerk/themes";
+import { dark as clerkDark, shadcn } from "@clerk/themes";
+import { ThemeProvider, useTheme } from "next-themes";
 import { Switch, Route, Redirect, useLocation, Router as WouterRouter } from "wouter";
 import { QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { queryClient } from "./lib/queryClient";
@@ -31,8 +32,9 @@ if (!clerkPubKey) {
   throw new Error("Missing VITE_CLERK_PUBLISHABLE_KEY in .env file");
 }
 
-const clerkAppearance = {
-  theme: shadcn,
+function getClerkAppearance(isDark: boolean) {
+  return {
+  theme: isDark ? [clerkDark, shadcn] : shadcn,
   cssLayerName: "clerk",
   options: {
     logoPlacement: "inside" as const,
@@ -41,44 +43,45 @@ const clerkAppearance = {
   },
   variables: {
     colorPrimary: "hsl(154, 100%, 45%)",
-    colorForeground: "hsl(0, 0%, 0%)",
-    colorMutedForeground: "hsl(0, 0%, 25%)",
+    colorForeground: isDark ? "hsl(48, 100%, 96%)" : "hsl(0, 0%, 0%)",
+    colorMutedForeground: isDark ? "hsl(220, 12%, 75%)" : "hsl(0, 0%, 25%)",
     colorDanger: "hsl(0, 100%, 60%)",
-    colorBackground: "hsl(0, 0%, 100%)",
-    colorInput: "hsl(0, 0%, 100%)",
-    colorInputForeground: "hsl(0, 0%, 0%)",
-    colorNeutral: "hsl(0, 0%, 0%)",
+    colorBackground: isDark ? "hsl(225, 20%, 16%)" : "hsl(0, 0%, 100%)",
+    colorInput: isDark ? "hsl(225, 20%, 16%)" : "hsl(0, 0%, 100%)",
+    colorInputForeground: isDark ? "hsl(48, 100%, 96%)" : "hsl(0, 0%, 0%)",
+    colorNeutral: isDark ? "hsl(48, 100%, 96%)" : "hsl(0, 0%, 0%)",
     fontFamily: "Bricolage Grotesque, sans-serif",
     borderRadius: "4px",
   },
   elements: {
     rootBox: "w-full flex justify-center",
-    cardBox: "bg-white rounded-md w-[440px] max-w-full overflow-hidden shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] border-2 border-black",
+    cardBox: "bg-card text-card-foreground rounded-md w-[440px] max-w-full overflow-hidden brutal-shadow-lg border-2 border-ink",
     card: "!shadow-none !border-0 !bg-transparent !rounded-none",
     footer: "!shadow-none !border-0 !bg-transparent !rounded-none",
-    headerTitle: "font-sans text-3xl text-black font-black uppercase tracking-tight",
+    headerTitle: "font-sans text-3xl text-foreground font-black uppercase tracking-tight",
     headerSubtitle: "text-muted-foreground font-medium text-lg",
-    socialButtonsBlockButtonText: "font-bold text-black uppercase tracking-wide",
-    formFieldLabel: "font-bold text-black uppercase text-xs tracking-wide",
-    footerActionLink: "text-black font-black border-b-2 border-primary hover:bg-primary/20 uppercase text-sm",
+    socialButtonsBlockButtonText: "font-bold text-foreground uppercase tracking-wide",
+    formFieldLabel: "font-bold text-foreground uppercase text-xs tracking-wide",
+    footerActionLink: "text-foreground font-black border-b-2 border-primary hover:bg-primary/20 uppercase text-sm",
     footerActionText: "text-muted-foreground font-bold",
-    dividerText: "text-black font-black uppercase text-xs tracking-widest",
-    identityPreviewEditButton: "text-black hover:text-primary",
+    dividerText: "text-foreground font-black uppercase text-xs tracking-widest",
+    identityPreviewEditButton: "text-foreground hover:text-primary",
     formFieldSuccessText: "text-primary font-bold",
-    alertText: "text-black font-bold",
+    alertText: "text-destructive-foreground font-bold",
     logoBox: "mb-6 justify-center hidden", // hide the default logo since we use custom ones mostly
     logoImage: "h-16 w-auto",
-    socialButtonsBlockButton: "border-2 border-black hover:-translate-y-[2px] hover:-translate-x-[2px] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-y-0 active:translate-x-0 active:shadow-none transition-all bg-white rounded-md h-12",
-    formButtonPrimary: "bg-primary border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-[2px] hover:-translate-x-[2px] hover:shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none text-black rounded-md h-12 text-base font-black transition-all uppercase tracking-widest",
-    formFieldInput: "flex h-12 w-full rounded-md border-2 border-black bg-white px-4 py-2 text-sm shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all font-bold placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:translate-x-[4px] focus-visible:translate-y-[4px] focus-visible:shadow-none",
-    footerAction: "bg-muted py-6 px-4 -mx-8 -mb-8 mt-8 border-t-2 border-black",
-    dividerLine: "bg-black h-0.5",
-    alert: "border-2 border-black bg-destructive text-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] rounded-md",
-    otpCodeFieldInput: "border-2 border-black rounded-md font-mono text-xl",
+    socialButtonsBlockButton: "border-2 border-ink hover:-translate-y-[2px] hover:-translate-x-[2px] hover:brutal-shadow active:translate-y-0 active:translate-x-0 active:shadow-none transition-all bg-tile text-foreground rounded-md h-12",
+    formButtonPrimary: "bg-primary border-2 border-ink brutal-shadow hover:-translate-y-[2px] hover:-translate-x-[2px] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none text-black rounded-md h-12 text-base font-black transition-all uppercase tracking-widest",
+    formFieldInput: "flex h-12 w-full rounded-md border-2 border-ink bg-tile text-foreground px-4 py-2 text-sm brutal-shadow transition-all font-bold placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:translate-x-[4px] focus-visible:translate-y-[4px] focus-visible:shadow-none",
+    footerAction: "bg-muted py-6 px-4 -mx-8 -mb-8 mt-8 border-t-2 border-ink",
+    dividerLine: "bg-ink h-0.5",
+    alert: "border-2 border-ink bg-destructive text-destructive-foreground brutal-shadow rounded-md",
+    otpCodeFieldInput: "border-2 border-ink rounded-md font-mono text-xl",
     formFieldRow: "gap-5",
     main: "px-8 pt-10",
   },
-};
+  };
+}
 
 function HomeRedirect() {
   return (
@@ -117,12 +120,13 @@ function ClerkQueryClientCacheInvalidator() {
 
 function ClerkProviderWithRoutes() {
   const [, setLocation] = useLocation();
+  const { resolvedTheme } = useTheme();
 
   return (
     <ClerkProvider
       publishableKey={clerkPubKey}
       proxyUrl={clerkProxyUrl}
-      appearance={clerkAppearance}
+      appearance={getClerkAppearance(resolvedTheme === "dark")}
       signInUrl={`${basePath}/sign-in`}
       signUpUrl={`${basePath}/sign-up`}
       localization={{
@@ -151,13 +155,13 @@ function ClerkProviderWithRoutes() {
           <Route path="/sign-up/*?" component={SignUpPage} />
           <Route>
             <div className="min-h-screen flex items-center justify-center flex-col text-center px-4 relative overflow-hidden bg-background">
-              <div className="absolute top-1/4 left-1/4 w-24 h-24 bg-destructive border-4 border-black rotate-45 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] -z-10" />
-              <div className="absolute bottom-1/4 right-1/3 w-32 h-32 bg-secondary border-4 border-black rounded-full shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] -z-10 animate-pulse" style={{ animationDuration: '4s' }} />
+              <div className="absolute top-1/4 left-1/4 w-24 h-24 bg-destructive border-4 border-ink rotate-45 brutal-shadow-lg -z-10" />
+              <div className="absolute bottom-1/4 right-1/3 w-32 h-32 bg-secondary border-4 border-ink rounded-full brutal-shadow-lg -z-10 animate-pulse" style={{ animationDuration: '4s' }} />
 
-              <h1 className="text-8xl sm:text-9xl font-sans font-black text-black mb-4 drop-shadow-[6px_6px_0px_#00E599]">404</h1>
-              <p className="text-xl sm:text-2xl font-bold text-black mb-10 bg-white border-4 border-black p-4 sm:px-8 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] -rotate-1">This tile cannot be found.</p>
+              <h1 className="text-8xl sm:text-9xl font-sans font-black text-foreground mb-4 [text-shadow:6px_6px_0_hsl(var(--primary))]">404</h1>
+              <p className="text-xl sm:text-2xl font-bold text-foreground mb-10 bg-tile border-4 border-ink p-4 sm:px-8 brutal-shadow-lg -rotate-1">This tile cannot be found.</p>
 
-              <Button onClick={() => setLocation("/")} className="text-lg h-16 px-10 border-4 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
+              <Button onClick={() => setLocation("/")} className="text-lg h-16 px-10 border-4 shadow-[6px_6px_0_hsl(var(--brutal-shadow))]">
                 RETURN TO TABLE
               </Button>
             </div>
@@ -170,9 +174,11 @@ function ClerkProviderWithRoutes() {
 
 export default function App() {
   return (
-    <WouterRouter base={basePath}>
-      <ClerkProviderWithRoutes />
-      <Toaster />
-    </WouterRouter>
+    <ThemeProvider attribute="class" defaultTheme="system" enableSystem storageKey="mahjong-theme">
+      <WouterRouter base={basePath}>
+        <ClerkProviderWithRoutes />
+        <Toaster />
+      </WouterRouter>
+    </ThemeProvider>
   );
 }

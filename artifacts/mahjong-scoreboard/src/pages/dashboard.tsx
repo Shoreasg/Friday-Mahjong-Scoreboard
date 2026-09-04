@@ -12,6 +12,7 @@ import { useClerk, useUser } from "@clerk/react";
 import { toast } from "sonner";
 import type { MahjongSession } from "@workspace/api-client-react";
 import { Link } from "wouter";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 function formatSignedCurrency(amount: number) {
   const sign = amount > 0 ? "+" : amount < 0 ? "-" : "";
@@ -82,10 +83,10 @@ export default function Dashboard() {
     return (
       <div className="min-h-screen flex items-center justify-center p-4 bg-background">
         <div className="flex flex-col items-center space-y-6">
-          <div className="w-16 h-24 bg-white border-4 border-black rounded-md shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] animate-bounce flex items-center justify-center">
-             <div className="w-8 h-8 rounded-full bg-destructive border-2 border-black" />
+          <div className="w-16 h-24 bg-tile border-4 border-ink rounded-md brutal-shadow-lg animate-bounce flex items-center justify-center">
+             <div className="w-8 h-8 rounded-full bg-destructive border-2 border-ink" />
           </div>
-          <div className="text-black font-sans font-black text-2xl uppercase tracking-widest bg-white border-4 border-black px-6 py-2 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">Shuffling tiles...</div>
+          <div className="text-foreground font-sans font-black text-2xl uppercase tracking-widest bg-tile border-4 border-ink px-6 py-2 brutal-shadow">Shuffling tiles...</div>
         </div>
       </div>
     );
@@ -103,29 +104,32 @@ export default function Dashboard() {
   return (
     <div className="min-h-[100dvh] bg-background pb-24">
       {/* Header */}
-      <header className="sticky top-0 z-10 bg-white border-b-4 border-black px-4 py-4 sm:px-8 shadow-sm">
+      <header className="sticky top-0 z-10 bg-tile border-b-4 border-ink px-4 py-4 sm:px-8">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Link href="/">
-              <div className="w-10 h-12 bg-white border-2 border-black rounded-sm shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] relative flex items-center justify-center transform -rotate-6 hover:rotate-0 hover:-translate-y-1 transition-all cursor-pointer">
+              <div className="w-10 h-12 bg-tile border-2 border-ink rounded-sm brutal-shadow relative flex items-center justify-center transform -rotate-6 hover:rotate-0 hover:-translate-y-1 transition-all cursor-pointer">
                 <span className="text-destructive font-sans text-xl font-black leading-none mt-1">中</span>
               </div>
             </Link>
-            <h1 className="font-sans text-2xl sm:text-3xl text-black font-black uppercase tracking-tight hidden sm:block">Friday Mahjong</h1>
+            <h1 className="font-sans text-2xl sm:text-3xl text-foreground font-black uppercase tracking-tight hidden sm:block">Friday Mahjong</h1>
           </div>
-          {isSignedIn ? (
-            <Button variant="outline" size="sm" onClick={() => signOut({ redirectUrl: `${basePath}/app` || "/app" })} data-testid="button-sign-out" className="border-2 font-black uppercase tracking-widest text-xs">
-              <LogOut className="w-4 h-4 mr-2" strokeWidth={3} />
-              <span className="hidden sm:inline">{isAdmin ? "Admin Out" : "Sign Out"}</span>
-            </Button>
-          ) : (
-            <Button asChild variant="outline" size="sm" className="border-2 font-black uppercase tracking-widest text-xs">
-              <Link href="/sign-in">
-                <LogIn className="w-4 h-4 mr-2" strokeWidth={3} />
-                <span className="hidden sm:inline">Admin In</span>
-              </Link>
-            </Button>
-          )}
+          <div className="flex items-center gap-3">
+            <ThemeToggle />
+            {isSignedIn ? (
+              <Button variant="outline" size="sm" onClick={() => signOut({ redirectUrl: `${basePath}/app` || "/app" })} data-testid="button-sign-out" className="border-2 font-black uppercase tracking-widest text-xs">
+                <LogOut className="w-4 h-4 mr-2" strokeWidth={3} />
+                <span className="hidden sm:inline">{isAdmin ? "Admin Out" : "Sign Out"}</span>
+              </Button>
+            ) : (
+              <Button asChild variant="outline" size="sm" className="border-2 font-black uppercase tracking-widest text-xs">
+                <Link href="/sign-in">
+                  <LogIn className="w-4 h-4 mr-2" strokeWidth={3} />
+                  <span className="hidden sm:inline">Admin In</span>
+                </Link>
+              </Button>
+            )}
+          </div>
         </div>
       </header>
 
@@ -146,27 +150,27 @@ export default function Dashboard() {
               <div className="text-sm text-black mt-2 uppercase tracking-widest font-black">Rounds</div>
             </CardContent>
           </Card>
-          <Card className="col-span-2 md:col-span-2 bg-white">
+          <Card className="col-span-2 md:col-span-2 bg-card">
             <CardContent className="p-6">
               <div className="mb-4 flex items-center justify-center gap-2">
-                <Coins className="w-6 h-6 text-black" strokeWidth={3} />
-                <div className="text-sm text-black uppercase tracking-widest font-black">Cumulative Winnings</div>
+                <Coins className="w-6 h-6 text-foreground" strokeWidth={3} />
+                <div className="text-sm text-foreground uppercase tracking-widest font-black">Cumulative Winnings</div>
               </div>
               {summary?.playerWinnings.length ? (
                 <div className="grid grid-cols-2 gap-x-6 gap-y-3">
                   {summary.playerWinnings.map((player) => (
                     <div
                       key={player.playerName.toLocaleLowerCase()}
-                      className="flex min-w-0 items-center justify-between gap-2 border-2 border-black bg-muted px-3 py-2 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
+                      className="flex min-w-0 items-center justify-between gap-2 border-2 border-ink bg-muted px-3 py-2 brutal-shadow-sm"
                     >
-                      <span className="truncate font-black text-black uppercase">{player.playerName}</span>
+                      <span className="truncate font-black text-foreground uppercase">{player.playerName}</span>
                       <span
                         className={`shrink-0 font-mono font-bold text-lg ${
                           player.netAmount > 0
-                            ? "text-primary border-b-2 border-primary drop-shadow-[1px_1px_0px_rgba(0,0,0,1)]"
+                                ? "text-primary border-b-2 border-primary"
                             : player.netAmount < 0
                               ? "text-destructive border-b-2 border-destructive"
-                              : "text-black"
+                              : "text-foreground"
                         }`}
                         data-testid={`text-player-winnings-${player.playerName.toLocaleLowerCase()}`}
                       >
@@ -188,31 +192,31 @@ export default function Dashboard() {
           {/* Leaderboard */}
           <section className="lg:col-span-1 space-y-8">
             <div>
-              <h2 className="font-sans font-black text-2xl text-black flex items-center gap-2 uppercase mb-4">
-                <Trophy className="w-6 h-6 text-black" strokeWidth={3} />
+              <h2 className="font-sans font-black text-2xl text-foreground flex items-center gap-2 uppercase mb-4">
+                <Trophy className="w-6 h-6 text-foreground" strokeWidth={3} />
                 Leaderboard
               </h2>
-              <Card className="bg-white overflow-hidden">
+              <Card className="bg-card overflow-hidden">
                 <CardContent className="p-0">
                   {sortedWinners.length === 0 ? (
                     <div className="p-8 text-center font-bold text-muted-foreground uppercase tracking-wide">
                       NO GAMES RECORDED.
                     </div>
                   ) : (
-                    <ul className="divide-y-2 divide-black">
+                    <ul className="divide-y-2 divide-ink">
                       {sortedWinners.map((winner, index) => (
                         <li key={winner.winnerName} className="flex items-center justify-between p-4" data-testid={`row-winner-${index}`}>
                           <div className="flex items-center gap-4">
-                            <div className={`w-10 h-10 border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] flex items-center justify-center font-mono text-lg font-bold ${
+                            <div className={`w-10 h-10 border-2 border-ink brutal-shadow-sm flex items-center justify-center font-mono text-lg font-bold ${
                               index === 0 ? 'bg-secondary text-black' :
-                              index === 1 ? 'bg-muted text-black' :
-                              'bg-white text-black'
+                              index === 1 ? 'bg-muted text-foreground' :
+                              'bg-tile text-foreground'
                             }`}>
                               {index + 1}
                             </div>
-                            <span className="font-black text-lg text-black uppercase">{winner.winnerName}</span>
+                            <span className="font-black text-lg text-foreground uppercase">{winner.winnerName}</span>
                           </div>
-                          <div className="text-sm font-black px-3 py-1 bg-primary text-black border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] tracking-widest">
+                          <div className="text-sm font-black px-3 py-1 bg-primary text-primary-foreground border-2 border-ink brutal-shadow-sm tracking-widest">
                             {winner.wins} {winner.wins === 1 ? 'WIN' : 'WINS'}
                           </div>
                         </li>
@@ -224,31 +228,31 @@ export default function Dashboard() {
             </div>
 
             <div>
-              <h2 className="font-sans font-black text-2xl text-black flex items-center gap-2 uppercase mb-4">
+              <h2 className="font-sans font-black text-2xl text-foreground flex items-center gap-2 uppercase mb-4">
                 <Flame className="w-6 h-6 text-destructive" strokeWidth={3} />
                 Zha Hu Board
               </h2>
-              <Card className="bg-white overflow-hidden">
+              <Card className="bg-card overflow-hidden">
                 <CardContent className="p-0">
                   {sortedZhaHu.length === 0 ? (
                     <div className="p-8 text-center font-bold text-muted-foreground uppercase tracking-wide">
                       NO ZHA HU RECORDED.
                     </div>
                   ) : (
-                    <ul className="divide-y-2 divide-black">
+                    <ul className="divide-y-2 divide-ink">
                       {sortedZhaHu.map((player, index) => (
                         <li key={player.playerName.toLocaleLowerCase()} className="flex items-center justify-between p-4" data-testid={`row-zha-hu-${index}`}>
                           <div className="flex items-center gap-4">
-                            <div className={`w-10 h-10 border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] flex items-center justify-center font-mono text-lg font-bold ${
-                              index === 0 ? "bg-destructive text-white" :
+                            <div className={`w-10 h-10 border-2 border-ink brutal-shadow-sm flex items-center justify-center font-mono text-lg font-bold ${
+                              index === 0 ? "bg-destructive text-destructive-foreground" :
                               index === 1 ? "bg-secondary text-black" :
-                              "bg-white text-black"
+                              "bg-tile text-foreground"
                             }`}>
                               {index + 1}
                             </div>
-                            <span className="font-black text-lg text-black uppercase">{player.playerName}</span>
+                            <span className="font-black text-lg text-foreground uppercase">{player.playerName}</span>
                           </div>
-                          <div className="text-sm font-black px-3 py-1 bg-muted border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] text-black tracking-widest">
+                          <div className="text-sm font-black px-3 py-1 bg-muted border-2 border-ink brutal-shadow-sm text-foreground tracking-widest">
                             {player.count} {player.count === 1 ? "TIME" : "TIMES"}
                           </div>
                         </li>
@@ -262,38 +266,38 @@ export default function Dashboard() {
 
           {/* History */}
           <section className="lg:col-span-2 space-y-4">
-            <h2 className="font-sans font-black text-2xl text-black flex items-center gap-2 uppercase mb-4">
-              <Activity className="w-6 h-6 text-black" strokeWidth={3} />
+            <h2 className="font-sans font-black text-2xl text-foreground flex items-center gap-2 uppercase mb-4">
+              <Activity className="w-6 h-6 text-foreground" strokeWidth={3} />
               Session History
             </h2>
             
             <div className="space-y-6">
               {sessions?.length === 0 ? (
-                <Card className="bg-white border-dashed border-4">
-                  <CardContent className="p-16 text-center text-black flex flex-col items-center">
-                    <div className="w-20 h-28 bg-muted border-4 border-black mx-auto rounded-md mb-6 flex items-center justify-center shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] -rotate-3">
-                      <span className="text-4xl font-sans font-black text-black">發</span>
+                <Card className="bg-card border-dashed border-4">
+                  <CardContent className="p-16 text-center text-foreground flex flex-col items-center">
+                    <div className="w-20 h-28 bg-muted border-4 border-ink mx-auto rounded-md mb-6 flex items-center justify-center brutal-shadow-lg -rotate-3">
+                      <span className="text-4xl font-sans font-black text-foreground">發</span>
                     </div>
                     <p className="mb-8 font-bold text-xl uppercase">The felt is empty. Time to play!</p>
-                    <Button onClick={() => setCreateOpen(true)} data-testid="button-first-session" size="lg" className="border-4 text-lg px-8 py-6 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
+                    <Button onClick={() => setCreateOpen(true)} data-testid="button-first-session" size="lg" className="border-4 text-lg px-8 py-6 shadow-[6px_6px_0_hsl(var(--brutal-shadow))]">
                       RECORD FIRST SESSION
                     </Button>
                   </CardContent>
                 </Card>
               ) : (
                 sessions?.map((session) => (
-                  <Card key={session.id} className="bg-white hover:-translate-y-[4px] hover:-translate-x-[4px] hover:shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] transition-all" data-testid={`card-session-${session.id}`}>
+                  <Card key={session.id} className="bg-card hover:-translate-y-[4px] hover:-translate-x-[4px] hover:shadow-[12px_12px_0_hsl(var(--brutal-shadow))] transition-all" data-testid={`card-session-${session.id}`}>
                     <CardContent className="p-6">
                       <div className="flex items-start justify-between gap-4">
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-3">
-                            <span className="text-sm font-black text-black bg-secondary border-2 border-black px-2.5 py-1 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] tracking-wide">
+                            <span className="text-sm font-black text-secondary-foreground bg-secondary border-2 border-ink px-2.5 py-1 brutal-shadow-sm tracking-wide">
                               {format(parseISO(session.playedOn), "MMM d, yyyy").toUpperCase()}
                             </span>
-                            <span className="text-sm font-bold text-black border-2 border-black px-2 py-1 tracking-wide bg-muted">{session.rounds} ROUNDS</span>
+                            <span className="text-sm font-bold text-foreground border-2 border-ink px-2 py-1 tracking-wide bg-muted">{session.rounds} ROUNDS</span>
                           </div>
                           <div className="mt-5 text-xl font-sans font-black uppercase tracking-wide">
-                            Winner: <span className="text-primary ml-2 bg-primary/20 px-2 py-1 border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] text-black">{session.winnerName}</span>
+                            Winner: <span className="ml-2 bg-primary px-2 py-1 border-2 border-ink brutal-shadow-sm text-primary-foreground">{session.winnerName}</span>
                           </div>
                         </div>
                         {isAdmin && (
@@ -331,16 +335,16 @@ export default function Dashboard() {
                           {session.playerBalances.map((player) => (
                             <div
                               key={player.name}
-                              className={`flex min-w-0 items-center justify-between gap-2 border-2 border-black px-3 py-2 sm:px-4 sm:py-3 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] ${
+                              className={`flex min-w-0 items-center justify-between gap-2 border-2 border-ink px-3 py-2 sm:px-4 sm:py-3 shadow-[3px_3px_0_hsl(var(--brutal-shadow))] ${
                                 player.name === session.winnerName
                                   ? "bg-primary text-black"
-                                  : "bg-white text-black"
+                                  : "bg-tile text-foreground"
                               }`}
                             >
                               <span className="truncate font-black uppercase text-sm sm:text-base tracking-wide">{player.name}</span>
                               <span className="flex shrink-0 items-center gap-3">
                                 {player.zhaHuCount > 0 && (
-                                  <span className="bg-destructive text-white border-2 border-black px-1.5 py-0.5 font-black text-xs shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+                                  <span className="bg-destructive text-destructive-foreground border-2 border-ink px-1.5 py-0.5 font-black text-xs brutal-shadow-sm">
                                     ZH {player.zhaHuCount}
                                   </span>
                                 )}
@@ -354,15 +358,15 @@ export default function Dashboard() {
                       )}
 
                       {session.notes && (
-                        <Collapsible className="mt-6 border-2 border-black bg-muted/30">
+                        <Collapsible className="mt-6 border-2 border-ink bg-muted/30">
                           <CollapsibleTrigger asChild>
-                            <Button variant="ghost" className="w-full flex justify-between h-10 px-4 text-sm font-bold text-black uppercase tracking-widest hover:bg-muted/50 rounded-none">
+                            <Button variant="ghost" className="w-full flex justify-between h-10 px-4 text-sm font-bold text-foreground uppercase tracking-widest hover:bg-muted/50 rounded-none">
                               Memorable Moments
                               <ChevronDown className="h-5 w-5 transition-transform group-data-[state=open]:rotate-180" strokeWidth={3} />
                             </Button>
                           </CollapsibleTrigger>
-                          <CollapsibleContent className="border-t-2 border-black bg-white p-4">
-                            <p className="text-base font-bold text-black italic">
+                          <CollapsibleContent className="border-t-2 border-ink bg-tile p-4">
+                            <p className="text-base font-bold text-foreground italic">
                               "{session.notes}"
                             </p>
                           </CollapsibleContent>
@@ -381,7 +385,7 @@ export default function Dashboard() {
       {isAdmin && (
         <Button 
           size="icon" 
-          className="fixed bottom-6 right-6 sm:bottom-10 sm:right-10 w-16 h-16 rounded-full shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-[4px] hover:-translate-x-[2px] hover:shadow-[10px_10px_0px_0px_rgba(0,0,0,1)] active:translate-y-[2px] active:translate-x-[2px] active:shadow-none transition-all z-40 bg-secondary text-black border-4 border-black"
+          className="fixed bottom-6 right-6 sm:bottom-10 sm:right-10 w-16 h-16 rounded-full shadow-[6px_6px_0_hsl(var(--brutal-shadow))] hover:-translate-y-[4px] hover:-translate-x-[2px] hover:shadow-[10px_10px_0_hsl(var(--brutal-shadow))] active:translate-y-[2px] active:translate-x-[2px] active:shadow-none transition-all z-40 bg-secondary text-secondary-foreground border-4 border-ink"
           onClick={() => setCreateOpen(true)}
           data-testid="button-fab-create"
         >
@@ -391,7 +395,7 @@ export default function Dashboard() {
 
       {/* Create Sheet */}
       <Sheet open={createOpen} onOpenChange={setCreateOpen}>
-        <SheetContent className="flex h-dvh w-full max-w-none flex-col overflow-hidden border-l-0 p-0 sm:w-[46rem] sm:max-w-[46rem] sm:border-l-4 sm:border-black">
+        <SheetContent className="flex h-dvh w-full max-w-none flex-col overflow-hidden border-l-0 p-0 sm:w-[46rem] sm:max-w-[46rem] sm:border-l-4 sm:border-ink">
           <SheetHeader className="shrink-0 px-6 py-6 pr-14 sm:px-8">
             <SheetTitle>Record Session</SheetTitle>
             <SheetDescription>
@@ -411,7 +415,7 @@ export default function Dashboard() {
 
       {/* Edit Sheet */}
       <Sheet open={!!editSession} onOpenChange={(open) => !open && setEditSession(null)}>
-        <SheetContent className="flex h-dvh w-full max-w-none flex-col overflow-hidden border-l-0 p-0 sm:w-[46rem] sm:max-w-[46rem] sm:border-l-4 sm:border-black">
+        <SheetContent className="flex h-dvh w-full max-w-none flex-col overflow-hidden border-l-0 p-0 sm:w-[46rem] sm:max-w-[46rem] sm:border-l-4 sm:border-ink">
           <SheetHeader className="shrink-0 px-6 py-6 pr-14 sm:px-8">
             <SheetTitle>Edit Session</SheetTitle>
             <SheetDescription>

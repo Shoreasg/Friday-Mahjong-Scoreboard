@@ -33,7 +33,8 @@ A shared scoreboard for friends to record weekly Friday Mahjong sessions, settle
 - Clerk owns the admin Google sign-in; browser API requests use Clerk's same-origin session cookie.
 - The scoreboard and session history are public. Create, update, and delete requests require an email in the comma-separated `ADMIN_EMAILS` / `VITE_ADMIN_EMAILS` lists on both the API and client.
 - Calendar game dates are stored as date-only values to avoid timezone shifts.
-- The web app uses a Mahjong-inspired neo-brutalist visual system built from local Tailwind component styles: bold black borders, offset shadows, saturated accents, and accessible reduced-motion behavior.
+- The web app uses a Mahjong-inspired neo-brutalist visual system built from local Tailwind component styles: bold borders, offset shadows, saturated accents, and accessible reduced-motion behavior.
+- Light and dark appearance follows the device by default, can be toggled from public screens, and persists locally across visits.
 
 ## Product
 

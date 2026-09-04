@@ -11,6 +11,9 @@
   --color-border: hsl(var(--border));
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));
+  --color-ink: hsl(var(--ink));
+  --color-tile: hsl(var(--tile));
+  --color-brutal-shadow: hsl(var(--brutal-shadow));
 
   --color-card: hsl(var(--card));
   --color-card-foreground: hsl(var(--card-foreground));
@@ -81,6 +84,9 @@
   --border: 0 0% 0%;
   --input: 0 0% 0%;
   --ring: 0 0% 0%;
+  --ink: 0 0% 0%;
+  --tile: 0 0% 100%;
+  --brutal-shadow: 0 0% 0%;
 
   --app-font-sans: 'Bricolage Grotesque', sans-serif;
   --app-font-serif: 'Bricolage Grotesque', sans-serif;
@@ -90,28 +96,31 @@
 }
 
 .dark {
-  /* Enforce light mode mapping to prevent flashing */
-  --background: 48 100% 96%;
-  --foreground: 0 0% 0%;
-  --primary: 154 100% 45%;
+  --background: 225 24% 10%;
+  --foreground: 48 100% 96%;
+  --primary: 154 100% 55%;
   --primary-foreground: 0 0% 0%;
-  --card: 0 0% 100%;
-  --card-foreground: 0 0% 0%;
-  --card-border: 0 0% 0%;
-  --popover: 0 0% 100%;
-  --popover-foreground: 0 0% 0%;
-  --popover-border: 0 0% 0%;
+  --card: 225 20% 16%;
+  --card-foreground: 48 100% 96%;
+  --card-border: 154 100% 55%;
+  --popover: 225 20% 16%;
+  --popover-foreground: 48 100% 96%;
+  --popover-border: 154 100% 55%;
   --secondary: 48 100% 50%;
   --secondary-foreground: 0 0% 0%;
-  --muted: 0 0% 92%;
-  --muted-foreground: 0 0% 30%;
-  --accent: 210 100% 60%;
+  --muted: 225 16% 23%;
+  --muted-foreground: 220 12% 75%;
+  --accent: 210 100% 66%;
   --accent-foreground: 0 0% 0%;
-  --destructive: 0 100% 60%;
-  --destructive-foreground: 0 0% 100%;
-  --border: 0 0% 0%;
-  --input: 0 0% 0%;
-  --ring: 0 0% 0%;
+  --destructive: 0 100% 67%;
+  --destructive-foreground: 0 0% 0%;
+  --border: 154 100% 55%;
+  --input: 154 100% 55%;
+  --ring: 48 100% 50%;
+  --ink: 48 100% 96%;
+  --tile: 225 20% 16%;
+  --brutal-shadow: 154 100% 55%;
+  color-scheme: dark;
 }
 
 @layer base {
@@ -120,12 +129,27 @@
   }
   body {
     @apply font-sans antialiased bg-background text-foreground;
-    background-image: radial-gradient(rgba(0, 0, 0, 0.15) 2px, transparent 2px);
+    background-image: radial-gradient(hsl(var(--ink) / 0.15) 2px, transparent 2px);
     background-size: 32px 32px;
     background-position: -16px -16px;
   }
   h1, h2, h3, h4, h5, h6 {
     @apply font-sans font-black tracking-tight uppercase;
+  }
+}
+
+@layer utilities {
+  .brutal-shadow-sm {
+    box-shadow: 2px 2px 0 hsl(var(--brutal-shadow));
+  }
+  .brutal-shadow {
+    box-shadow: 4px 4px 0 hsl(var(--brutal-shadow));
+  }
+  .brutal-shadow-lg {
+    box-shadow: 8px 8px 0 hsl(var(--brutal-shadow));
+  }
+  .brutal-shadow-xl {
+    box-shadow: 12px 12px 0 hsl(var(--brutal-shadow));
   }
 }
 
