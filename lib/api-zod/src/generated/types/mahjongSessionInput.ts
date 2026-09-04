@@ -14,7 +14,10 @@ export interface MahjongSessionInput {
      * @maximum 99
      */
   rounds: number;
-  /** @minItems 1 */
+  /**
+     * @minItems 4
+     * @maxItems 4
+     */
   playerBalances: PlayerBalance[];
   /**
      * @maxLength 500

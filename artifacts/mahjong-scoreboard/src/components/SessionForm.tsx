@@ -1,4 +1,4 @@
-import { useFieldArray, useForm } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { format } from "date-fns";
@@ -7,7 +7,6 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { type MahjongSessionInput } from "@workspace/api-client-react";
-import { Plus, Trash2 } from "lucide-react";
 
 const sessionSchema = z.object({
   playedOn: z.string().min(1, "Date is required"),
@@ -15,7 +14,7 @@ const sessionSchema = z.object({
   playerBalances: z.array(z.object({
     name: z.string().trim().min(1, "Player name is required").max(80),
     endingAmount: z.coerce.number().min(0, "Amount cannot be negative"),
-  })).min(1, "Add at least one player"),
+  })).length(4, "Enter all four players"),
   notes: z.string().max(500).nullable().optional(),
 });
 
@@ -31,15 +30,11 @@ export function SessionForm({ defaultValues, onSubmit, isSubmitting }: SessionFo
     defaultValues: {
       playedOn: defaultValues?.playedOn || format(new Date(), "yyyy-MM-dd"),
       rounds: defaultValues?.rounds || 4,
-      playerBalances: defaultValues?.playerBalances?.length
-        ? defaultValues.playerBalances
-        : [{ name: defaultValues?.winnerName || "", endingAmount: 500 }],
+      playerBalances: Array.from({ length: 4 }, (_, index) =>
+        defaultValues?.playerBalances?.[index] || { name: "", endingAmount: 500 },
+      ),
       notes: defaultValues?.notes || "",
     },
-  });
-  const { fields, append, remove } = useFieldArray({
-    control: form.control,
-    name: "playerBalances",
   });
 
   return (
@@ -78,24 +73,14 @@ export function SessionForm({ defaultValues, onSubmit, isSubmitting }: SessionFo
           <div className="flex items-center justify-between gap-4">
             <div>
               <h3 className="font-semibold text-foreground">Player balances</h3>
-              <p className="text-sm text-muted-foreground">Everyone starts with $500. The highest ending balance wins.</p>
+              <p className="text-sm text-muted-foreground">All four players start with $500. The highest ending balance wins.</p>
             </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => append({ name: "", endingAmount: 500 })}
-              data-testid="button-add-player"
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              Add player
-            </Button>
           </div>
 
           <div className="space-y-3">
-            {fields.map((player, index) => (
-              <div key={player.id} className="grid grid-cols-1 items-end gap-3 rounded-xl border border-border bg-muted/30 p-3 sm:grid-cols-[1fr_9rem_auto]">
-                <div className="flex items-center justify-between sm:col-span-3">
+            {Array.from({ length: 4 }, (_, index) => (
+              <div key={`player-slot-${index}`} className="grid grid-cols-1 items-end gap-3 rounded-xl border border-border bg-muted/30 p-3 sm:grid-cols-[1fr_9rem]">
+                <div className="flex items-center justify-between sm:col-span-2">
                   <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Player {index + 1}</span>
                   <span className="rounded-full bg-background px-2.5 py-1 text-xs font-medium text-primary ring-1 ring-border">Starts at $500</span>
                 </div>
@@ -125,17 +110,6 @@ export function SessionForm({ defaultValues, onSubmit, isSubmitting }: SessionFo
                     </FormItem>
                   )}
                 />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  disabled={fields.length === 1}
-                  onClick={() => remove(index)}
-                  aria-label={`Remove player ${index + 1}`}
-                  data-testid={`button-remove-player-${index}`}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
               </div>
             ))}
           </div>

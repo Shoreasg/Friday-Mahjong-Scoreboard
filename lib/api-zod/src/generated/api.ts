@@ -55,6 +55,8 @@ export const createSessionBodyPlayerBalancesItemNameMax = 80;
 
 export const createSessionBodyPlayerBalancesItemEndingAmountMin = 0;
 
+export const createSessionBodyPlayerBalancesMin = 4;
+export const createSessionBodyPlayerBalancesMax = 4;
 
 export const createSessionBodyNotesMax = 500;
 
@@ -66,7 +68,7 @@ export const CreateSessionBody = zod.object({
   "playerBalances": zod.array(zod.object({
   "name": zod.string().min(1).max(createSessionBodyPlayerBalancesItemNameMax),
   "endingAmount": zod.number().min(createSessionBodyPlayerBalancesItemEndingAmountMin)
-})).min(1),
+})).min(createSessionBodyPlayerBalancesMin).max(createSessionBodyPlayerBalancesMax),
   "notes": zod.string().max(createSessionBodyNotesMax).nullish()
 })
 
@@ -178,6 +180,8 @@ export const updateSessionBodyPlayerBalancesItemNameMax = 80;
 
 export const updateSessionBodyPlayerBalancesItemEndingAmountMin = 0;
 
+export const updateSessionBodyPlayerBalancesMin = 4;
+export const updateSessionBodyPlayerBalancesMax = 4;
 
 export const updateSessionBodyNotesMax = 500;
 
@@ -189,7 +193,7 @@ export const UpdateSessionBody = zod.object({
   "playerBalances": zod.array(zod.object({
   "name": zod.string().min(1).max(updateSessionBodyPlayerBalancesItemNameMax),
   "endingAmount": zod.number().min(updateSessionBodyPlayerBalancesItemEndingAmountMin)
-})).min(1).optional(),
+})).min(updateSessionBodyPlayerBalancesMin).max(updateSessionBodyPlayerBalancesMax).optional(),
   "notes": zod.string().max(updateSessionBodyNotesMax).nullish()
 })
 

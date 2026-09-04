@@ -207,7 +207,8 @@ components:
           maximum: 99
         playerBalances:
           type: array
-          minItems: 1
+          minItems: 4
+          maxItems: 4
           items:
             $ref: "#/components/schemas/PlayerBalance"
         notes:
@@ -230,7 +231,8 @@ components:
           maximum: 99
         playerBalances:
           type: array
-          minItems: 1
+          minItems: 4
+          maxItems: 4
           items:
             $ref: "#/components/schemas/PlayerBalance"
         notes:

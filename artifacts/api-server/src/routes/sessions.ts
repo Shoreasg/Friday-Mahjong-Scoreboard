@@ -28,6 +28,10 @@ type SubmittedBalance = {
 };
 
 function sessionResult(playerBalances: SubmittedBalance[]) {
+  if (playerBalances.length !== 4) {
+    return null;
+  }
+
   const balances = playerBalances.map((balance) => ({
     name: balance.name.trim(),
     endingAmount: balance.endingAmount,
@@ -104,7 +108,7 @@ router.post("/sessions", async (req, res): Promise<void> => {
 
   const result = sessionResult(parsed.data.playerBalances);
   if (!result) {
-    res.status(400).json({ error: "Player names are required and must be unique" });
+    res.status(400).json({ error: "Exactly four player names are required and must be unique" });
     return;
   }
 
@@ -205,7 +209,7 @@ router.patch("/sessions/:id", async (req, res): Promise<void> => {
   if (body.data.playerBalances !== undefined) {
     const result = sessionResult(body.data.playerBalances);
     if (!result) {
-      res.status(400).json({ error: "Player names are required and must be unique" });
+      res.status(400).json({ error: "Exactly four player names are required and must be unique" });
       return;
     }
     update.totalAmount = result.totalAmount;
