@@ -193,6 +193,25 @@ export default function Dashboard() {
                           <div className="text-lg font-serif">
                             Winner: <span className="text-primary font-semibold">{session.winnerName}</span>
                           </div>
+                          {session.playerBalances.length > 0 ? (
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              {session.playerBalances.map((player) => (
+                                <div
+                                  key={player.name}
+                                  className={`rounded-lg border px-3 py-2 text-sm ${
+                                    player.name === session.winnerName
+                                      ? "border-primary/30 bg-primary/10"
+                                      : "border-border bg-muted/40"
+                                  }`}
+                                >
+                                  <span className="font-medium text-foreground">{player.name}</span>
+                                  <span className="ml-2 text-muted-foreground">${player.endingAmount.toFixed(2)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="mt-2 text-sm text-muted-foreground">Player balances were not recorded for this session.</p>
+                          )}
                           {session.notes && (
                             <p className="mt-2 text-sm text-muted-foreground italic border-l-2 border-primary/20 pl-3 py-0.5">
                               "{session.notes}"

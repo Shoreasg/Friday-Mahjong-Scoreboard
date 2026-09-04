@@ -2,6 +2,7 @@ import {
   date,
   doublePrecision,
   integer,
+  jsonb,
   pgTable,
   serial,
   text,
@@ -10,12 +11,21 @@ import {
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
+export type PlayerBalance = {
+  name: string;
+  endingAmount: number;
+};
+
 export const mahjongSessionsTable = pgTable("mahjong_sessions", {
   id: serial("id").primaryKey(),
   playedOn: date("played_on", { mode: "string" }).notNull(),
   rounds: integer("rounds").notNull(),
   totalAmount: doublePrecision("total_amount").notNull(),
   winnerName: text("winner_name").notNull(),
+  playerBalances: jsonb("player_balances")
+    .$type<PlayerBalance[]>()
+    .notNull()
+    .default([]),
   notes: text("notes"),
   createdByUserId: text("created_by_user_id"),
   createdAt: timestamp("created_at", { withTimezone: true })

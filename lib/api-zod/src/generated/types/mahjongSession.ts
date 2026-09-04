@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { PlayerBalance } from './playerBalance';
 
 export interface MahjongSession {
   id: number;
@@ -13,6 +14,7 @@ export interface MahjongSession {
   rounds: number;
   totalAmount: number;
   winnerName: string;
+  playerBalances: PlayerBalance[];
   /** @nullable */
   notes: string | null;
   /** @nullable */

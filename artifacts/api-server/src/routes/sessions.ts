@@ -22,6 +22,43 @@ import {
 
 const router: IRouter = Router();
 
+type SubmittedBalance = {
+  name: string;
+  endingAmount: number;
+};
+
+function sessionResult(playerBalances: SubmittedBalance[]) {
+  const balances = playerBalances.map((balance) => ({
+    name: balance.name.trim(),
+    endingAmount: balance.endingAmount,
+  }));
+  const seenNames = new Set<string>();
+  for (const balance of balances) {
+    if (!balance.name) {
+      return null;
+    }
+    const normalizedName = balance.name.toLocaleLowerCase();
+    if (seenNames.has(normalizedName)) {
+      return null;
+    }
+    seenNames.add(normalizedName);
+  }
+
+  const [winner] = [...balances].sort(
+    (a, b) =>
+      b.endingAmount - a.endingAmount || a.name.localeCompare(b.name),
+  );
+
+  return {
+    playerBalances: balances,
+    winnerName: winner.name,
+    totalAmount: balances.reduce(
+      (total, balance) => total + balance.endingAmount,
+      0,
+    ),
+  };
+}
+
 function userIdFor(req: Request): string | null {
   const auth = getAuth(req);
   const claimUserId = auth?.sessionClaims?.userId;
@@ -65,13 +102,20 @@ router.post("/sessions", async (req, res): Promise<void> => {
     return;
   }
 
+  const result = sessionResult(parsed.data.playerBalances);
+  if (!result) {
+    res.status(400).json({ error: "Player names are required and must be unique" });
+    return;
+  }
+
   const [session] = await db
     .insert(mahjongSessionsTable)
     .values({
       playedOn: dateOnly(parsed.data.playedOn),
       rounds: parsed.data.rounds,
-      totalAmount: parsed.data.totalAmount,
-      winnerName: parsed.data.winnerName.trim(),
+      totalAmount: result.totalAmount,
+      winnerName: result.winnerName,
+      playerBalances: result.playerBalances,
       notes: parsed.data.notes?.trim() || null,
       createdByUserId: userId,
     })
@@ -158,11 +202,15 @@ router.patch("/sessions/:id", async (req, res): Promise<void> => {
   if (body.data.rounds !== undefined) {
     update.rounds = body.data.rounds;
   }
-  if (body.data.totalAmount !== undefined) {
-    update.totalAmount = body.data.totalAmount;
-  }
-  if (body.data.winnerName !== undefined) {
-    update.winnerName = body.data.winnerName.trim();
+  if (body.data.playerBalances !== undefined) {
+    const result = sessionResult(body.data.playerBalances);
+    if (!result) {
+      res.status(400).json({ error: "Player names are required and must be unique" });
+      return;
+    }
+    update.totalAmount = result.totalAmount;
+    update.winnerName = result.winnerName;
+    update.playerBalances = result.playerBalances;
   }
   if (body.data.notes !== undefined) {
     update.notes = body.data.notes?.trim() || null;

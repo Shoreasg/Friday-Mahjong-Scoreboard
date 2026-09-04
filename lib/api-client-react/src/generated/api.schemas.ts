@@ -9,6 +9,16 @@ export interface HealthStatus {
   status: string;
 }
 
+export interface PlayerBalance {
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  name: string;
+  /** @minimum 0 */
+  endingAmount: number;
+}
+
 export interface MahjongSession {
   id: number;
   playedOn: string;
@@ -16,6 +26,7 @@ export interface MahjongSession {
   rounds: number;
   totalAmount: number;
   winnerName: string;
+  playerBalances: PlayerBalance[];
   /** @nullable */
   notes: string | null;
   /** @nullable */
@@ -30,13 +41,8 @@ export interface MahjongSessionInput {
      * @maximum 99
      */
   rounds: number;
-  /** @minimum 0 */
-  totalAmount: number;
-  /**
-     * @minLength 1
-     * @maxLength 80
-     */
-  winnerName: string;
+  /** @minItems 1 */
+  playerBalances: PlayerBalance[];
   /**
      * @maxLength 500
      * @nullable
@@ -51,13 +57,8 @@ export interface MahjongSessionUpdate {
      * @maximum 99
      */
   rounds?: number;
-  /** @minimum 0 */
-  totalAmount?: number;
-  /**
-     * @minLength 1
-     * @maxLength 80
-     */
-  winnerName?: string;
+  /** @minItems 1 */
+  playerBalances?: PlayerBalance[];
   /**
      * @maxLength 500
      * @nullable

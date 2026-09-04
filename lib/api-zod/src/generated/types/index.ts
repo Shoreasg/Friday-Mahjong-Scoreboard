@@ -10,5 +10,6 @@ export * from './healthStatus';
 export * from './mahjongSession';
 export * from './mahjongSessionInput';
 export * from './mahjongSessionUpdate';
+export * from './playerBalance';
 export * from './sessionSummary';
 export * from './winnerCount';

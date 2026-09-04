@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { PlayerBalance } from './playerBalance';
 
 export interface MahjongSessionInput {
   playedOn: Date;
@@ -13,13 +14,8 @@ export interface MahjongSessionInput {
      * @maximum 99
      */
   rounds: number;
-  /** @minimum 0 */
-  totalAmount: number;
-  /**
-     * @minLength 1
-     * @maxLength 80
-     */
-  winnerName: string;
+  /** @minItems 1 */
+  playerBalances: PlayerBalance[];
   /**
      * @maxLength 500
      * @nullable
