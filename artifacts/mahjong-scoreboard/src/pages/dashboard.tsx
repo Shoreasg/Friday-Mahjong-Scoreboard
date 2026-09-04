@@ -2,7 +2,6 @@ import { useGetSessionSummary, useListSessions, useCreateSession, useDeleteSessi
 import { queryClient } from "@/lib/queryClient";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { SessionForm } from "@/components/SessionForm";
@@ -272,29 +271,34 @@ export default function Dashboard() {
       </main>
 
       {/* Floating Action Button */}
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogTrigger asChild>
-          <Button 
-            size="icon" 
-            className="fixed bottom-6 right-6 sm:bottom-8 sm:right-8 w-14 h-14 rounded-full shadow-xl hover:scale-105 active:scale-95 transition-transform"
-            data-testid="button-fab-create"
-          >
-            <Plus className="w-6 h-6" />
-          </Button>
-        </DialogTrigger>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Record Session</DialogTitle>
-            <DialogDescription>
+      <Button 
+        size="icon" 
+        className="fixed bottom-6 right-6 sm:bottom-8 sm:right-8 w-14 h-14 rounded-full shadow-xl hover:scale-105 active:scale-95 transition-transform"
+        onClick={() => setCreateOpen(true)}
+        data-testid="button-fab-create"
+      >
+        <Plus className="w-6 h-6" />
+      </Button>
+
+      {/* Create Sheet */}
+      <Sheet open={createOpen} onOpenChange={setCreateOpen}>
+        <SheetContent className="flex h-dvh w-full max-w-none flex-col overflow-hidden border-l-0 p-0 sm:w-[42rem] sm:max-w-[42rem] sm:border-l">
+          <SheetHeader className="shrink-0 border-b border-border px-5 py-4 pr-12 sm:px-6">
+            <SheetTitle>Record Session</SheetTitle>
+            <SheetDescription>
               Log the results of the Friday gathering.
-            </DialogDescription>
-          </DialogHeader>
-          <SessionForm 
-            onSubmit={(data) => createMutation.mutate({ data })}
-            isSubmitting={createMutation.isPending}
-          />
-        </DialogContent>
-      </Dialog>
+            </SheetDescription>
+          </SheetHeader>
+          <div className="flex min-h-0 flex-1 px-4 sm:px-6">
+            <SessionForm 
+              compact
+              onSubmit={(data) => createMutation.mutate({ data })}
+              onCancel={() => setCreateOpen(false)}
+              isSubmitting={createMutation.isPending}
+            />
+          </div>
+        </SheetContent>
+      </Sheet>
 
       {/* Edit Sheet */}
       <Sheet open={!!editSession} onOpenChange={(open) => !open && setEditSession(null)}>
