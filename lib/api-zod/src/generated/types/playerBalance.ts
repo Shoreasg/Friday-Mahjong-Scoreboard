@@ -14,4 +14,6 @@ export interface PlayerBalance {
   name: string;
   /** @minimum 0 */
   endingAmount: number;
+  /** @minimum 0 */
+  zhaHuCount: number;
 }

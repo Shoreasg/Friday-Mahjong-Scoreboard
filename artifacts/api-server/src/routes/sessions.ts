@@ -25,7 +25,28 @@ const router: IRouter = Router();
 type SubmittedBalance = {
   name: string;
   endingAmount: number;
+  zhaHuCount: number;
 };
+
+function normalizePlayerBalances(playerBalances: SubmittedBalance[]) {
+  return playerBalances.map((balance) => ({
+    name: balance.name,
+    endingAmount: balance.endingAmount,
+    zhaHuCount:
+      Number.isInteger(balance.zhaHuCount) && balance.zhaHuCount >= 0
+        ? balance.zhaHuCount
+        : 0,
+  }));
+}
+
+function normalizeSession(
+  session: typeof mahjongSessionsTable.$inferSelect,
+) {
+  return {
+    ...session,
+    playerBalances: normalizePlayerBalances(session.playerBalances),
+  };
+}
 
 function sessionResult(playerBalances: SubmittedBalance[]) {
   if (playerBalances.length !== 4) {
@@ -35,6 +56,7 @@ function sessionResult(playerBalances: SubmittedBalance[]) {
   const balances = playerBalances.map((balance) => ({
     name: balance.name.trim(),
     endingAmount: balance.endingAmount,
+    zhaHuCount: balance.zhaHuCount,
   }));
   const seenNames = new Set<string>();
   for (const balance of balances) {
@@ -107,7 +129,7 @@ router.get("/sessions", async (req, res): Promise<void> => {
     .from(mahjongSessionsTable)
     .orderBy(desc(mahjongSessionsTable.playedOn));
 
-  res.json(ListSessionsResponse.parse(sessions));
+  res.json(ListSessionsResponse.parse(sessions.map(normalizeSession)));
 });
 
 router.post("/sessions", async (req, res): Promise<void> => {
@@ -140,7 +162,7 @@ router.post("/sessions", async (req, res): Promise<void> => {
     })
     .returning();
 
-  res.status(201).json(CreateSessionResponse.parse(session));
+  res.status(201).json(CreateSessionResponse.parse(normalizeSession(session)));
 });
 
 router.get("/sessions/summary", async (req, res): Promise<void> => {
@@ -152,11 +174,11 @@ router.get("/sessions/summary", async (req, res): Promise<void> => {
     })
     .from(mahjongSessionsTable);
 
-  const [latestSession] = await db
+  const sessions = await db
     .select()
     .from(mahjongSessionsTable)
-    .orderBy(desc(mahjongSessionsTable.playedOn))
-    .limit(1);
+    .orderBy(desc(mahjongSessionsTable.playedOn));
+  const latestSession = sessions[0];
 
   const winnerCounts = await db
     .select({
@@ -167,13 +189,37 @@ router.get("/sessions/summary", async (req, res): Promise<void> => {
     .groupBy(mahjongSessionsTable.winnerName)
     .orderBy(desc(sql`count(*)`), mahjongSessionsTable.winnerName);
 
+  const zhaHuByPlayer = new Map<
+    string,
+    { playerName: string; count: number }
+  >();
+  for (const session of sessions) {
+    for (const player of normalizePlayerBalances(session.playerBalances)) {
+      const normalizedName = player.name.trim().toLocaleLowerCase();
+      const existing = zhaHuByPlayer.get(normalizedName);
+      if (existing) {
+        existing.count += player.zhaHuCount;
+      } else {
+        zhaHuByPlayer.set(normalizedName, {
+          playerName: player.name.trim(),
+          count: player.zhaHuCount,
+        });
+      }
+    }
+  }
+  const zhaHuCounts = [...zhaHuByPlayer.values()].sort(
+    (a, b) =>
+      b.count - a.count || a.playerName.localeCompare(b.playerName),
+  );
+
   res.json(
     GetSessionSummaryResponse.parse({
       totalSessions: totals?.totalSessions ?? 0,
       totalRounds: totals?.totalRounds ?? 0,
       totalAmount: totals?.totalAmount ?? 0,
-      latestSession: latestSession ?? null,
+      latestSession: latestSession ? normalizeSession(latestSession) : null,
       winnerCounts,
+      zhaHuCounts,
     }),
   );
 });
@@ -195,7 +241,7 @@ router.get("/sessions/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  res.json(GetSessionResponse.parse(session));
+  res.json(GetSessionResponse.parse(normalizeSession(session)));
 });
 
 router.patch("/sessions/:id", async (req, res): Promise<void> => {
@@ -242,7 +288,7 @@ router.patch("/sessions/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  res.json(UpdateSessionResponse.parse(session));
+  res.json(UpdateSessionResponse.parse(normalizeSession(session)));
 });
 
 router.delete("/sessions/:id", async (req, res): Promise<void> => {

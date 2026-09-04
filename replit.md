@@ -38,7 +38,8 @@ A shared scoreboard for friends to record weekly Friday Mahjong sessions, settle
 
 - Public introduction, scoreboard, cumulative totals, winner standings, and weekly history
 - Admin-only creation, editing, and deletion of completed Mahjong sessions
-- Persistent tracking of date, rounds, settlement amount, winner, and optional notes
+- Persistent tracking of date, rounds, settlement amount, winner, per-player Zha Hu counts, and optional notes
+- Cumulative leaderboards for match wins and Zha Hu incidents
 
 ## User preferences
 

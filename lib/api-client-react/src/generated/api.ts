@@ -166,7 +166,7 @@ export const getListSessionsQueryKey = () => {
     }
 
 
-export const getListSessionsQueryOptions = <TData = Awaited<ReturnType<typeof listSessions>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSessions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getListSessionsQueryOptions = <TData = Awaited<ReturnType<typeof listSessions>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSessions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
@@ -185,14 +185,14 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type ListSessionsQueryResult = NonNullable<Awaited<ReturnType<typeof listSessions>>>
-export type ListSessionsQueryError = ErrorType<void>
+export type ListSessionsQueryError = ErrorType<unknown>
 
 
 /**
  * @summary List Mahjong sessions
  */
 
-export function useListSessions<TData = Awaited<ReturnType<typeof listSessions>>, TError = ErrorType<void>>(
+export function useListSessions<TData = Awaited<ReturnType<typeof listSessions>>, TError = ErrorType<unknown>>(
   options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSessions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
@@ -291,7 +291,7 @@ export const getGetSessionSummaryUrl = () => {
 }
 
 /**
- * Returns lightweight totals and winner counts for the dashboard.
+ * Returns lightweight totals, winner counts, and Zha Hu counts for the dashboard.
  * @summary Get Mahjong scoreboard summary
  */
 export const getSessionSummary = async ( options?: Parameters<typeof customFetch>[1]): Promise<SessionSummary> => {
@@ -316,7 +316,7 @@ export const getGetSessionSummaryQueryKey = () => {
     }
 
 
-export const getGetSessionSummaryQueryOptions = <TData = Awaited<ReturnType<typeof getSessionSummary>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSessionSummary>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getGetSessionSummaryQueryOptions = <TData = Awaited<ReturnType<typeof getSessionSummary>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSessionSummary>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
@@ -335,14 +335,14 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type GetSessionSummaryQueryResult = NonNullable<Awaited<ReturnType<typeof getSessionSummary>>>
-export type GetSessionSummaryQueryError = ErrorType<void>
+export type GetSessionSummaryQueryError = ErrorType<unknown>
 
 
 /**
  * @summary Get Mahjong scoreboard summary
  */
 
-export function useGetSessionSummary<TData = Awaited<ReturnType<typeof getSessionSummary>>, TError = ErrorType<void>>(
+export function useGetSessionSummary<TData = Awaited<ReturnType<typeof getSessionSummary>>, TError = ErrorType<unknown>>(
   options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSessionSummary>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {

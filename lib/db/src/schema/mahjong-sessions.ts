@@ -14,6 +14,7 @@ import { z } from "zod/v4";
 export type PlayerBalance = {
   name: string;
   endingAmount: number;
+  zhaHuCount: number;
 };
 
 export const mahjongSessionsTable = pgTable("mahjong_sessions", {

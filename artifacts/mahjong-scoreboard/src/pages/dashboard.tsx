@@ -6,7 +6,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { SessionForm } from "@/components/SessionForm";
 import { format, parseISO } from "date-fns";
-import { Trophy, Plus, LogOut, Coins, Activity, Trash2, Edit2, ChevronDown, LogIn } from "lucide-react";
+import { Trophy, Plus, LogOut, Coins, Activity, Trash2, Edit2, ChevronDown, LogIn, Flame } from "lucide-react";
 import { useState } from "react";
 import { useClerk, useUser } from "@clerk/react";
 import { toast } from "sonner";
@@ -80,6 +80,11 @@ export default function Dashboard() {
 
   const sortedWinners = summary?.winnerCounts 
     ? [...summary.winnerCounts].sort((a, b) => b.wins - a.wins) 
+    : [];
+  const sortedZhaHu = summary?.zhaHuCounts
+    ? [...summary.zhaHuCounts].sort(
+        (a, b) => b.count - a.count || a.playerName.localeCompare(b.playerName),
+      )
     : [];
 
   return (
@@ -175,6 +180,40 @@ export default function Dashboard() {
                 )}
               </CardContent>
             </Card>
+
+            <h2 className="pt-4 font-serif text-xl text-foreground flex items-center gap-2">
+              <Flame className="w-5 h-5 text-destructive" />
+              Zha Hu Leaderboard
+            </h2>
+            <Card>
+              <CardContent className="p-0">
+                {sortedZhaHu.length === 0 ? (
+                  <div className="p-8 text-center text-muted-foreground text-sm">
+                    No Zha Hu recorded yet.
+                  </div>
+                ) : (
+                  <ul className="divide-y divide-border">
+                    {sortedZhaHu.map((player, index) => (
+                      <li key={player.playerName.toLocaleLowerCase()} className="flex items-center justify-between p-4" data-testid={`row-zha-hu-${index}`}>
+                        <div className="flex items-center gap-3">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center font-serif text-sm font-bold ${
+                            index === 0 ? "bg-destructive text-destructive-foreground" :
+                            index === 1 ? "bg-secondary text-secondary-foreground" :
+                            "bg-accent text-accent-foreground"
+                          }`}>
+                            {index + 1}
+                          </div>
+                          <span className="font-medium text-foreground">{player.playerName}</span>
+                        </div>
+                        <div className="text-sm font-semibold px-2 py-1 bg-muted rounded">
+                          {player.count} {player.count === 1 ? "time" : "times"}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </CardContent>
+            </Card>
           </section>
 
           {/* History */}
@@ -261,7 +300,14 @@ export default function Dashboard() {
                               }`}
                             >
                               <span className="truncate font-medium text-foreground">{player.name}</span>
-                              <span className="shrink-0 tabular-nums text-muted-foreground">${player.endingAmount.toFixed(2)}</span>
+                              <span className="flex shrink-0 items-center gap-1.5">
+                                {player.zhaHuCount > 0 && (
+                                  <span className="rounded bg-destructive/10 px-1.5 py-0.5 font-semibold text-destructive">
+                                    炸胡 {player.zhaHuCount}
+                                  </span>
+                                )}
+                                <span className="tabular-nums text-muted-foreground">${player.endingAmount.toFixed(2)}</span>
+                              </span>
                             </div>
                           ))}
                         </div>

@@ -82,10 +82,10 @@ const session = {
   totalAmount: 400,
   winnerName: "Alice",
   playerBalances: [
-    { name: "Alice", endingAmount: 130 },
-    { name: "Bob", endingAmount: 100 },
-    { name: "Carol", endingAmount: 90 },
-    { name: "Dave", endingAmount: 80 },
+    { name: "Alice", endingAmount: 130, zhaHuCount: 1 },
+    { name: "Bob", endingAmount: 100, zhaHuCount: 0 },
+    { name: "Carol", endingAmount: 90, zhaHuCount: 2 },
+    { name: "Dave", endingAmount: 80, zhaHuCount: 0 },
   ],
   notes: null,
   createdByUserId: adminUserId,
@@ -140,22 +140,51 @@ beforeEach(() => {
 });
 
 describe("session authorization", () => {
-  it("allows public session and summary reads without authentication", async () => {
-    mocks.selectResults.push([session]);
+  it("allows public reads and defaults legacy Zha Hu counts to zero", async () => {
+    const legacySession = {
+      ...session,
+      playerBalances: session.playerBalances.map(({ zhaHuCount: _count, ...player }) => player),
+    };
+    mocks.selectResults.push([legacySession]);
     const listResponse = await request("/api/sessions");
     expect(listResponse.status).toBe(200);
-    expect(await listResponse.json()).toHaveLength(1);
+    expect(await listResponse.json()).toMatchObject([{
+      playerBalances: [
+        { name: "Alice", zhaHuCount: 0 },
+        { name: "Bob", zhaHuCount: 0 },
+        { name: "Carol", zhaHuCount: 0 },
+        { name: "Dave", zhaHuCount: 0 },
+      ],
+    }]);
 
+    const secondSession = {
+      ...session,
+      id: 2,
+      playerBalances: [
+        { name: "alice", endingAmount: 120, zhaHuCount: 2 },
+        { name: "BOB", endingAmount: 110, zhaHuCount: 1 },
+        { name: "Eve", endingAmount: 90, zhaHuCount: 4 },
+        { name: "Frank", endingAmount: 80, zhaHuCount: 0 },
+      ],
+    };
     mocks.selectResults.push(
-      [{ totalSessions: 1, totalRounds: 4, totalAmount: 400 }],
-      [session],
+      [{ totalSessions: 2, totalRounds: 8, totalAmount: 800 }],
+      [session, secondSession],
       [{ winnerName: "Alice", wins: 1 }],
     );
     const summaryResponse = await request("/api/sessions/summary");
     expect(summaryResponse.status).toBe(200);
     expect(await summaryResponse.json()).toMatchObject({
-      totalSessions: 1,
+      totalSessions: 2,
       winnerCounts: [{ winnerName: "Alice", wins: 1 }],
+      zhaHuCounts: [
+        { playerName: "Eve", count: 4 },
+        { playerName: "Alice", count: 3 },
+        { playerName: "Carol", count: 2 },
+        { playerName: "Bob", count: 1 },
+        { playerName: "Dave", count: 0 },
+        { playerName: "Frank", count: 0 },
+      ],
     });
     expect(mocks.getUser).not.toHaveBeenCalled();
   });
@@ -214,4 +243,23 @@ describe("session authorization", () => {
     expect(deleteResponse.status).toBe(204);
     expect(mocks.getUser).toHaveBeenCalledTimes(3);
   });
+
+  it.each([-1, 1.5])(
+    "rejects an invalid Zha Hu count of %s",
+    async (zhaHuCount) => {
+      const invalidBody = {
+        ...createBody,
+        playerBalances: createBody.playerBalances.map((player, index) =>
+          index === 0 ? { ...player, zhaHuCount } : player,
+        ),
+      };
+      const response = await request(
+        "/api/sessions",
+        { method: "POST", body: JSON.stringify(invalidBody) },
+        adminUserId,
+      );
+      expect(response.status).toBe(400);
+      expect(mocks.db.insert).not.toHaveBeenCalled();
+    },
+  );
 });

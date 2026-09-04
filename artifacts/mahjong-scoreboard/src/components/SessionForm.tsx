@@ -15,6 +15,7 @@ const sessionSchema = z.object({
   playerBalances: z.array(z.object({
     name: z.string().trim().min(1, "Player name is required").max(80),
     endingAmount: z.coerce.number().min(0, "Amount cannot be negative"),
+    zhaHuCount: z.coerce.number().int("Use a whole number").min(0, "Count cannot be negative"),
   })).length(4, "Enter all four players"),
   notes: z.string().max(500).nullable().optional(),
 });
@@ -39,9 +40,12 @@ export function SessionForm({
     defaultValues: {
       playedOn: defaultValues?.playedOn || format(new Date(), "yyyy-MM-dd"),
       rounds: defaultValues?.rounds || 4,
-      playerBalances: Array.from({ length: 4 }, (_, index) =>
-        defaultValues?.playerBalances?.[index] || { name: "", endingAmount: 500 },
-      ),
+      playerBalances: Array.from({ length: 4 }, (_, index) => {
+        const player = defaultValues?.playerBalances?.[index];
+        return player
+          ? { ...player, zhaHuCount: player.zhaHuCount ?? 0 }
+          : { name: "", endingAmount: 500, zhaHuCount: 0 };
+      }),
       notes: defaultValues?.notes || "",
     },
   });
@@ -95,8 +99,8 @@ export function SessionForm({
               <div
                 key={`player-slot-${index}`}
                 className={cn(
-                  "grid grid-cols-1 items-end gap-3 rounded-xl border border-border bg-muted/30 p-3 sm:grid-cols-[1fr_9rem]",
-                  compact && "grid-cols-[minmax(0,1fr)_7rem] gap-2 rounded-lg p-2.5 sm:grid-cols-[minmax(0,1fr)_7rem]",
+                  "grid grid-cols-1 items-end gap-3 rounded-xl border border-border bg-muted/30 p-3 sm:grid-cols-[1fr_9rem_7rem]",
+                  compact && "grid-cols-2 gap-2 rounded-lg p-2.5 sm:grid-cols-2",
                 )}
               >
                 <div className="flex items-center justify-between col-span-full">
@@ -109,7 +113,7 @@ export function SessionForm({
                   control={form.control}
                   name={`playerBalances.${index}.name`}
                   render={({ field }) => (
-                    <FormItem>
+                    <FormItem className={cn(compact && "col-span-2")}>
                       <FormLabel>Name</FormLabel>
                       <FormControl>
                         <Input placeholder="e.g. Alice" {...field} data-testid={`input-player-name-${index}`} />
@@ -126,6 +130,19 @@ export function SessionForm({
                       <FormLabel>Ending ($)</FormLabel>
                       <FormControl>
                         <Input type="number" min="0" step="0.01" {...field} data-testid={`input-player-balance-${index}`} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name={`playerBalances.${index}.zhaHuCount`}
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Zha Hu</FormLabel>
+                      <FormControl>
+                        <Input type="number" min="0" step="1" {...field} data-testid={`input-player-zha-hu-${index}`} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

@@ -7,6 +7,7 @@
  */
 import type { MahjongSession } from './mahjongSession';
 import type { WinnerCount } from './winnerCount';
+import type { ZhaHuCount } from './zhaHuCount';
 
 export interface SessionSummary {
   totalSessions: number;
@@ -14,4 +15,5 @@ export interface SessionSummary {
   totalAmount: number;
   latestSession: MahjongSession | null;
   winnerCounts: WinnerCount[];
+  zhaHuCounts: ZhaHuCount[];
 }

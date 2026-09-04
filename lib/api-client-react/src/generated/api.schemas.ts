@@ -17,6 +17,8 @@ export interface PlayerBalance {
   name: string;
   /** @minimum 0 */
   endingAmount: number;
+  /** @minimum 0 */
+  zhaHuCount: number;
 }
 
 export interface MahjongSession {
@@ -77,11 +79,18 @@ export interface WinnerCount {
   wins: number;
 }
 
+export interface ZhaHuCount {
+  playerName: string;
+  /** @minimum 0 */
+  count: number;
+}
+
 export interface SessionSummary {
   totalSessions: number;
   totalRounds: number;
   totalAmount: number;
   latestSession: MahjongSession | null;
   winnerCounts: WinnerCount[];
+  zhaHuCounts: ZhaHuCount[];
 }
 

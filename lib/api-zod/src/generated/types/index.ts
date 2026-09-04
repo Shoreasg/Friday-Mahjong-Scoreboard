@@ -13,3 +13,4 @@ export * from './mahjongSessionUpdate';
 export * from './playerBalance';
 export * from './sessionSummary';
 export * from './winnerCount';
+export * from './zhaHuCount';
