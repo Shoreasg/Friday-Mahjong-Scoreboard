@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,100..900;1,9..144,100..900&family=Outfit:wght@100..900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap');
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @plugin "@tailwindcss/typography";
@@ -22,107 +22,96 @@
 
   --color-primary: hsl(var(--primary));
   --color-primary-foreground: hsl(var(--primary-foreground));
-  --color-primary-border: var(--primary-border);
 
   --color-secondary: hsl(var(--secondary));
   --color-secondary-foreground: hsl(var(--secondary-foreground));
-  --color-secondary-border: var(--secondary-border);
 
   --color-muted: hsl(var(--muted));
   --color-muted-foreground: hsl(var(--muted-foreground));
-  --color-muted-border: var(--muted-border);
 
   --color-accent: hsl(var(--accent));
   --color-accent-foreground: hsl(var(--accent-foreground));
-  --color-accent-border: var(--accent-border);
 
   --color-destructive: hsl(var(--destructive));
   --color-destructive-foreground: hsl(var(--destructive-foreground));
-  --color-destructive-border: var(--destructive-border);
 
   --font-sans: var(--app-font-sans);
   --font-serif: var(--app-font-serif);
   --font-mono: var(--app-font-mono);
 
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: var(--radius);
+  --radius-md: var(--radius);
   --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+  --radius-xl: var(--radius);
 }
 
 :root {
-  --button-outline: rgba(15, 91, 59, 0.1);
-  --badge-outline: rgba(15, 91, 59, 0.05);
+  /* Warm cream */
+  --background: 48 100% 96%;
+  --foreground: 0 0% 0%;
 
-  --opaque-button-border-intensity: -8;
+  /* Neo Jade */
+  --primary: 154 100% 45%;
+  --primary-foreground: 0 0% 0%;
 
-  --elevate-1: rgba(15, 91, 59, 0.03);
-  --elevate-2: rgba(15, 91, 59, 0.08);
+  --card: 0 0% 100%;
+  --card-foreground: 0 0% 0%;
+  --card-border: 0 0% 0%;
 
-  /* Warm tile white */
-  --background: 40 20% 96%;
-  --foreground: 150 40% 15%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 0 0% 0%;
+  --popover-border: 0 0% 0%;
 
-  /* Dark Jade */
-  --primary: 150 73% 22%;
-  --primary-foreground: 40 20% 96%;
+  /* Bright Yellow */
+  --secondary: 48 100% 50%;
+  --secondary-foreground: 0 0% 0%;
 
-  /* Soft ivory cards */
-  --card: 40 30% 99%;
-  --card-foreground: 150 40% 15%;
-  --card-border: 40 20% 88%;
+  /* Light Gray */
+  --muted: 0 0% 92%;
+  --muted-foreground: 0 0% 30%;
 
-  --popover: 40 30% 99%;
-  --popover-foreground: 150 40% 15%;
-  --popover-border: 40 20% 88%;
-
-  --secondary: 40 15% 85%;
-  --secondary-foreground: 150 50% 10%;
-
-  --muted: 40 20% 90%;
-  --muted-foreground: 150 20% 40%;
-
-  --accent: 40 25% 90%;
-  --accent-foreground: 150 50% 10%;
+  /* Bright Blue */
+  --accent: 210 100% 60%;
+  --accent-foreground: 0 0% 0%;
 
   /* Cinnabar Red */
-  --destructive: 5 80% 55%;
+  --destructive: 0 100% 60%;
   --destructive-foreground: 0 0% 100%;
 
-  --border: 40 20% 86%;
-  --input: 40 20% 86%;
-  --ring: 150 73% 22%;
+  --border: 0 0% 0%;
+  --input: 0 0% 0%;
+  --ring: 0 0% 0%;
 
-  --app-font-sans: 'Outfit', sans-serif;
-  --app-font-serif: 'Fraunces', serif;
-  --app-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --app-font-sans: 'Bricolage Grotesque', sans-serif;
+  --app-font-serif: 'Bricolage Grotesque', sans-serif;
+  --app-font-mono: 'Space Mono', monospace;
   
-  --radius: 1rem;
+  --radius: 0.25rem;
 }
 
 .dark {
-  /* No dark mode needed, mapping to light mode colors to prevent red flashes */
-  --background: 40 20% 96%;
-  --foreground: 150 40% 15%;
-  --primary: 150 73% 22%;
-  --primary-foreground: 40 20% 96%;
-  --card: 40 30% 99%;
-  --card-foreground: 150 40% 15%;
-  --card-border: 40 20% 88%;
-  --popover: 40 30% 99%;
-  --popover-foreground: 150 40% 15%;
-  --popover-border: 40 20% 88%;
-  --secondary: 40 15% 85%;
-  --secondary-foreground: 150 50% 10%;
-  --muted: 40 20% 90%;
-  --muted-foreground: 150 20% 40%;
-  --accent: 40 25% 90%;
-  --accent-foreground: 150 50% 10%;
-  --destructive: 5 80% 55%;
+  /* Enforce light mode mapping to prevent flashing */
+  --background: 48 100% 96%;
+  --foreground: 0 0% 0%;
+  --primary: 154 100% 45%;
+  --primary-foreground: 0 0% 0%;
+  --card: 0 0% 100%;
+  --card-foreground: 0 0% 0%;
+  --card-border: 0 0% 0%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 0 0% 0%;
+  --popover-border: 0 0% 0%;
+  --secondary: 48 100% 50%;
+  --secondary-foreground: 0 0% 0%;
+  --muted: 0 0% 92%;
+  --muted-foreground: 0 0% 30%;
+  --accent: 210 100% 60%;
+  --accent-foreground: 0 0% 0%;
+  --destructive: 0 100% 60%;
   --destructive-foreground: 0 0% 100%;
-  --border: 40 20% 86%;
-  --input: 40 20% 86%;
-  --ring: 150 73% 22%;
+  --border: 0 0% 0%;
+  --input: 0 0% 0%;
+  --ring: 0 0% 0%;
 }
 
 @layer base {
@@ -131,11 +120,22 @@
   }
   body {
     @apply font-sans antialiased bg-background text-foreground;
-    /* Soft noise texture for felt/tile feel */
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.02'/%3E%3C/svg%3E");
+    background-image: radial-gradient(rgba(0, 0, 0, 0.15) 2px, transparent 2px);
+    background-size: 32px 32px;
+    background-position: -16px -16px;
   }
-  
   h1, h2, h3, h4, h5, h6 {
-    @apply font-serif;
+    @apply font-sans font-black tracking-tight uppercase;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }
