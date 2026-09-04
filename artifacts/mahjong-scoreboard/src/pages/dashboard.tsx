@@ -3,9 +3,11 @@ import { queryClient } from "@/lib/queryClient";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { SessionForm } from "@/components/SessionForm";
 import { format, parseISO } from "date-fns";
-import { Trophy, Plus, LogOut, Coins, Activity, Trash2, Edit2 } from "lucide-react";
+import { Trophy, Plus, LogOut, Coins, Activity, Trash2, Edit2, ChevronDown } from "lucide-react";
 import { useState } from "react";
 import { useClerk } from "@clerk/react";
 import { toast } from "sonner";
@@ -180,75 +182,86 @@ export default function Dashboard() {
               ) : (
                 sessions?.map((session) => (
                   <Card key={session.id} className="hover-elevate transition-shadow" data-testid={`card-session-${session.id}`}>
-                    <CardContent className="p-5">
-                      <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
-                        <div>
-                          <div className="flex items-center gap-2 mb-1">
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
                             <span className="text-sm font-semibold text-primary">
                               {format(parseISO(session.playedOn), "MMMM d, yyyy")}
                             </span>
                             <span className="w-1 h-1 bg-border rounded-full" />
                             <span className="text-sm text-muted-foreground">{session.rounds} rounds</span>
                           </div>
-                          <div className="text-lg font-serif">
+                          <div className="mt-0.5 text-base font-serif">
                             Winner: <span className="text-primary font-semibold">{session.winnerName}</span>
                           </div>
-                          {session.playerBalances.length > 0 ? (
-                            <div className="mt-3 flex flex-wrap gap-2">
-                              {session.playerBalances.map((player) => (
-                                <div
-                                  key={player.name}
-                                  className={`rounded-lg border px-3 py-2 text-sm ${
-                                    player.name === session.winnerName
-                                      ? "border-primary/30 bg-primary/10"
-                                      : "border-border bg-muted/40"
-                                  }`}
-                                >
-                                  <span className="font-medium text-foreground">{player.name}</span>
-                                  <span className="ml-2 text-muted-foreground">${player.endingAmount.toFixed(2)}</span>
-                                </div>
-                              ))}
-                            </div>
-                          ) : (
-                            <p className="mt-2 text-sm text-muted-foreground">Player balances were not recorded for this session.</p>
-                          )}
-                          {session.notes && (
-                            <p className="mt-2 text-sm text-muted-foreground italic border-l-2 border-primary/20 pl-3 py-0.5">
-                              "{session.notes}"
-                            </p>
-                          )}
                         </div>
-                        
-                        <div className="flex sm:flex-col items-center sm:items-end justify-between w-full sm:w-auto gap-4 sm:gap-2">
-                          <div className="text-xl font-serif text-foreground bg-accent px-3 py-1 rounded">
+                        <div className="flex shrink-0 items-center gap-1">
+                          <div className="mr-1 rounded-md bg-accent px-2.5 py-1 text-sm font-semibold text-foreground">
                             ${session.totalAmount.toFixed(2)}
                           </div>
-                          <div className="flex gap-2">
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
-                              className="h-8 px-2 text-muted-foreground hover:text-primary"
-                              onClick={() => setEditSession(session)}
-                              data-testid={`button-edit-${session.id}`}
-                            >
-                              <Edit2 className="w-4 h-4" />
-                            </Button>
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
-                              className="h-8 px-2 text-muted-foreground hover:text-destructive"
-                              onClick={() => {
-                                if (confirm("Delete this session?")) {
-                                  deleteMutation.mutate({ id: session.id });
-                                }
-                              }}
-                              data-testid={`button-delete-${session.id}`}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </div>
+                          <Button 
+                            variant="ghost" 
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-primary"
+                            onClick={() => setEditSession(session)}
+                            aria-label={`Edit session from ${session.playedOn}`}
+                            data-testid={`button-edit-${session.id}`}
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                            onClick={() => {
+                              if (confirm("Delete this session?")) {
+                                deleteMutation.mutate({ id: session.id });
+                              }
+                            }}
+                            aria-label={`Delete session from ${session.playedOn}`}
+                            data-testid={`button-delete-${session.id}`}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
                         </div>
                       </div>
+
+                      {session.playerBalances.length > 0 ? (
+                        <div className="mt-3 grid grid-cols-2 gap-1.5">
+                          {session.playerBalances.map((player) => (
+                            <div
+                              key={player.name}
+                              className={`flex min-w-0 items-center justify-between gap-2 rounded-md border px-2.5 py-1.5 text-xs ${
+                                player.name === session.winnerName
+                                  ? "border-primary/30 bg-primary/10"
+                                  : "border-border bg-muted/40"
+                              }`}
+                            >
+                              <span className="truncate font-medium text-foreground">{player.name}</span>
+                              <span className="shrink-0 tabular-nums text-muted-foreground">${player.endingAmount.toFixed(2)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="mt-2 text-xs text-muted-foreground">Player balances were not recorded for this session.</p>
+                      )}
+
+                      {session.notes && (
+                        <Collapsible className="mt-2">
+                          <CollapsibleTrigger asChild>
+                            <Button variant="ghost" size="sm" className="group h-7 px-1.5 text-xs text-muted-foreground">
+                              View details
+                              <ChevronDown className="ml-1 h-3.5 w-3.5 transition-transform group-data-[state=open]:rotate-180" />
+                            </Button>
+                          </CollapsibleTrigger>
+                          <CollapsibleContent>
+                            <p className="mt-1 border-l-2 border-primary/20 py-0.5 pl-3 text-sm italic text-muted-foreground">
+                              "{session.notes}"
+                            </p>
+                          </CollapsibleContent>
+                        </Collapsible>
+                      )}
                     </CardContent>
                   </Card>
                 ))
@@ -283,24 +296,28 @@ export default function Dashboard() {
         </DialogContent>
       </Dialog>
 
-      {/* Edit Dialog */}
-      <Dialog open={!!editSession} onOpenChange={(open) => !open && setEditSession(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Edit Session</DialogTitle>
-            <DialogDescription>
+      {/* Edit Sheet */}
+      <Sheet open={!!editSession} onOpenChange={(open) => !open && setEditSession(null)}>
+        <SheetContent className="flex h-dvh w-full max-w-none flex-col overflow-hidden border-l-0 p-0 sm:w-[42rem] sm:max-w-[42rem] sm:border-l">
+          <SheetHeader className="shrink-0 border-b border-border px-5 py-4 pr-12 sm:px-6">
+            <SheetTitle>Edit Session</SheetTitle>
+            <SheetDescription>
               Update the details for this session.
-            </DialogDescription>
-          </DialogHeader>
+            </SheetDescription>
+          </SheetHeader>
           {editSession && (
-            <SessionForm 
-              defaultValues={editSession}
-              onSubmit={(data) => updateMutation.mutate({ id: editSession.id, data })}
-              isSubmitting={updateMutation.isPending}
-            />
+            <div className="flex min-h-0 flex-1 px-4 sm:px-6">
+              <SessionForm 
+                compact
+                defaultValues={editSession}
+                onSubmit={(data) => updateMutation.mutate({ id: editSession.id, data })}
+                onCancel={() => setEditSession(null)}
+                isSubmitting={updateMutation.isPending}
+              />
+            </div>
           )}
-        </DialogContent>
-      </Dialog>
+        </SheetContent>
+      </Sheet>
 
     </div>
   );

@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { type MahjongSessionInput } from "@workspace/api-client-react";
+import { cn } from "@/lib/utils";
 
 const sessionSchema = z.object({
   playedOn: z.string().min(1, "Date is required"),
@@ -22,9 +23,17 @@ type SessionFormProps = {
   defaultValues?: Partial<MahjongSessionInput> & { winnerName?: string };
   onSubmit: (data: MahjongSessionInput) => void;
   isSubmitting?: boolean;
+  compact?: boolean;
+  onCancel?: () => void;
 };
 
-export function SessionForm({ defaultValues, onSubmit, isSubmitting }: SessionFormProps) {
+export function SessionForm({
+  defaultValues,
+  onSubmit,
+  isSubmitting,
+  compact = false,
+  onCancel,
+}: SessionFormProps) {
   const form = useForm<z.infer<typeof sessionSchema>>({
     resolver: zodResolver(sessionSchema),
     defaultValues: {
@@ -39,7 +48,11 @@ export function SessionForm({ defaultValues, onSubmit, isSubmitting }: SessionFo
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+      <form
+        onSubmit={form.handleSubmit(onSubmit)}
+        className={cn(compact && "flex min-h-0 flex-1 flex-col")}
+      >
+        <div className={cn("space-y-6", compact && "min-h-0 flex-1 overflow-y-auto px-1 pb-6 pt-4")}>
         <div className="grid grid-cols-2 gap-4">
           <FormField
             control={form.control}
@@ -77,12 +90,20 @@ export function SessionForm({ defaultValues, onSubmit, isSubmitting }: SessionFo
             </div>
           </div>
 
-          <div className="space-y-3">
+          <div className={cn("space-y-3", compact && "grid grid-cols-1 gap-3 space-y-0 sm:grid-cols-2")}>
             {Array.from({ length: 4 }, (_, index) => (
-              <div key={`player-slot-${index}`} className="grid grid-cols-1 items-end gap-3 rounded-xl border border-border bg-muted/30 p-3 sm:grid-cols-[1fr_9rem]">
-                <div className="flex items-center justify-between sm:col-span-2">
+              <div
+                key={`player-slot-${index}`}
+                className={cn(
+                  "grid grid-cols-1 items-end gap-3 rounded-xl border border-border bg-muted/30 p-3 sm:grid-cols-[1fr_9rem]",
+                  compact && "grid-cols-[minmax(0,1fr)_7rem] gap-2 rounded-lg p-2.5 sm:grid-cols-[minmax(0,1fr)_7rem]",
+                )}
+              >
+                <div className="flex items-center justify-between col-span-full">
                   <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Player {index + 1}</span>
-                  <span className="rounded-full bg-background px-2.5 py-1 text-xs font-medium text-primary ring-1 ring-border">Starts at $500</span>
+                  {!compact && (
+                    <span className="rounded-full bg-background px-2.5 py-1 text-xs font-medium text-primary ring-1 ring-border">Starts at $500</span>
+                  )}
                 </div>
                 <FormField
                   control={form.control}
@@ -138,10 +159,19 @@ export function SessionForm({ defaultValues, onSubmit, isSubmitting }: SessionFo
             </FormItem>
           )}
         />
+        </div>
 
-        <div className="pt-2 flex justify-end">
+        <div className={cn(
+          "flex justify-end pt-2",
+          compact && "sticky bottom-0 gap-2 border-t border-border bg-background py-4",
+        )}>
+          {compact && onCancel && (
+            <Button type="button" variant="outline" onClick={onCancel}>
+              Cancel
+            </Button>
+          )}
           <Button type="submit" size="lg" disabled={isSubmitting} data-testid="button-submit-session">
-            {isSubmitting ? "Saving..." : "Save Record"}
+            {isSubmitting ? "Saving..." : compact ? "Save Changes" : "Save Record"}
           </Button>
         </div>
       </form>
