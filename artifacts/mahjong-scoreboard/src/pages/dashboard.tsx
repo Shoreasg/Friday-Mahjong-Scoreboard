@@ -291,39 +291,34 @@ export default function Dashboard() {
                             Winner: <span className="text-primary font-semibold">{session.winnerName}</span>
                           </div>
                         </div>
-                        <div className="flex shrink-0 items-center gap-1">
-                          <div className="mr-1 rounded-md bg-accent px-2.5 py-1 text-sm font-semibold text-foreground">
-                            ${session.totalAmount.toFixed(2)}
+                        {isAdmin && (
+                          <div className="flex shrink-0 items-center gap-1">
+                            <Button 
+                              variant="ghost" 
+                              size="icon"
+                              className="h-8 w-8 text-muted-foreground hover:text-primary"
+                              onClick={() => setEditSession(session)}
+                              aria-label={`Edit session from ${session.playedOn}`}
+                              data-testid={`button-edit-${session.id}`}
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="icon"
+                              className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                              onClick={() => {
+                                if (confirm("Delete this session?")) {
+                                  deleteMutation.mutate({ id: session.id });
+                                }
+                              }}
+                              aria-label={`Delete session from ${session.playedOn}`}
+                              data-testid={`button-delete-${session.id}`}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
                           </div>
-                          {isAdmin && (
-                            <>
-                              <Button 
-                                variant="ghost" 
-                                size="icon"
-                                className="h-8 w-8 text-muted-foreground hover:text-primary"
-                                onClick={() => setEditSession(session)}
-                                aria-label={`Edit session from ${session.playedOn}`}
-                                data-testid={`button-edit-${session.id}`}
-                              >
-                                <Edit2 className="w-4 h-4" />
-                              </Button>
-                              <Button 
-                                variant="ghost" 
-                                size="icon"
-                                className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                                onClick={() => {
-                                  if (confirm("Delete this session?")) {
-                                    deleteMutation.mutate({ id: session.id });
-                                  }
-                                }}
-                                aria-label={`Delete session from ${session.playedOn}`}
-                                data-testid={`button-delete-${session.id}`}
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
-                            </>
-                          )}
-                        </div>
+                        )}
                       </div>
 
                       {session.playerBalances.length > 0 ? (
