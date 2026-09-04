@@ -93,19 +93,6 @@ function HomeRedirect() {
   );
 }
 
-function AppRedirect() {
-  return (
-    <>
-      <Show when="signed-in">
-        <Dashboard />
-      </Show>
-      <Show when="signed-out">
-        <Redirect to="/" />
-      </Show>
-    </>
-  );
-}
-
 function ClerkQueryClientCacheInvalidator() {
   const { addListener } = useClerk();
   const queryClientHook = useQueryClient();
@@ -159,7 +146,7 @@ function ClerkProviderWithRoutes() {
         <ClerkQueryClientCacheInvalidator />
         <Switch>
           <Route path="/" component={HomeRedirect} />
-          <Route path="/app" component={AppRedirect} />
+          <Route path="/app" component={Dashboard} />
           <Route path="/sign-in/*?" component={SignInPage} />
           <Route path="/sign-up/*?" component={SignUpPage} />
           <Route>

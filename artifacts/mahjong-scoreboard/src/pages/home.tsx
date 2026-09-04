@@ -28,9 +28,14 @@ export default function Home() {
         </p>
 
         <div className="flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto">
-          <Link href="/sign-in" className="w-full sm:w-auto">
+          <Link href="/app" className="w-full sm:w-auto">
             <Button size="lg" className="w-full sm:w-auto text-lg h-14 px-8" data-testid="link-sign-in">
-              Enter the Parlor
+              View Scoreboard
+            </Button>
+          </Link>
+          <Link href="/sign-in" className="w-full sm:w-auto">
+            <Button size="lg" variant="outline" className="w-full sm:w-auto text-base h-14 px-7">
+              Admin Sign In
             </Button>
           </Link>
         </div>

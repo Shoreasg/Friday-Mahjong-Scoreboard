@@ -6,15 +6,25 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { SessionForm } from "@/components/SessionForm";
 import { format, parseISO } from "date-fns";
-import { Trophy, Plus, LogOut, Coins, Activity, Trash2, Edit2, ChevronDown } from "lucide-react";
+import { Trophy, Plus, LogOut, Coins, Activity, Trash2, Edit2, ChevronDown, LogIn } from "lucide-react";
 import { useState } from "react";
-import { useClerk } from "@clerk/react";
+import { useClerk, useUser } from "@clerk/react";
 import { toast } from "sonner";
 import type { MahjongSession } from "@workspace/api-client-react";
+import { Link } from "wouter";
 
 export default function Dashboard() {
   const { signOut } = useClerk();
+  const { isSignedIn, user } = useUser();
   const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
+  const adminEmail = import.meta.env.VITE_ADMIN_EMAIL?.trim().toLocaleLowerCase();
+  const isAdmin = Boolean(
+    isSignedIn &&
+    adminEmail &&
+    user?.emailAddresses.some(
+      ({ emailAddress }) => emailAddress.toLocaleLowerCase() === adminEmail,
+    ),
+  );
   
   const { data: summary, isLoading: isLoadingSummary } = useGetSessionSummary();
   const { data: sessions, isLoading: isLoadingSessions } = useListSessions();
@@ -85,10 +95,19 @@ export default function Dashboard() {
             </div>
             <h1 className="font-serif text-xl sm:text-2xl text-foreground font-semibold tracking-tight">Friday Mahjong</h1>
           </div>
-          <Button variant="ghost" size="sm" onClick={() => signOut({ redirectUrl: basePath || "/" })} data-testid="button-sign-out">
-            <LogOut className="w-4 h-4 mr-2" />
-            <span className="hidden sm:inline">Sign Out</span>
-          </Button>
+          {isSignedIn ? (
+            <Button variant="ghost" size="sm" onClick={() => signOut({ redirectUrl: `${basePath}/app` || "/app" })} data-testid="button-sign-out">
+              <LogOut className="w-4 h-4 mr-2" />
+              <span className="hidden sm:inline">{isAdmin ? "Admin Sign Out" : "Sign Out"}</span>
+            </Button>
+          ) : (
+            <Button asChild variant="ghost" size="sm">
+              <Link href="/sign-in">
+                <LogIn className="w-4 h-4 mr-2" />
+                <span className="hidden sm:inline">Admin Sign In</span>
+              </Link>
+            </Button>
+          )}
         </div>
       </header>
 
@@ -199,30 +218,34 @@ export default function Dashboard() {
                           <div className="mr-1 rounded-md bg-accent px-2.5 py-1 text-sm font-semibold text-foreground">
                             ${session.totalAmount.toFixed(2)}
                           </div>
-                          <Button 
-                            variant="ghost" 
-                            size="icon"
-                            className="h-8 w-8 text-muted-foreground hover:text-primary"
-                            onClick={() => setEditSession(session)}
-                            aria-label={`Edit session from ${session.playedOn}`}
-                            data-testid={`button-edit-${session.id}`}
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="icon"
-                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                            onClick={() => {
-                              if (confirm("Delete this session?")) {
-                                deleteMutation.mutate({ id: session.id });
-                              }
-                            }}
-                            aria-label={`Delete session from ${session.playedOn}`}
-                            data-testid={`button-delete-${session.id}`}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
+                          {isAdmin && (
+                            <>
+                              <Button 
+                                variant="ghost" 
+                                size="icon"
+                                className="h-8 w-8 text-muted-foreground hover:text-primary"
+                                onClick={() => setEditSession(session)}
+                                aria-label={`Edit session from ${session.playedOn}`}
+                                data-testid={`button-edit-${session.id}`}
+                              >
+                                <Edit2 className="w-4 h-4" />
+                              </Button>
+                              <Button 
+                                variant="ghost" 
+                                size="icon"
+                                className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                onClick={() => {
+                                  if (confirm("Delete this session?")) {
+                                    deleteMutation.mutate({ id: session.id });
+                                  }
+                                }}
+                                aria-label={`Delete session from ${session.playedOn}`}
+                                data-testid={`button-delete-${session.id}`}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </>
+                          )}
                         </div>
                       </div>
 
@@ -271,14 +294,16 @@ export default function Dashboard() {
       </main>
 
       {/* Floating Action Button */}
-      <Button 
-        size="icon" 
-        className="fixed bottom-6 right-6 sm:bottom-8 sm:right-8 w-14 h-14 rounded-full shadow-xl hover:scale-105 active:scale-95 transition-transform"
-        onClick={() => setCreateOpen(true)}
-        data-testid="button-fab-create"
-      >
-        <Plus className="w-6 h-6" />
-      </Button>
+      {isAdmin && (
+        <Button 
+          size="icon" 
+          className="fixed bottom-6 right-6 sm:bottom-8 sm:right-8 w-14 h-14 rounded-full shadow-xl hover:scale-105 active:scale-95 transition-transform"
+          onClick={() => setCreateOpen(true)}
+          data-testid="button-fab-create"
+        >
+          <Plus className="w-6 h-6" />
+        </Button>
+      )}
 
       {/* Create Sheet */}
       <Sheet open={createOpen} onOpenChange={setCreateOpen}>

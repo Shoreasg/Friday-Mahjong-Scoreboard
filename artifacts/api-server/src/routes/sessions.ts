@@ -1,4 +1,4 @@
-import { getAuth } from "@clerk/express";
+import { clerkClient, getAuth } from "@clerk/express";
 import {
   CreateSessionBody,
   CreateSessionResponse,
@@ -71,12 +71,29 @@ function userIdFor(req: Request): string | null {
     : (auth?.userId ?? null);
 }
 
-function requireUser(req: Request, res: Response): string | null {
+async function requireAdmin(req: Request, res: Response): Promise<string | null> {
   const userId = userIdFor(req);
   if (!userId) {
     res.status(401).json({ error: "Unauthorized" });
     return null;
   }
+
+  const adminEmail = process.env.ADMIN_EMAIL?.trim().toLocaleLowerCase();
+  if (!adminEmail) {
+    req.log.error("ADMIN_EMAIL is not configured");
+    res.status(500).json({ error: "Admin access is not configured" });
+    return null;
+  }
+
+  const user = await clerkClient.users.getUser(userId);
+  const isAdmin = user.emailAddresses.some(
+    ({ emailAddress }) => emailAddress.toLocaleLowerCase() === adminEmail,
+  );
+  if (!isAdmin) {
+    res.status(403).json({ error: "Admin access required" });
+    return null;
+  }
+
   return userId;
 }
 
@@ -85,8 +102,6 @@ function dateOnly(value: Date): string {
 }
 
 router.get("/sessions", async (req, res): Promise<void> => {
-  if (!requireUser(req, res)) return;
-
   const sessions = await db
     .select()
     .from(mahjongSessionsTable)
@@ -96,7 +111,7 @@ router.get("/sessions", async (req, res): Promise<void> => {
 });
 
 router.post("/sessions", async (req, res): Promise<void> => {
-  const userId = requireUser(req, res);
+  const userId = await requireAdmin(req, res);
   if (!userId) return;
 
   const parsed = CreateSessionBody.safeParse(req.body);
@@ -129,8 +144,6 @@ router.post("/sessions", async (req, res): Promise<void> => {
 });
 
 router.get("/sessions/summary", async (req, res): Promise<void> => {
-  if (!requireUser(req, res)) return;
-
   const [totals] = await db
     .select({
       totalSessions: sql<number>`count(*)::int`,
@@ -166,8 +179,6 @@ router.get("/sessions/summary", async (req, res): Promise<void> => {
 });
 
 router.get("/sessions/:id", async (req, res): Promise<void> => {
-  if (!requireUser(req, res)) return;
-
   const params = GetSessionParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -188,7 +199,7 @@ router.get("/sessions/:id", async (req, res): Promise<void> => {
 });
 
 router.patch("/sessions/:id", async (req, res): Promise<void> => {
-  if (!requireUser(req, res)) return;
+  if (!(await requireAdmin(req, res))) return;
 
   const params = UpdateSessionParams.safeParse(req.params);
   const body = UpdateSessionBody.safeParse(req.body);
@@ -235,7 +246,7 @@ router.patch("/sessions/:id", async (req, res): Promise<void> => {
 });
 
 router.delete("/sessions/:id", async (req, res): Promise<void> => {
-  if (!requireUser(req, res)) return;
+  if (!(await requireAdmin(req, res))) return;
 
   const params = DeleteSessionParams.safeParse(req.params);
   if (!params.success) {

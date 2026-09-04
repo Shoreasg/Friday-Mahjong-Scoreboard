@@ -24,21 +24,20 @@ A shared scoreboard for friends to record weekly Friday Mahjong sessions, settle
 ## Where things live
 
 - `artifacts/mahjong-scoreboard` — React web app and branded Clerk sign-in
-- `artifacts/api-server/src/routes/sessions.ts` — protected Mahjong session API
+- `artifacts/api-server/src/routes/sessions.ts` — public-read, admin-write Mahjong session API
 - `lib/api-spec/openapi.yaml` — API contract and generated-client source of truth
 - `lib/db/src/schema/mahjong-sessions.ts` — persistent session schema
 
 ## Architecture decisions
 
-- Clerk owns account creation and Google sign-in; browser API requests use Clerk's same-origin session cookie.
-- The scoreboard is shared by all authenticated users in this first version.
+- Clerk owns the admin Google sign-in; browser API requests use Clerk's same-origin session cookie.
+- The scoreboard and session history are public. Create, update, and delete requests require the configured admin email on both the client and API.
 - Calendar game dates are stored as date-only values to avoid timezone shifts.
 
 ## Product
 
-- Public introduction and branded account screens
-- Authenticated dashboard with cumulative totals, winner standings, and weekly history
-- Create, edit, inspect, and delete completed Mahjong sessions
+- Public introduction, scoreboard, cumulative totals, winner standings, and weekly history
+- Admin-only creation, editing, and deletion of completed Mahjong sessions
 - Persistent tracking of date, rounds, settlement amount, winner, and optional notes
 
 ## User preferences
