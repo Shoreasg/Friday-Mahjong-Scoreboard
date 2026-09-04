@@ -25,5 +25,5 @@ channel = "stable-25_05"
 [userenv]
 
 [userenv.shared]
-ADMIN_EMAIL = "garyganweilun@gmail.com"
-VITE_ADMIN_EMAIL = "garyganweilun@gmail.com"
+ADMIN_EMAILS = "garyganweilun@gmail.com,weilun.gan@repl.it"
+VITE_ADMIN_EMAILS = "garyganweilun@gmail.com,weilun.gan@repl.it"

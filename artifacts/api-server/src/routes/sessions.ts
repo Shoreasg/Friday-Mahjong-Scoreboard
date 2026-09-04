@@ -100,16 +100,22 @@ async function requireAdmin(req: Request, res: Response): Promise<string | null>
     return null;
   }
 
-  const adminEmail = process.env.ADMIN_EMAIL?.trim().toLocaleLowerCase();
-  if (!adminEmail) {
-    req.log.error("ADMIN_EMAIL is not configured");
+  const adminEmails = new Set(
+    process.env.ADMIN_EMAILS
+      ?.split(",")
+      .map((email) => email.trim().toLocaleLowerCase())
+      .filter(Boolean),
+  );
+  if (adminEmails.size === 0) {
+    req.log.error("ADMIN_EMAILS is not configured");
     res.status(500).json({ error: "Admin access is not configured" });
     return null;
   }
 
   const user = await clerkClient.users.getUser(userId);
   const isAdmin = user.emailAddresses.some(
-    ({ emailAddress }) => emailAddress.toLocaleLowerCase() === adminEmail,
+    ({ emailAddress }) =>
+      adminEmails.has(emailAddress.trim().toLocaleLowerCase()),
   );
   if (!isAdmin) {
     res.status(403).json({ error: "Admin access required" });

@@ -17,12 +17,18 @@ export default function Dashboard() {
   const { signOut } = useClerk();
   const { isSignedIn, user } = useUser();
   const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
-  const adminEmail = import.meta.env.VITE_ADMIN_EMAIL?.trim().toLocaleLowerCase();
+  const adminEmails = new Set(
+    import.meta.env.VITE_ADMIN_EMAILS
+      ?.split(",")
+      .map((email: string) => email.trim().toLocaleLowerCase())
+      .filter(Boolean),
+  );
   const isAdmin = Boolean(
     isSignedIn &&
-    adminEmail &&
+    adminEmails.size > 0 &&
     user?.emailAddresses.some(
-      ({ emailAddress }) => emailAddress.toLocaleLowerCase() === adminEmail,
+      ({ emailAddress }) =>
+        adminEmails.has(emailAddress.trim().toLocaleLowerCase()),
     ),
   );
   

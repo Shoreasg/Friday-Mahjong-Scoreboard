@@ -10,7 +10,7 @@ A shared scoreboard for friends to record weekly Friday Mahjong sessions, settle
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL`, `CLERK_SECRET_KEY`, `CLERK_PUBLISHABLE_KEY`, `VITE_CLERK_PUBLISHABLE_KEY`
+- Required env: `DATABASE_URL`, `CLERK_SECRET_KEY`, `CLERK_PUBLISHABLE_KEY`, `VITE_CLERK_PUBLISHABLE_KEY`, `ADMIN_EMAILS`, `VITE_ADMIN_EMAILS`
 
 ## Stack
 
@@ -31,7 +31,7 @@ A shared scoreboard for friends to record weekly Friday Mahjong sessions, settle
 ## Architecture decisions
 
 - Clerk owns the admin Google sign-in; browser API requests use Clerk's same-origin session cookie.
-- The scoreboard and session history are public. Create, update, and delete requests require the configured admin email on both the client and API.
+- The scoreboard and session history are public. Create, update, and delete requests require an email in the comma-separated `ADMIN_EMAILS` / `VITE_ADMIN_EMAILS` lists on both the API and client.
 - Calendar game dates are stored as date-only values to avoid timezone shifts.
 
 ## Product

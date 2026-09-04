@@ -72,8 +72,10 @@ vi.mock("@workspace/db", async (importOriginal) => {
 import app from "../app";
 
 const adminUserId = "admin-user";
+const secondAdminUserId = "second-admin-user";
 const viewerUserId = "viewer-user";
 const adminEmail = "admin@example.com";
+const secondAdminEmail = "second.admin@example.com";
 
 const session = {
   id: 1,
@@ -113,7 +115,6 @@ async function request(
 }
 
 beforeAll(async () => {
-  process.env.ADMIN_EMAIL = adminEmail;
   await new Promise<void>((resolve) => {
     server = app.listen(0, "127.0.0.1", () => resolve());
   });
@@ -129,12 +130,18 @@ afterAll(async () => {
 });
 
 beforeEach(() => {
+  process.env.ADMIN_EMAILS = ` ${adminEmail.toUpperCase()} , ${secondAdminEmail} `;
   mocks.selectResults.length = 0;
   mocks.mutationResults.length = 0;
   vi.clearAllMocks();
   mocks.getUser.mockImplementation(async (userId: string) => ({
     emailAddresses: [{
-      emailAddress: userId === adminUserId ? adminEmail : "viewer@example.com",
+      emailAddress:
+        userId === adminUserId
+          ? ` ${adminEmail} `
+          : userId === secondAdminUserId
+            ? secondAdminEmail.toUpperCase()
+            : "viewer@example.com",
     }],
   }));
 });
@@ -215,12 +222,15 @@ describe("session authorization", () => {
     expect(response.status).toBe(403);
   });
 
-  it("allows the configured admin to create, update, and delete sessions", async () => {
+  it.each([
+    ["existing", adminUserId],
+    ["second", secondAdminUserId],
+  ])("allows the %s configured admin to create, update, and delete sessions", async (_label, userId) => {
     mocks.mutationResults.push([session]);
     const createResponse = await request(
       "/api/sessions",
       { method: "POST", body: JSON.stringify(createBody) },
-      adminUserId,
+      userId,
     );
     expect(createResponse.status).toBe(201);
 
@@ -229,7 +239,7 @@ describe("session authorization", () => {
     const updateResponse = await request(
       "/api/sessions/1",
       { method: "PATCH", body: JSON.stringify({ rounds: 5 }) },
-      adminUserId,
+      userId,
     );
     expect(updateResponse.status).toBe(200);
     expect(await updateResponse.json()).toMatchObject({ id: 1, rounds: 5 });
@@ -238,10 +248,39 @@ describe("session authorization", () => {
     const deleteResponse = await request(
       "/api/sessions/1",
       { method: "DELETE" },
-      adminUserId,
+      userId,
     );
     expect(deleteResponse.status).toBe(204);
     expect(mocks.getUser).toHaveBeenCalledTimes(3);
+  });
+
+  it("returns 500 for signed-in writes when the admin list is missing", async () => {
+    delete process.env.ADMIN_EMAILS;
+
+    const response = await request(
+      "/api/sessions",
+      { method: "POST", body: JSON.stringify(createBody) },
+      adminUserId,
+    );
+
+    expect(response.status).toBe(500);
+    expect(await response.json()).toEqual({
+      error: "Admin access is not configured",
+    });
+    expect(mocks.getUser).not.toHaveBeenCalled();
+  });
+
+  it("returns 500 for signed-in writes when the admin list contains only whitespace", async () => {
+    process.env.ADMIN_EMAILS = " ,  , ";
+
+    const response = await request(
+      "/api/sessions",
+      { method: "POST", body: JSON.stringify(createBody) },
+      adminUserId,
+    );
+
+    expect(response.status).toBe(500);
+    expect(mocks.getUser).not.toHaveBeenCalled();
   });
 
   it.each([-1, 1.5])(
