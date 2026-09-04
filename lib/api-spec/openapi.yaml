@@ -145,6 +145,7 @@ components:
       description: Session identifier
       schema:
         type: integer
+        format: int32
         minimum: 1
   schemas:
     HealthStatus:
@@ -159,11 +160,13 @@ components:
       properties:
         id:
           type: integer
+          format: int32
         playedOn:
           type: string
           format: date
         rounds:
           type: integer
+          format: int32
           minimum: 1
         totalAmount:
           type: number
@@ -194,6 +197,7 @@ components:
           format: date
         rounds:
           type: integer
+          format: int32
           minimum: 1
           maximum: 99
         totalAmount:
@@ -220,6 +224,7 @@ components:
           format: date
         rounds:
           type: integer
+          format: int32
           minimum: 1
           maximum: 99
         totalAmount:
@@ -240,6 +245,7 @@ components:
           type: string
         wins:
           type: integer
+          format: int32
       required:
         - winnerName
         - wins
@@ -248,8 +254,10 @@ components:
       properties:
         totalSessions:
           type: integer
+          format: int32
         totalRounds:
           type: integer
+          format: int32
         totalAmount:
           type: number
           format: double
