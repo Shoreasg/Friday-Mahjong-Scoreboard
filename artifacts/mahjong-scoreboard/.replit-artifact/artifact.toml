@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Friday Mahjong Scoreboard"
+description = "A shared web app for friend groups to sign in with Google, record weekly Friday Mahjong sessions, track rounds and settlement amounts, and celebrate each day's winner."
+version = "1.0.0"
+id = "artifacts/mahjong-scoreboard"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 19389
+
+[services.development]
+run = "pnpm --filter @workspace/mahjong-scoreboard run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/mahjong-scoreboard", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/mahjong-scoreboard/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "19389"
+BASE_PATH = "/"

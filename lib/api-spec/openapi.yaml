@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: sessions
+    description: Weekly Mahjong session tracking
 paths:
   /healthz:
     get:
@@ -24,7 +26,126 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /sessions:
+    get:
+      operationId: listSessions
+      tags: [sessions]
+      summary: List Mahjong sessions
+      description: Returns shared Friday Mahjong sessions, newest first.
+      responses:
+        "200":
+          description: Session list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MahjongSession"
+        "401":
+          description: Unauthorized
+    post:
+      operationId: createSession
+      tags: [sessions]
+      summary: Record a Mahjong session
+      description: Adds a completed weekly Mahjong session to the shared history.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MahjongSessionInput"
+      responses:
+        "201":
+          description: Created session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MahjongSession"
+        "400":
+          description: Invalid session
+        "401":
+          description: Unauthorized
+  /sessions/summary:
+    get:
+      operationId: getSessionSummary
+      tags: [sessions]
+      summary: Get Mahjong scoreboard summary
+      description: Returns lightweight totals and winner counts for the dashboard.
+      responses:
+        "200":
+          description: Scoreboard summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionSummary"
+        "401":
+          description: Unauthorized
+  /sessions/{id}:
+    get:
+      operationId: getSession
+      tags: [sessions]
+      summary: Get one Mahjong session
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+      responses:
+        "200":
+          description: Mahjong session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MahjongSession"
+        "401":
+          description: Unauthorized
+        "404":
+          description: Session not found
+    patch:
+      operationId: updateSession
+      tags: [sessions]
+      summary: Update a Mahjong session
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MahjongSessionUpdate"
+      responses:
+        "200":
+          description: Updated session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MahjongSession"
+        "400":
+          description: Invalid session
+        "401":
+          description: Unauthorized
+        "404":
+          description: Session not found
+    delete:
+      operationId: deleteSession
+      tags: [sessions]
+      summary: Delete a Mahjong session
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+      responses:
+        "204":
+          description: Session deleted
+        "401":
+          description: Unauthorized
+        "404":
+          description: Session not found
 components:
+  parameters:
+    SessionId:
+      name: id
+      in: path
+      required: true
+      description: Session identifier
+      schema:
+        type: integer
+        minimum: 1
   schemas:
     HealthStatus:
       type: object
@@ -33,4 +154,117 @@ components:
           type: string
       required:
         - status
+    MahjongSession:
+      type: object
+      properties:
+        id:
+          type: integer
+        playedOn:
+          type: string
+          format: date
+        rounds:
+          type: integer
+          minimum: 1
+        totalAmount:
+          type: number
+          format: double
+        winnerName:
+          type: string
+        notes:
+          type: ["string", "null"]
+        createdByUserId:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - playedOn
+        - rounds
+        - totalAmount
+        - winnerName
+        - notes
+        - createdByUserId
+        - createdAt
+    MahjongSessionInput:
+      type: object
+      properties:
+        playedOn:
+          type: string
+          format: date
+        rounds:
+          type: integer
+          minimum: 1
+          maximum: 99
+        totalAmount:
+          type: number
+          format: double
+          minimum: 0
+        winnerName:
+          type: string
+          minLength: 1
+          maxLength: 80
+        notes:
+          type: ["string", "null"]
+          maxLength: 500
+      required:
+        - playedOn
+        - rounds
+        - totalAmount
+        - winnerName
+    MahjongSessionUpdate:
+      type: object
+      properties:
+        playedOn:
+          type: string
+          format: date
+        rounds:
+          type: integer
+          minimum: 1
+          maximum: 99
+        totalAmount:
+          type: number
+          format: double
+          minimum: 0
+        winnerName:
+          type: string
+          minLength: 1
+          maxLength: 80
+        notes:
+          type: ["string", "null"]
+          maxLength: 500
+    WinnerCount:
+      type: object
+      properties:
+        winnerName:
+          type: string
+        wins:
+          type: integer
+      required:
+        - winnerName
+        - wins
+    SessionSummary:
+      type: object
+      properties:
+        totalSessions:
+          type: integer
+        totalRounds:
+          type: integer
+        totalAmount:
+          type: number
+          format: double
+        latestSession:
+          anyOf:
+            - $ref: "#/components/schemas/MahjongSession"
+            - type: "null"
+        winnerCounts:
+          type: array
+          items:
+            $ref: "#/components/schemas/WinnerCount"
+      required:
+        - totalSessions
+        - totalRounds
+        - totalAmount
+        - latestSession
+        - winnerCounts
 
