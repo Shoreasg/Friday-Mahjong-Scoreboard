@@ -6,14 +6,50 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { SessionForm } from "@/components/SessionForm";
 import { format, parseISO } from "date-fns";
-import { Trophy, Plus, LogOut, Coins, Activity, Trash2, Edit2, ChevronDown, LogIn, Flame, Flower2 } from "lucide-react";
-import { useState } from "react";
+import { Trophy, Plus, LogOut, Coins, Activity, Trash2, Edit2, ChevronDown, LogIn, Flame, Flower2, BarChart3 } from "lucide-react";
+import { lazy, Suspense, useState } from "react";
 import { useClerk, useUser } from "@clerk/react";
 import { toast } from "sonner";
 import type { MahjongSession } from "@workspace/api-client-react";
 import { Link } from "wouter";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { PerformanceAnalytics } from "@/components/PerformanceAnalytics";
+
+const PerformanceAnalytics = lazy(() =>
+  import("@/components/PerformanceAnalytics").then((module) => ({
+    default: module.PerformanceAnalytics,
+  })),
+);
+
+function PerformanceAnalyticsPlaceholder() {
+  return (
+    <section aria-label="Performance analytics loading" aria-busy="true">
+      <div className="mb-5 flex items-center gap-3">
+        <BarChart3 className="h-7 w-7 text-foreground" strokeWidth={3} />
+        <div>
+          <h2 className="text-2xl text-foreground">Performance Analytics</h2>
+          <p className="font-bold text-muted-foreground">Loading chart details...</p>
+        </div>
+      </div>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <Card className="bg-card lg:col-span-2">
+          <CardContent className="p-4 sm:p-6">
+            <div className="h-[356px] animate-pulse border-2 border-dashed border-ink bg-muted/40 sm:h-[436px]" />
+          </CardContent>
+        </Card>
+        <Card className="bg-card">
+          <CardContent className="p-4 sm:p-6">
+            <div className="h-[326px] animate-pulse border-2 border-dashed border-ink bg-muted/40" />
+          </CardContent>
+        </Card>
+        <Card className="bg-card">
+          <CardContent className="p-4 sm:p-6">
+            <div className="h-[326px] animate-pulse border-2 border-dashed border-ink bg-muted/40" />
+          </CardContent>
+        </Card>
+      </div>
+    </section>
+  );
+}
 
 function formatSignedCurrency(amount: number) {
   const sign = amount > 0 ? "+" : amount < 0 ? "-" : "";
@@ -203,7 +239,9 @@ export default function Dashboard() {
           </Card>
         </section>
 
-        <PerformanceAnalytics sessions={sessions ?? []} />
+        <Suspense fallback={<PerformanceAnalyticsPlaceholder />}>
+          <PerformanceAnalytics sessions={sessions ?? []} />
+        </Suspense>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
           {/* Leaderboard */}
