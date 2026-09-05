@@ -148,20 +148,8 @@ export function SessionForm({
                   control={form.control}
                   name={`playerBalances.${index}.endingAmount`}
                   render={({ field }) => (
-                    <FormItem>
-                      <div className="flex items-center justify-between mb-2">
-                        <FormLabel className="font-black uppercase tracking-wide text-xs mb-0">Ending ($)</FormLabel>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 px-2 text-[10px] border-2 border-ink brutal-shadow-sm bg-accent text-accent-foreground hover:bg-accent/80 shrink-0"
-                          onClick={() => setScannerOpenFor(index)}
-                          data-testid={`button-scan-chips-${index}`}
-                        >
-                          <Camera className="w-3 h-3 mr-1" /> SCAN
-                        </Button>
-                      </div>
+                    <FormItem className="min-w-0">
+                      <FormLabel className="font-black uppercase tracking-wide text-xs">Ending ($)</FormLabel>
                       <FormControl>
                         <Input type="number" min="0" step="0.01" {...field} data-testid={`input-player-balance-${index}`} className="border-2 font-mono" />
                       </FormControl>
@@ -204,6 +192,17 @@ export function SessionForm({
                     </FormItem>
                   )}
                 />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="col-span-full h-10 w-full gap-2 border-2 border-ink bg-accent px-3 text-xs font-black uppercase tracking-widest text-accent-foreground brutal-shadow-sm hover:bg-accent/80"
+                  onClick={() => setScannerOpenFor(index)}
+                  data-testid={`button-scan-chips-${index}`}
+                  aria-label={`Scan chip stacks for Player ${index + 1} ending balance`}
+                >
+                  <Camera className="size-4 shrink-0" />
+                  Scan chips for ending balance
+                </Button>
               </div>
             ))}
           </div>
