@@ -291,3 +291,45 @@ export const DeleteSessionParams = zod.object({
 export const DeleteSessionResponse = zod.void()
 
 
+/**
+ * Estimates quantities for the five configured Mahjong chip denominations from one temporary image. Admin review is required before applying the result.
+ * @summary Analyze separated chip stacks
+ */
+export const analyzeChipStacksBodyImageBase64Min = 16;
+export const analyzeChipStacksBodyImageBase64Max = 6000000;
+
+
+
+export const AnalyzeChipStacksBody = zod.object({
+  "imageBase64": zod.string().min(analyzeChipStacksBodyImageBase64Min).max(analyzeChipStacksBodyImageBase64Max).describe('Base64-encoded image bytes without a data URL prefix.'),
+  "mimeType": zod.enum(['image/jpeg', 'image/png', 'image/webp'])
+})
+
+export const analyzeChipStacksResponseStacksItemCountMax = 500;
+
+export const analyzeChipStacksResponseStacksItemConfidenceMin = 0;
+export const analyzeChipStacksResponseStacksItemConfidenceMax = 1;
+
+export const analyzeChipStacksResponseStacksItemUncertaintyMax = 240;
+
+export const analyzeChipStacksResponseStacksMax = 5;
+
+export const analyzeChipStacksResponseOverallConfidenceMin = 0;
+export const analyzeChipStacksResponseOverallConfidenceMax = 1;
+
+export const analyzeChipStacksResponseGuidanceMax = 300;
+
+
+
+export const AnalyzeChipStacksResponse = zod.object({
+  "stacks": zod.array(zod.object({
+  "denomination": zod.enum(['white', 'orange', 'light_blue', 'blue', 'black']),
+  "count": zod.int().min(1).max(analyzeChipStacksResponseStacksItemCountMax),
+  "confidence": zod.number().min(analyzeChipStacksResponseStacksItemConfidenceMin).max(analyzeChipStacksResponseStacksItemConfidenceMax),
+  "uncertainty": zod.string().max(analyzeChipStacksResponseStacksItemUncertaintyMax).nullable()
+})).min(1).max(analyzeChipStacksResponseStacksMax),
+  "overallConfidence": zod.number().min(analyzeChipStacksResponseOverallConfidenceMin).max(analyzeChipStacksResponseOverallConfidenceMax),
+  "guidance": zod.string().max(analyzeChipStacksResponseGuidanceMax).nullable()
+})
+
+

@@ -1,13 +1,21 @@
+import { lazy, Suspense, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { format } from "date-fns";
+import { Camera } from "lucide-react";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { type MahjongSessionInput } from "@workspace/api-client-react";
 import { cn } from "@/lib/utils";
+
+const ChipStackScanner = lazy(() =>
+  import("./ChipStackScanner").then((module) => ({
+    default: module.ChipStackScanner,
+  })),
+);
 
 const sessionSchema = z.object({
   playedOn: z.string().min(1, "Date is required"),
@@ -36,6 +44,8 @@ export function SessionForm({
   compact = false,
   onCancel,
 }: SessionFormProps) {
+  const [scannerOpenFor, setScannerOpenFor] = useState<number | null>(null);
+
   const form = useForm<z.infer<typeof sessionSchema>>({
     resolver: zodResolver(sessionSchema),
     defaultValues: {
@@ -139,7 +149,19 @@ export function SessionForm({
                   name={`playerBalances.${index}.endingAmount`}
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="font-black uppercase tracking-wide text-xs">Ending ($)</FormLabel>
+                      <div className="flex items-center justify-between mb-2">
+                        <FormLabel className="font-black uppercase tracking-wide text-xs mb-0">Ending ($)</FormLabel>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 px-2 text-[10px] border-2 border-ink brutal-shadow-sm bg-accent text-accent-foreground hover:bg-accent/80 shrink-0"
+                          onClick={() => setScannerOpenFor(index)}
+                          data-testid={`button-scan-chips-${index}`}
+                        >
+                          <Camera className="w-3 h-3 mr-1" /> SCAN
+                        </Button>
+                      </div>
                       <FormControl>
                         <Input type="number" min="0" step="0.01" {...field} data-testid={`input-player-balance-${index}`} className="border-2 font-mono" />
                       </FormControl>
@@ -227,6 +249,27 @@ export function SessionForm({
           </Button>
         </div>
       </form>
+      <Suspense fallback={
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-tile border-4 border-ink p-6 brutal-shadow-lg text-center flex flex-col items-center gap-4">
+            <div className="w-10 h-10 border-4 border-ink bg-primary rounded-full animate-ping" />
+            <p className="font-black uppercase tracking-widest text-sm">Loading Scanner...</p>
+          </div>
+        </div>
+      }>
+        {scannerOpenFor !== null && (
+          <ChipStackScanner
+            open={true}
+            onOpenChange={(open) => {
+              if (!open) setScannerOpenFor(null);
+            }}
+            playerName={form.getValues(`playerBalances.${scannerOpenFor}.name`) || `Player ${scannerOpenFor + 1}`}
+            onApply={(amount) => {
+              form.setValue(`playerBalances.${scannerOpenFor}.endingAmount`, amount, { shouldValidate: true });
+            }}
+          />
+        )}
+      </Suspense>
     </Form>
   );
 }

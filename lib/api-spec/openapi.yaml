@@ -12,6 +12,8 @@ tags:
     description: Health operations
   - name: sessions
     description: Weekly Mahjong session tracking
+  - name: chip-scans
+    description: Assisted Mahjong chip stack counting
 paths:
   /healthz:
     get:
@@ -136,6 +138,37 @@ paths:
           description: Admin access required
         "404":
           description: Session not found
+  /chip-scans/analyze:
+    post:
+      operationId: analyzeChipStacks
+      tags: [chip-scans]
+      summary: Analyze separated chip stacks
+      description: Estimates quantities for the five configured Mahjong chip denominations from one temporary image. Admin review is required before applying the result.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChipScanInput"
+      responses:
+        "200":
+          description: Structured chip stack estimates
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChipScanResult"
+        "400":
+          description: Invalid image or analysis result
+        "401":
+          description: Unauthorized
+        "403":
+          description: Admin access required
+        "413":
+          description: Image payload too large
+        "422":
+          description: Image does not show countable separated stacks
+        "502":
+          description: Image analysis service failed
 components:
   parameters:
     SessionId:
@@ -262,6 +295,75 @@ components:
         - endingAmount
         - zhaHuCount
         - xieXieKaiXiangCount
+    ChipDenomination:
+      type: string
+      enum:
+        - white
+        - orange
+        - light_blue
+        - blue
+        - black
+    ChipScanInput:
+      type: object
+      properties:
+        imageBase64:
+          type: string
+          minLength: 16
+          maxLength: 6000000
+          description: Base64-encoded image bytes without a data URL prefix.
+        mimeType:
+          type: string
+          enum:
+            - image/jpeg
+            - image/png
+            - image/webp
+      required:
+        - imageBase64
+        - mimeType
+    ChipStackEstimate:
+      type: object
+      properties:
+        denomination:
+          $ref: "#/components/schemas/ChipDenomination"
+        count:
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 500
+        confidence:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 1
+        uncertainty:
+          type: ["string", "null"]
+          maxLength: 240
+      required:
+        - denomination
+        - count
+        - confidence
+        - uncertainty
+    ChipScanResult:
+      type: object
+      properties:
+        stacks:
+          type: array
+          minItems: 1
+          maxItems: 5
+          items:
+            $ref: "#/components/schemas/ChipStackEstimate"
+        overallConfidence:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 1
+        guidance:
+          type: ["string", "null"]
+          maxLength: 300
+      required:
+        - stacks
+        - overallConfidence
+        - guidance
     WinnerCount:
       type: object
       properties:

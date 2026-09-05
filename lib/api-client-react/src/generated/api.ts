@@ -20,6 +20,8 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  ChipScanInput,
+  ChipScanResult,
   HealthStatus,
   MahjongSession,
   MahjongSessionInput,
@@ -578,5 +580,77 @@ export const useDeleteSession = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getDeleteSessionMutationOptions(options));
+    }
+
+export const getAnalyzeChipStacksUrl = () => {
+
+
+
+
+  return `/api/chip-scans/analyze`
+}
+
+/**
+ * Estimates quantities for the five configured Mahjong chip denominations from one temporary image. Admin review is required before applying the result.
+ * @summary Analyze separated chip stacks
+ */
+export const analyzeChipStacks = async (chipScanInput: ChipScanInput, options?: Parameters<typeof customFetch>[1]): Promise<ChipScanResult> => {
+
+  return customFetch<ChipScanResult>(getAnalyzeChipStacksUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(chipScanInput)
+  }
+);}
+
+
+
+
+
+export const getAnalyzeChipStacksMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof analyzeChipStacks>>, TError,{data: BodyType<ChipScanInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof analyzeChipStacks>>, TError,{data: BodyType<ChipScanInput>}, TContext> => {
+
+const mutationKey = ['analyzeChipStacks'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof analyzeChipStacks>>, {data: BodyType<ChipScanInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  analyzeChipStacks(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AnalyzeChipStacksMutationResult = NonNullable<Awaited<ReturnType<typeof analyzeChipStacks>>>
+    export type AnalyzeChipStacksMutationBody = BodyType<ChipScanInput>
+    export type AnalyzeChipStacksMutationError = ErrorType<void>
+
+    /**
+ * @summary Analyze separated chip stacks
+ */
+export const useAnalyzeChipStacks = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof analyzeChipStacks>>, TError,{data: BodyType<ChipScanInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof analyzeChipStacks>>,
+        TError,
+        {data: BodyType<ChipScanInput>},
+        TContext
+      > => {
+      return useMutation(getAnalyzeChipStacksMutationOptions(options));
     }
 

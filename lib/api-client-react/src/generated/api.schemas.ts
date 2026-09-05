@@ -76,6 +76,73 @@ export interface MahjongSessionUpdate {
   notes?: string | null;
 }
 
+export type ChipDenomination = typeof ChipDenomination[keyof typeof ChipDenomination];
+
+
+export const ChipDenomination = {
+  white: 'white',
+  orange: 'orange',
+  light_blue: 'light_blue',
+  blue: 'blue',
+  black: 'black',
+} as const;
+
+export type ChipScanInputMimeType = typeof ChipScanInputMimeType[keyof typeof ChipScanInputMimeType];
+
+
+export const ChipScanInputMimeType = {
+  'image/jpeg': 'image/jpeg',
+  'image/png': 'image/png',
+  'image/webp': 'image/webp',
+} as const;
+
+export interface ChipScanInput {
+  /**
+     * Base64-encoded image bytes without a data URL prefix.
+     * @minLength 16
+     * @maxLength 6000000
+     */
+  imageBase64: string;
+  mimeType: ChipScanInputMimeType;
+}
+
+export interface ChipStackEstimate {
+  denomination: ChipDenomination;
+  /**
+     * @minimum 1
+     * @maximum 500
+     */
+  count: number;
+  /**
+     * @minimum 0
+     * @maximum 1
+     */
+  confidence: number;
+  /**
+     * @maxLength 240
+     * @nullable
+     */
+  uncertainty: string | null;
+}
+
+export interface ChipScanResult {
+  /**
+     * @minItems 1
+     * @maxItems 5
+     */
+  stacks: ChipStackEstimate[];
+  /**
+     * @minimum 0
+     * @maximum 1
+     */
+  overallConfidence: number;
+  /**
+     * @maxLength 300
+     * @nullable
+     */
+  guidance: string | null;
+}
+
 export interface WinnerCount {
   winnerName: string;
   wins: number;

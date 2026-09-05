@@ -6,6 +6,11 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './chipDenomination';
+export * from './chipScanInput';
+export * from './chipScanInputMimeType';
+export * from './chipScanResult';
+export * from './chipStackEstimate';
 export * from './healthStatus';
 export * from './mahjongSession';
 export * from './mahjongSessionInput';
