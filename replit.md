@@ -43,6 +43,7 @@ A shared scoreboard for friends to record weekly Friday Mahjong sessions, settle
 - Persistent tracking of date, rounds, settlement amount, winner, per-player Zha Hu and 谢谢 Kai Xiang counts, and optional notes
 - Cumulative leaderboards for net winnings, match wins, Zha Hu incidents, and 谢谢 Kai Xiang occurrences
 - Cumulative player winnings use each recorded ending balance minus the $500 starting balance; legacy sessions without balances are excluded
+- Public analytics compare cumulative winnings over time, per-player win rates, and session-level Zha Hu / 谢谢 Kai Xiang activity
 
 ## User preferences
 

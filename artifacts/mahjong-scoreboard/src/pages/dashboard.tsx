@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import type { MahjongSession } from "@workspace/api-client-react";
 import { Link } from "wouter";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { PerformanceAnalytics } from "@/components/PerformanceAnalytics";
 
 function formatSignedCurrency(amount: number) {
   const sign = amount > 0 ? "+" : amount < 0 ? "-" : "";
@@ -201,6 +202,8 @@ export default function Dashboard() {
             </CardContent>
           </Card>
         </section>
+
+        <PerformanceAnalytics sessions={sessions ?? []} />
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
           {/* Leaderboard */}
