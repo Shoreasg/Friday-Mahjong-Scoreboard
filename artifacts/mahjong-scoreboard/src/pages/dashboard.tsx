@@ -93,7 +93,16 @@ export default function Dashboard() {
   }
 
   const sortedWinners = summary?.winnerCounts 
-    ? [...summary.winnerCounts].sort((a, b) => b.wins - a.wins) 
+    ? [...summary.winnerCounts].sort(
+        (a, b) => b.wins - a.wins || a.winnerName.localeCompare(b.winnerName),
+      )
+    : [];
+  const sortedWinnings = summary?.playerWinnings
+    ? [...summary.playerWinnings].sort(
+        (a, b) =>
+          b.netAmount - a.netAmount ||
+          a.playerName.localeCompare(b.playerName),
+      )
     : [];
   const sortedZhaHu = summary?.zhaHuCounts
     ? [...summary.zhaHuCounts].sort(
@@ -199,7 +208,7 @@ export default function Dashboard() {
             <div>
               <h2 className="font-sans font-black text-2xl text-foreground flex items-center gap-2 uppercase mb-4">
                 <Trophy className="w-6 h-6 text-foreground" strokeWidth={3} />
-                Leaderboard
+                Wins Leaderboard
               </h2>
               <Card className="bg-card overflow-hidden">
                 <CardContent className="p-0">
@@ -223,6 +232,61 @@ export default function Dashboard() {
                           </div>
                           <div className="text-sm font-black px-3 py-1 bg-primary text-primary-foreground border-2 border-ink brutal-shadow-sm tracking-widest">
                             {winner.wins} {winner.wins === 1 ? 'WIN' : 'WINS'}
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+            <div>
+              <h2 className="font-sans font-black text-2xl text-foreground flex items-center gap-2 uppercase mb-4">
+                <Coins className="w-6 h-6 text-foreground" strokeWidth={3} />
+                Winnings Leaderboard
+              </h2>
+              <Card className="bg-card overflow-hidden">
+                <CardContent className="p-0">
+                  {sortedWinnings.length === 0 ? (
+                    <div className="p-8 text-center font-bold text-muted-foreground uppercase tracking-wide">
+                      NO BALANCES RECORDED YET.
+                    </div>
+                  ) : (
+                    <ul className="divide-y-2 divide-ink">
+                      {sortedWinnings.map((player, index) => (
+                        <li
+                          key={player.playerName.toLocaleLowerCase()}
+                          className="flex items-center justify-between p-4"
+                          data-testid={`row-winnings-${index}`}
+                        >
+                          <div className="flex min-w-0 items-center gap-4">
+                            <div
+                              className={`w-10 h-10 shrink-0 border-2 border-ink brutal-shadow-sm flex items-center justify-center font-mono text-lg font-bold ${
+                                index === 0
+                                  ? "bg-secondary text-black"
+                                  : index === 1
+                                    ? "bg-muted text-foreground"
+                                    : "bg-tile text-foreground"
+                              }`}
+                            >
+                              {index + 1}
+                            </div>
+                            <span className="truncate font-black text-lg text-foreground uppercase">
+                              {player.playerName}
+                            </span>
+                          </div>
+                          <div
+                            className={`ml-3 shrink-0 border-2 border-ink px-3 py-1 font-mono text-sm font-black brutal-shadow-sm ${
+                              player.netAmount > 0
+                                ? "bg-primary text-primary-foreground"
+                                : player.netAmount < 0
+                                  ? "bg-destructive text-destructive-foreground"
+                                  : "bg-muted text-foreground"
+                            }`}
+                            data-testid={`value-winnings-${index}`}
+                          >
+                            {formatSignedCurrency(player.netAmount)}
                           </div>
                         </li>
                       ))}
