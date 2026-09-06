@@ -1,0 +1,442 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Friday Mahjong Scoreboard - Runtime Architecture",
+    "locale": "en",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1360,
+      560
+    ],
+    "repository": {
+      "url": "https://github.com/Shoreasg/Friday-Mahjong-Scoreboard",
+      "revision": "a435f4d1f694c462b4f9369cd1d5f671b0563113"
+    },
+    "views": [
+      {
+        "id": "request-path",
+        "label": "Session request path",
+        "focus": [
+          "spa",
+          "edge",
+          "api",
+          "db"
+        ],
+        "note": "Browser SPA calls /api through the Replit router into Express and Drizzle."
+      },
+      {
+        "id": "identity",
+        "label": "Clerk identity and admin",
+        "focus": [
+          "spa",
+          "api",
+          "clerkProxy",
+          "adminGuard",
+          "clerk"
+        ],
+        "note": "Same-origin Clerk proxy plus the ADMIN_EMAILS allowlist that gates every write."
+      },
+      {
+        "id": "contract",
+        "label": "Build-time contract",
+        "focus": [
+          "apiSpec",
+          "spa",
+          "api"
+        ],
+        "note": "Orval generates the React Query client and the Zod parsers from openapi.yaml."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "spa",
+      "type": "frontend",
+      "label": "Scoreboard SPA",
+      "sublabel": "React + Vite + TanStack Query",
+      "tag": "browser client",
+      "brand": "react",
+      "pos": [
+        40,
+        270
+      ],
+      "size": [
+        200,
+        96
+      ],
+      "sources": [
+        {
+          "path": "artifacts/mahjong-scoreboard/vite.config.ts",
+          "label": "Vite build to dist/public"
+        },
+        {
+          "path": "artifacts/mahjong-scoreboard/src/App.tsx",
+          "label": "ClerkProvider + wouter routes"
+        }
+      ]
+    },
+    {
+      "id": "apiSpec",
+      "type": "external",
+      "label": "OpenAPI Contract",
+      "sublabel": "openapi.yaml + Orval codegen",
+      "tag": "build time only",
+      "pos": [
+        40,
+        455
+      ],
+      "size": [
+        200,
+        70
+      ],
+      "sources": [
+        {
+          "path": "lib/api-spec/orval.config.ts",
+          "label": "two Orval outputs"
+        },
+        {
+          "path": "lib/api-spec/openapi.yaml",
+          "label": "source of truth"
+        }
+      ]
+    },
+    {
+      "id": "static",
+      "type": "cloud",
+      "label": "Static Web Server",
+      "sublabel": "dist/public, SPA rewrite",
+      "tag": "path /",
+      "pos": [
+        370,
+        130
+      ],
+      "size": [
+        200,
+        76
+      ],
+      "sources": [
+        {
+          "path": "artifacts/mahjong-scoreboard/.replit-artifact/artifact.toml",
+          "label": "serve = static"
+        }
+      ]
+    },
+    {
+      "id": "edge",
+      "type": "cloud",
+      "label": "Replit Application Router",
+      "sublabel": "autoscale, path routing",
+      "tag": "router = application",
+      "pos": [
+        370,
+        270
+      ],
+      "size": [
+        200,
+        96
+      ],
+      "sources": [
+        {
+          "path": ".replit",
+          "line": 3,
+          "end_line": 5,
+          "label": "deployment block"
+        }
+      ]
+    },
+    {
+      "id": "mockup",
+      "type": "frontend",
+      "label": "Mockup Sandbox",
+      "sublabel": "kind = design, :8081",
+      "tag": "dev only",
+      "pos": [
+        370,
+        400
+      ],
+      "size": [
+        200,
+        70
+      ],
+      "sources": [
+        {
+          "path": "artifacts/mockup-sandbox/.replit-artifact/artifact.toml",
+          "label": "development run only"
+        }
+      ]
+    },
+    {
+      "id": "clerkProxy",
+      "type": "security",
+      "label": "Clerk FAPI Proxy",
+      "sublabel": "/api/__clerk, production",
+      "pos": [
+        620,
+        30
+      ],
+      "size": [
+        200,
+        76
+      ],
+      "sources": [
+        {
+          "path": "artifacts/api-server/src/middlewares/clerkProxyMiddleware.ts",
+          "label": "http-proxy-middleware"
+        }
+      ]
+    },
+    {
+      "id": "api",
+      "type": "backend",
+      "label": "API Server",
+      "sublabel": "Express 5, node dist/index.mjs :8080",
+      "tag": "GET /api/healthz",
+      "pos": [
+        700,
+        270
+      ],
+      "size": [
+        300,
+        96
+      ],
+      "sources": [
+        {
+          "path": "artifacts/api-server/src/app.ts",
+          "label": "middleware chain"
+        },
+        {
+          "path": "artifacts/api-server/src/routes/index.ts",
+          "label": "health, sessions, chip scans"
+        },
+        {
+          "path": "artifacts/api-server/.replit-artifact/artifact.toml",
+          "label": "production run + health"
+        }
+      ]
+    },
+    {
+      "id": "adminGuard",
+      "type": "security",
+      "label": "requireAdmin",
+      "sublabel": "ADMIN_EMAILS allowlist",
+      "pos": [
+        870,
+        130
+      ],
+      "size": [
+        200,
+        76
+      ],
+      "sources": [
+        {
+          "path": "artifacts/api-server/src/routes/requireAdmin.ts",
+          "label": "email allowlist check"
+        }
+      ]
+    },
+    {
+      "id": "clerk",
+      "type": "external",
+      "label": "Clerk",
+      "sublabel": "frontend-api.clerk.dev",
+      "pos": [
+        1110,
+        30
+      ],
+      "size": [
+        200,
+        76
+      ]
+    },
+    {
+      "id": "db",
+      "type": "database",
+      "label": "PostgreSQL",
+      "sublabel": "mahjong_sessions, Drizzle",
+      "tag": "DATABASE_URL",
+      "brand": "postgresql",
+      "pos": [
+        1110,
+        270
+      ],
+      "size": [
+        200,
+        76
+      ],
+      "sources": [
+        {
+          "path": "lib/db/src/index.ts",
+          "label": "pg Pool + drizzle"
+        },
+        {
+          "path": "lib/db/src/schema/mahjong-sessions.ts",
+          "label": "jsonb player_balances"
+        }
+      ]
+    },
+    {
+      "id": "gemini",
+      "type": "external",
+      "label": "Google Gemini",
+      "sublabel": "gemini-2.5-flash",
+      "tag": "@google/genai",
+      "brand": "google-gemini",
+      "pos": [
+        1110,
+        400
+      ],
+      "size": [
+        200,
+        76
+      ],
+      "sources": [
+        {
+          "path": "lib/integrations-gemini-ai/src/client.ts",
+          "label": "GoogleGenAI client"
+        }
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Replit autoscale deployment",
+      "wraps": [
+        "static",
+        "edge",
+        "api",
+        "clerkProxy",
+        "adminGuard"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "spa-to-edge",
+      "from": "spa",
+      "to": "edge",
+      "label": "Clerk cookie over HTTPS",
+      "variant": "emphasis"
+    },
+    {
+      "id": "edge-to-static",
+      "from": "edge",
+      "to": "static",
+      "label": "path / - SPA bundle"
+    },
+    {
+      "id": "edge-to-api",
+      "from": "edge",
+      "to": "api",
+      "label": "path /api to :8080"
+    },
+    {
+      "id": "edge-to-mockup",
+      "from": "edge",
+      "to": "mockup",
+      "label": "dev only - /__mockup",
+      "variant": "dashed",
+      "labelDy": 40
+    },
+    {
+      "id": "api-to-clerk-proxy",
+      "from": "api",
+      "to": "clerkProxy",
+      "label": "mounts /api/__clerk first",
+      "variant": "security",
+      "fromSide": "top",
+      "toSide": "bottom",
+      "labelDx": -100
+    },
+    {
+      "id": "clerk-proxy-to-clerk",
+      "from": "clerkProxy",
+      "to": "clerk",
+      "label": "reverse proxy, secret key",
+      "variant": "security"
+    },
+    {
+      "id": "api-to-admin-guard",
+      "from": "api",
+      "to": "adminGuard",
+      "label": "gates POST / PATCH / DELETE",
+      "variant": "security",
+      "fromSide": "top",
+      "toSide": "bottom",
+      "labelDx": 50
+    },
+    {
+      "id": "admin-guard-to-clerk",
+      "from": "adminGuard",
+      "to": "clerk",
+      "label": "clerkClient getUser",
+      "variant": "security",
+      "labelDy": 16
+    },
+    {
+      "id": "api-to-db",
+      "from": "api",
+      "to": "db",
+      "label": "SQL over pg Pool"
+    },
+    {
+      "id": "api-to-gemini",
+      "from": "api",
+      "to": "gemini",
+      "label": "chip photo to stack counts",
+      "fromSide": "bottom",
+      "toSide": "left"
+    },
+    {
+      "id": "spec-to-client",
+      "from": "apiSpec",
+      "to": "spa",
+      "label": "Orval: api-client-react",
+      "variant": "dashed"
+    },
+    {
+      "id": "spec-to-zod",
+      "from": "apiSpec",
+      "to": "api",
+      "label": "Orval: api-zod parsers",
+      "variant": "dashed",
+      "fromSide": "right",
+      "toSide": "bottom"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Edge and delivery",
+      "items": [
+        "Router fronts every path; static server serves dist/public at /",
+        "SPA rewrite /* to /index.html; /api goes to Express on :8080"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "API server",
+      "items": [
+        "esbuild bundles src into one ESM dist/index.mjs",
+        "Startup probe GET /api/healthz; Gemini via AI_INTEGRATIONS_GEMINI_*"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Security",
+      "items": [
+        "Origin guard returns 403 before CORS; Clerk proxied same-origin",
+        "requireAdmin checks the Clerk email against ADMIN_EMAILS"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "Contract and data",
+      "items": [
+        "Orval builds api-client-react hooks and api-zod parsers",
+        "One mahjong_sessions table; drizzle-kit push, no migrations"
+      ]
+    }
+  ]
+}
