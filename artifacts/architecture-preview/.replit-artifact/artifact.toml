@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/architecture-preview/"
+title = "Friday Mahjong Architecture"
+description = "An interactive runtime architecture diagram for the Friday Mahjong Scoreboard, covering the browser app, API server, authentication, database, Gemini chip scanning, and generated API contract."
+version = "1.0.0"
+id = "artifacts/architecture-preview"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/architecture-preview/" ]
+localPort = 24165
+
+[services.development]
+run = "pnpm --filter @workspace/architecture-preview run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/architecture-preview", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/architecture-preview/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "24165"
+BASE_PATH = "/architecture-preview/"
