@@ -1,6 +1,14 @@
 # Friday Mahjong Scoreboard
 
-A shared scoreboard for friends to record weekly Friday Mahjong sessions, settlement amounts, rounds played, and winners.
+A shared scoreboard for a friend group to record weekly Friday Mahjong sessions: date, rounds played, settlement amounts, per-player ending balances, the winner, and two house-rule counters — **Zha Hu** (诈胡) and **谢谢开相 / Kai Xiang**.
+
+Reading the scoreboard is public. Creating, editing, and deleting sessions is admin-only, gated by Google sign-in through Clerk plus an email allowlist.
+
+## Architecture
+
+**Start here to understand how the system fits together:** [`docs/architecture/runtime-architecture.html`](docs/architecture/runtime-architecture.html) — an interactive diagram of every runtime component (SPA, API server, Clerk auth, Postgres, Gemini, the build-time OpenAPI contract) and how they talk to each other. It has a light/dark toggle, pan/zoom, search, and guided walkthroughs of the main request paths.
+
+GitHub shows `.html` files as source rather than rendering them, so open it locally after cloning. See [`docs/architecture/README.md`](docs/architecture/README.md) for details, and for how to keep it up to date — a repo hook checks for this automatically (below).
 
 ## Run & Operate
 
@@ -23,7 +31,7 @@ A shared scoreboard for friends to record weekly Friday Mahjong sessions, settle
 
 ## Where things live
 
-- `docs/architecture/runtime-architecture.html` — interactive runtime architecture diagram; open this first to understand what talks to what. Source at `docs/architecture/runtime-architecture.source.json`.
+- `docs/architecture` — the interactive runtime architecture diagram and its source
 - `artifacts/mahjong-scoreboard` — React web app and branded Clerk sign-in
 - `artifacts/api-server/src/routes/sessions.ts` — public-read, admin-write Mahjong session API
 - `lib/api-spec/openapi.yaml` — API contract and generated-client source of truth
@@ -46,16 +54,12 @@ A shared scoreboard for friends to record weekly Friday Mahjong sessions, settle
 - Cumulative player winnings use each recorded ending balance minus the $500 starting balance; legacy sessions without balances are excluded
 - Public analytics compare cumulative winnings over time, per-player win rates, and session-level Zha Hu / 谢谢 Kai Xiang activity
 
-## User preferences
-
-_Populate as you build — explicit user instructions worth remembering across sessions._
-
 ## Gotchas
 
 - Re-run API codegen after editing `lib/api-spec/openapi.yaml`.
 - Keep the Clerk proxy middleware mounted before Express body parsers.
-- If you touch an architecture-relevant file (see the path list in `.claude/hooks/check-diagram-freshness.sh`), update `docs/architecture/runtime-architecture.source.json` and regenerate `runtime-architecture.html` (see `docs/architecture/README.md`) before committing — a pre-commit hook blocks the commit otherwise.
+- After editing an architecture-relevant file (see the list in `.claude/hooks/check-diagram-freshness.sh`), update `docs/architecture/runtime-architecture.source.json` and regenerate the HTML — a commit hook enforces this for AI agents working in this repo (see `docs/architecture/README.md`).
 
-## Pointers
+## For AI agents working in this repo
 
-- See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details
+See `replit.md` for the AI-agent-facing project brief (run commands, gotchas, pointers). The [interactive architecture diagram](docs/architecture/runtime-architecture.html) is the canonical map of the system — read it before making structural changes, and keep it current per `docs/architecture/README.md`.

@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/check-diagram-freshness.sh\"",
+            "timeout": 15,
+            "statusMessage": "Checking interactive architecture diagram is up to date..."
+          }
+        ]
+      }
+    ]
+  }
+}
