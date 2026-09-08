@@ -47,3 +47,7 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# Local development environment (see .env.example)
+.env
+.pnpm-store/
