@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import type { MahjongSession } from "@workspace/api-client-react";
 import { Link } from "wouter";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { getSessionCreationNotification } from "@/lib/session-announcement";
 
 const PerformanceAnalytics = lazy(() =>
   import("@/components/PerformanceAnalytics").then((module) => ({
@@ -87,12 +88,11 @@ export default function Dashboard() {
         queryClient.invalidateQueries({ queryKey: getListSessionsQueryKey() });
         queryClient.invalidateQueries({ queryKey: getGetSessionSummaryQueryKey() });
         setCreateOpen(false);
-        if (data.announcement.status === "failed") {
-          toast.warning("Session recorded, but Telegram could not post the result");
-        } else if (data.announcement.status === "skipped") {
-          toast.success("Session recorded; Telegram is not configured");
+        const notification = getSessionCreationNotification(data.announcement);
+        if (notification.variant === "warning") {
+          toast.warning(notification.message);
         } else {
-          toast.success("Session recorded and posted to Telegram");
+          toast.success(notification.message);
         }
       },
       onError: () => toast.error("Failed to record session")
