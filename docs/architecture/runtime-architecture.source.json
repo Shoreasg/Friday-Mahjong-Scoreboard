@@ -7,11 +7,11 @@
     "quality_profile": "showcase",
     "viewBox": [
       1360,
-      560
+      650
     ],
     "repository": {
       "url": "https://github.com/Shoreasg/Friday-Mahjong-Scoreboard",
-      "revision": "a435f4d1f694c462b4f9369cd1d5f671b0563113"
+      "revision": "6abfe65ad0aed7dbc222a13507e811e4c0498228"
     },
     "views": [
       {
@@ -306,7 +306,7 @@
       "tag": "@workspace/integrations-telegram",
       "pos": [
         1110,
-        530
+        500
       ],
       "size": [
         200,

@@ -324,6 +324,7 @@ describe("session authorization", () => {
     );
     expect(deleteResponse.status).toBe(204);
     expect(mocks.getUser).toHaveBeenCalledTimes(3);
+    expect(mocks.telegramSend).toHaveBeenCalledTimes(1);
   });
 
   it("returns 500 for signed-in writes when the admin list is missing", async () => {
@@ -364,6 +365,7 @@ describe("session authorization", () => {
     const escapedSession = {
       ...session,
       winnerName: "A & <Ace>",
+      notes: "Bring snacks & <tea>",
       playerBalances: [
         { name: "A & <Ace>", endingAmount: 130, zhaHuCount: 1, xieXieKaiXiangCount: 1 },
         { name: "Bob", endingAmount: 100, zhaHuCount: 0, xieXieKaiXiangCount: 2 },
@@ -389,6 +391,17 @@ describe("session authorization", () => {
     });
     const [{ text }] = mocks.telegramSend.mock.calls[0] as [{ text: string }];
     expect(text).toContain("https://scoreboard.example/app");
+    expect(text).toContain("Winner: <b>A &amp; &lt;Ace&gt;</b> (-$370.00)");
+    expect(text).toContain("$130.00 (-$370.00)");
+    expect(text).toContain("$100.00 (-$400.00)");
+    expect(text).toContain("$90.00 (-$410.00)");
+    expect(text).toContain("$80.00 (-$420.00)");
+    expect(text).toContain("<b>Rounds</b>: 4");
+    expect(text).toContain("<b>Settlement total</b>: $400.00");
+    expect(text).toContain("<b>Starting balance</b>: $500.00 per player");
+    expect(text).toContain("诈胡 1");
+    expect(text).toContain("谢谢开相 1");
+    expect(text).toContain("Bring snacks &amp; &lt;tea&gt;");
     expect(text).not.toContain("A & <Ace>");
   });
 

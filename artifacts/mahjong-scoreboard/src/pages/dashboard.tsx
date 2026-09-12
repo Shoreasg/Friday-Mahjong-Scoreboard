@@ -90,7 +90,7 @@ export default function Dashboard() {
         if (data.announcement.status === "failed") {
           toast.warning("Session recorded, but Telegram could not post the result");
         } else if (data.announcement.status === "skipped") {
-          toast.success("Session recorded successfully");
+          toast.success("Session recorded; Telegram is not configured");
         } else {
           toast.success("Session recorded and posted to Telegram");
         }
