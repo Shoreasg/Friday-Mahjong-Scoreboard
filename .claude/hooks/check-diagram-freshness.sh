@@ -39,6 +39,7 @@ arch_paths=(
   "lib/db/src/index.ts"
   "lib/db/src/schema/mahjong-sessions.ts"
   "lib/integrations-gemini-ai/src/client.ts"
+  "lib/integrations-telegram/src/index.ts"
   "lib/api-spec/openapi.yaml"
   "lib/api-spec/orval.config.ts"
   ".replit"

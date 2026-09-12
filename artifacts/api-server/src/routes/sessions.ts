@@ -15,6 +15,9 @@ import {
   normalizePlayerName,
   STARTING_BALANCE,
 } from "@workspace/session-rules";
+import {
+  sendTelegramMessage,
+} from "@workspace/integrations-telegram";
 import { desc, eq, sql } from "drizzle-orm";
 import {
   Router,
@@ -24,6 +27,11 @@ import {
 import { requireAdmin } from "./requireAdmin";
 
 const router: IRouter = Router();
+
+type AnnouncementOutcome =
+  | { status: "sent"; messageId: number | null }
+  | { status: "skipped"; reason: "not_configured" }
+  | { status: "failed"; reason: "delivery_failed" };
 
 type SubmittedBalance = {
   name: string;
@@ -103,6 +111,102 @@ function dateOnly(value: Date): string {
   return value.toISOString().slice(0, 10);
 }
 
+function escapeTelegramHtml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+
+function formatMoney(value: number): string {
+  return `$${value.toFixed(2)}`;
+}
+
+function formatNetPosition(value: number): string {
+  return `${value >= 0 ? "+" : "-"}${formatMoney(Math.abs(value))}`;
+}
+
+function scoreboardUrl(req: Request): string {
+  const configuredUrl = process.env.SCOREBOARD_URL?.trim();
+  if (configuredUrl) {
+    return configuredUrl.replace(/\/+$/, "");
+  }
+
+  const forwardedProto = req.get("x-forwarded-proto")?.split(",")[0]?.trim();
+  const protocol = forwardedProto || req.protocol;
+  return `${protocol}://${req.get("host")}`;
+}
+
+function sessionAnnouncement(
+  req: Request,
+  session: typeof mahjongSessionsTable.$inferSelect,
+): string {
+  const players = normalizePlayerBalances(session.playerBalances);
+  const playerLines = players
+    .map((player) => {
+      const netPosition = player.endingAmount - STARTING_BALANCE;
+      return [
+        `• <b>${escapeTelegramHtml(player.name)}</b>`,
+        `${formatMoney(player.endingAmount)} (${formatNetPosition(netPosition)})`,
+        `诈胡 ${player.zhaHuCount}`,
+        `谢谢开相 ${player.xieXieKaiXiangCount}`,
+      ].join(" · ");
+    })
+    .join("\n");
+  const winner = players.find(
+    (player) =>
+      player.name.trim().toLocaleLowerCase() ===
+      session.winnerName.trim().toLocaleLowerCase(),
+  );
+  const winnerPosition = winner
+    ? ` (${formatNetPosition(winner.endingAmount - STARTING_BALANCE)})`
+    : "";
+  const notes = session.notes
+    ? `\n\n<b>Notes</b>\n${escapeTelegramHtml(session.notes)}`
+    : "";
+
+  return [
+    `<b>Friday Mahjong · ${escapeTelegramHtml(session.playedOn)}</b>`,
+    `Winner: <b>${escapeTelegramHtml(session.winnerName)}</b>${winnerPosition}`,
+    "",
+    `<b>Players</b>\n${playerLines}`,
+    "",
+    `<b>Rounds</b>: ${session.rounds}`,
+    `<b>Settlement total</b>: ${formatMoney(session.totalAmount)}`,
+    `<b>Starting balance</b>: ${formatMoney(STARTING_BALANCE)} per player`,
+    notes,
+    "",
+    `<a href="${escapeTelegramHtml(scoreboardUrl(req))}">Open the scoreboard</a>`,
+  ]
+    .filter((line, index, lines) => !(line === "" && lines[index - 1] === ""))
+    .join("\n");
+}
+
+async function announceSession(
+  req: Request,
+  session: typeof mahjongSessionsTable.$inferSelect,
+): Promise<AnnouncementOutcome> {
+  try {
+    const result = await sendTelegramMessage({
+      text: sessionAnnouncement(req, session),
+      parseMode: "HTML",
+    });
+    return result.status === "sent"
+      ? { status: "sent", messageId: result.messageId }
+      : { status: "skipped", reason: result.reason };
+  } catch (error) {
+    req.log.warn(
+      {
+        err: error,
+        sessionId: session.id,
+      },
+      "Telegram session announcement failed",
+    );
+    return { status: "failed", reason: "delivery_failed" };
+  }
+}
+
 router.get("/sessions", async (req, res): Promise<void> => {
   const sessions = await db
     .select()
@@ -142,7 +246,13 @@ router.post("/sessions", async (req, res): Promise<void> => {
     })
     .returning();
 
-  res.status(201).json(CreateSessionResponse.parse(normalizeSession(session)));
+  const announcement = await announceSession(req, session);
+  res.status(201).json(
+    CreateSessionResponse.parse({
+      ...normalizeSession(session),
+      announcement,
+    }),
+  );
 });
 
 router.get("/sessions/summary", async (req, res): Promise<void> => {

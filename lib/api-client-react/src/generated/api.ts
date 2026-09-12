@@ -26,6 +26,7 @@ import type {
   MahjongSession,
   MahjongSessionInput,
   MahjongSessionUpdate,
+  SessionCreationResponse,
   SessionSummary
 } from './api.schemas';
 
@@ -224,9 +225,9 @@ export const getCreateSessionUrl = () => {
  * Adds a completed weekly Mahjong session to the shared history.
  * @summary Record a Mahjong session
  */
-export const createSession = async (mahjongSessionInput: MahjongSessionInput, options?: Parameters<typeof customFetch>[1]): Promise<MahjongSession> => {
+export const createSession = async (mahjongSessionInput: MahjongSessionInput, options?: Parameters<typeof customFetch>[1]): Promise<SessionCreationResponse> => {
 
-  return customFetch<MahjongSession>(getCreateSessionUrl(),
+  return customFetch<SessionCreationResponse>(getCreateSessionUrl(),
   {
     ...options,
     method: 'POST',

@@ -38,6 +38,22 @@ export interface MahjongSession {
   createdAt: string;
 }
 
+export type TelegramAnnouncementOutcome = {
+  status: 'sent';
+  /** @nullable */
+  messageId: number | null;
+} | {
+  status: 'skipped';
+  reason: 'not_configured';
+} | {
+  status: 'failed';
+  reason: 'delivery_failed';
+};
+
+export type SessionCreationResponse = MahjongSession & {
+  announcement: TelegramAnnouncementOutcome;
+};
+
 export interface MahjongSessionInput {
   playedOn: string;
   /**

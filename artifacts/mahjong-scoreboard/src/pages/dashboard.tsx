@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import type { MahjongSession } from "@workspace/api-client-react";
 import { Link } from "wouter";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { getSessionCreationNotification } from "@/lib/session-announcement";
 
 const PerformanceAnalytics = lazy(() =>
   import("@/components/PerformanceAnalytics").then((module) => ({
@@ -83,11 +84,16 @@ export default function Dashboard() {
 
   const createMutation = useCreateSession({
     mutation: {
-      onSuccess: () => {
+      onSuccess: (data) => {
         queryClient.invalidateQueries({ queryKey: getListSessionsQueryKey() });
         queryClient.invalidateQueries({ queryKey: getGetSessionSummaryQueryKey() });
         setCreateOpen(false);
-        toast.success("Session recorded successfully");
+        const notification = getSessionCreationNotification(data.announcement);
+        if (notification.variant === "warning") {
+          toast.warning(notification.message);
+        } else {
+          toast.success(notification.message);
+        }
       },
       onError: () => toast.error("Failed to record session")
     }

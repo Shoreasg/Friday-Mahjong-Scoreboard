@@ -18,6 +18,7 @@ only prerequisite.
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
 - Required env: `DATABASE_URL`, `CLERK_SECRET_KEY`, `CLERK_PUBLISHABLE_KEY`, `VITE_CLERK_PUBLISHABLE_KEY`, `ADMIN_EMAILS`, `VITE_ADMIN_EMAILS`
+- Optional Telegram env: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `SCOREBOARD_URL`
 
 ## Stack
 
