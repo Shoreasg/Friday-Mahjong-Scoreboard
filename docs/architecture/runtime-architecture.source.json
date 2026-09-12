@@ -297,6 +297,28 @@
         }
       ]
     }
+    ,
+    {
+      "id": "telegram",
+      "type": "external",
+      "label": "Telegram",
+      "sublabel": "Bot API · optional outbound",
+      "tag": "@workspace/integrations-telegram",
+      "pos": [
+        1110,
+        530
+      ],
+      "size": [
+        200,
+        76
+      ],
+      "sources": [
+        {
+          "path": "lib/integrations-telegram/src/index.ts",
+          "label": "lazy sendMessage adapter"
+        }
+      ]
+    }
   ],
   "boundaries": [
     {
@@ -385,6 +407,14 @@
       "from": "api",
       "to": "gemini",
       "label": "chip photo to stack counts",
+      "fromSide": "bottom",
+      "toSide": "left"
+    },
+    {
+      "id": "api-to-telegram",
+      "from": "api",
+      "to": "telegram",
+      "label": "optional session result announcement",
       "fromSide": "bottom",
       "toSide": "left"
     },

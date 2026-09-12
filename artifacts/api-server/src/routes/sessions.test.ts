@@ -29,6 +29,7 @@ const mocks = vi.hoisted(() => {
     selectResults,
     mutationResults,
     getUser: vi.fn(),
+    telegramSend: vi.fn(),
     db: {
       select: vi.fn(() => query(selectResults.shift() ?? [])),
       insert: vi.fn(() => ({
@@ -68,6 +69,10 @@ vi.mock("@workspace/db", async (importOriginal) => {
   const original = await importOriginal<typeof import("@workspace/db")>();
   return { ...original, db: mocks.db };
 });
+
+vi.mock("@workspace/integrations-telegram", () => ({
+  sendTelegramMessage: mocks.telegramSend,
+}));
 
 import app from "../app";
 
@@ -134,6 +139,13 @@ beforeEach(() => {
   mocks.selectResults.length = 0;
   mocks.mutationResults.length = 0;
   vi.clearAllMocks();
+  mocks.telegramSend.mockResolvedValue({
+    status: "skipped",
+    reason: "not_configured",
+  });
+  delete process.env.TELEGRAM_BOT_TOKEN;
+  delete process.env.TELEGRAM_CHAT_ID;
+  delete process.env.SCOREBOARD_URL;
   mocks.getUser.mockImplementation(async (userId: string) => ({
     emailAddresses: [{
       emailAddress:
@@ -341,6 +353,60 @@ describe("session authorization", () => {
 
     expect(response.status).toBe(500);
     expect(mocks.getUser).not.toHaveBeenCalled();
+  });
+
+  it("announces a newly created session with escaped HTML and delivery metadata", async () => {
+    process.env.TELEGRAM_BOT_TOKEN = "test-token";
+    process.env.TELEGRAM_CHAT_ID = "-100123";
+    process.env.SCOREBOARD_URL = "https://scoreboard.example/app";
+    mocks.telegramSend.mockResolvedValue({ status: "sent", messageId: 42 });
+
+    const escapedSession = {
+      ...session,
+      winnerName: "A & <Ace>",
+      playerBalances: [
+        { name: "A & <Ace>", endingAmount: 130, zhaHuCount: 1, xieXieKaiXiangCount: 1 },
+        { name: "Bob", endingAmount: 100, zhaHuCount: 0, xieXieKaiXiangCount: 2 },
+        { name: "Carol", endingAmount: 90, zhaHuCount: 2, xieXieKaiXiangCount: 0 },
+        { name: "Dave", endingAmount: 80, zhaHuCount: 0, xieXieKaiXiangCount: 0 },
+      ],
+    };
+    mocks.mutationResults.push([escapedSession]);
+
+    const response = await request(
+      "/api/sessions",
+      { method: "POST", body: JSON.stringify(createBody) },
+      adminUserId,
+    );
+
+    expect(response.status).toBe(201);
+    expect(await response.json()).toMatchObject({
+      announcement: { status: "sent", messageId: 42 },
+    });
+    expect(mocks.telegramSend).toHaveBeenCalledWith({
+      parseMode: "HTML",
+      text: expect.stringContaining("A &amp; &lt;Ace&gt;"),
+    });
+    const [{ text }] = mocks.telegramSend.mock.calls[0] as [{ text: string }];
+    expect(text).toContain("https://scoreboard.example/app");
+    expect(text).not.toContain("A & <Ace>");
+  });
+
+  it("persists a session and reports a failed announcement separately", async () => {
+    mocks.telegramSend.mockRejectedValue(new Error("Telegram is unavailable"));
+    mocks.mutationResults.push([session]);
+
+    const response = await request(
+      "/api/sessions",
+      { method: "POST", body: JSON.stringify(createBody) },
+      adminUserId,
+    );
+
+    expect(response.status).toBe(201);
+    expect(await response.json()).toMatchObject({
+      id: session.id,
+      announcement: { status: "failed", reason: "delivery_failed" },
+    });
   });
 
   it.each([-1, 1.5])(

@@ -83,11 +83,17 @@ export default function Dashboard() {
 
   const createMutation = useCreateSession({
     mutation: {
-      onSuccess: () => {
+      onSuccess: (data) => {
         queryClient.invalidateQueries({ queryKey: getListSessionsQueryKey() });
         queryClient.invalidateQueries({ queryKey: getGetSessionSummaryQueryKey() });
         setCreateOpen(false);
-        toast.success("Session recorded successfully");
+        if (data.announcement.status === "failed") {
+          toast.warning("Session recorded, but Telegram could not post the result");
+        } else if (data.announcement.status === "skipped") {
+          toast.success("Session recorded successfully");
+        } else {
+          toast.success("Session recorded and posted to Telegram");
+        }
       },
       onError: () => toast.error("Failed to record session")
     }
