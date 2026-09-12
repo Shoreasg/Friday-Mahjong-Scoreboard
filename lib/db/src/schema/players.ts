@@ -4,7 +4,9 @@ import {
   serial,
   text,
   timestamp,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -16,7 +18,9 @@ export const playersTable = pgTable("players", {
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
-});
+}, (table) => [
+  uniqueIndex("players_name_lower_unique").on(sql`lower(${table.name})`),
+]);
 
 export const insertPlayerSchema = createInsertSchema(playersTable).omit({
   id: true,

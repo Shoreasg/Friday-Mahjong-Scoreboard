@@ -380,6 +380,72 @@ describe("session authorization", () => {
       expect(mocks.db.insert).not.toHaveBeenCalled();
     },
   );
+
+  it("rejects a player reference that does not exist", async () => {
+    const invalidBody = {
+      ...createBody,
+      playerBalances: createBody.playerBalances.map((player, index) =>
+        index === 0 ? { ...player, playerId: 999 } : player,
+      ),
+    };
+    mocks.selectResults.push([]);
+
+    const response = await request(
+      "/api/sessions",
+      { method: "POST", body: JSON.stringify(invalidBody) },
+      adminUserId,
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      error: "playerId 999 does not reference an existing player",
+    });
+    expect(mocks.db.insert).not.toHaveBeenCalled();
+  });
+
+  it("rejects duplicate player references within a session", async () => {
+    const invalidBody = {
+      ...createBody,
+      playerBalances: createBody.playerBalances.map((player, index) =>
+        index < 2 ? { ...player, playerId: 1 } : player,
+      ),
+    };
+
+    const response = await request(
+      "/api/sessions",
+      { method: "POST", body: JSON.stringify(invalidBody) },
+      adminUserId,
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      error: "playerId values must be unique within a session",
+    });
+    expect(mocks.db.select).not.toHaveBeenCalled();
+    expect(mocks.db.insert).not.toHaveBeenCalled();
+  });
+
+  it("rejects a player reference paired with another player's name", async () => {
+    const invalidBody = {
+      ...createBody,
+      playerBalances: createBody.playerBalances.map((player, index) =>
+        index === 0 ? { ...player, playerId: 1, name: "Not Alice" } : player,
+      ),
+    };
+    mocks.selectResults.push([{ id: 1, name: "Alice" }]);
+
+    const response = await request(
+      "/api/sessions",
+      { method: "POST", body: JSON.stringify(invalidBody) },
+      adminUserId,
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      error: "playerId 1 does not match the player name",
+    });
+    expect(mocks.db.insert).not.toHaveBeenCalled();
+  });
 });
 
 describe("player listing", () => {

@@ -10,8 +10,8 @@ import {
   UpdateSessionParams,
   UpdateSessionResponse,
 } from "@workspace/api-zod";
-import { db, mahjongSessionsTable } from "@workspace/db";
-import { desc, eq, sql } from "drizzle-orm";
+import { db, mahjongSessionsTable, playersTable } from "@workspace/db";
+import { desc, eq, inArray, sql } from "drizzle-orm";
 import {
   Router,
   type IRouter,
@@ -29,6 +29,52 @@ type SubmittedBalance = {
   zhaHuCount: number;
   xieXieKaiXiangCount?: number;
 };
+
+function normalizedPlayerName(name: string): string {
+  return name.trim().toLocaleLowerCase();
+}
+
+async function validatePlayerReferences(
+  playerBalances: SubmittedBalance[],
+): Promise<string | null> {
+  const playerIds = playerBalances
+    .map((balance) => balance.playerId)
+    .filter((playerId): playerId is number => playerId !== undefined);
+
+  const invalidPlayerId = playerIds.find(
+    (playerId) => !Number.isInteger(playerId) || playerId <= 0,
+  );
+  if (invalidPlayerId !== undefined) {
+    return "playerId must be a positive integer";
+  }
+
+  if (new Set(playerIds).size !== playerIds.length) {
+    return "playerId values must be unique within a session";
+  }
+
+  if (playerIds.length === 0) {
+    return null;
+  }
+
+  const players = await db
+    .select({ id: playersTable.id, name: playersTable.name })
+    .from(playersTable)
+    .where(inArray(playersTable.id, playerIds));
+  const playersById = new Map(players.map((player) => [player.id, player]));
+
+  for (const balance of playerBalances) {
+    if (balance.playerId === undefined) continue;
+    const player = playersById.get(balance.playerId);
+    if (!player) {
+      return `playerId ${balance.playerId} does not reference an existing player`;
+    }
+    if (normalizedPlayerName(balance.name) !== normalizedPlayerName(player.name)) {
+      return `playerId ${balance.playerId} does not match the player name`;
+    }
+  }
+
+  return null;
+}
 
 function normalizePlayerBalances(playerBalances: SubmittedBalance[]) {
   return playerBalances.map((balance) => {
@@ -138,6 +184,13 @@ router.post("/sessions", async (req, res): Promise<void> => {
   const result = sessionResult(parsed.data.playerBalances);
   if (!result) {
     res.status(400).json({ error: "Exactly four player names are required and must be unique" });
+    return;
+  }
+  const playerReferenceError = await validatePlayerReferences(
+    parsed.data.playerBalances,
+  );
+  if (playerReferenceError) {
+    res.status(400).json({ error: playerReferenceError });
     return;
   }
 
@@ -306,6 +359,13 @@ router.patch("/sessions/:id", async (req, res): Promise<void> => {
     const result = sessionResult(body.data.playerBalances);
     if (!result) {
       res.status(400).json({ error: "Exactly four player names are required and must be unique" });
+      return;
+    }
+    const playerReferenceError = await validatePlayerReferences(
+      body.data.playerBalances,
+    );
+    if (playerReferenceError) {
+      res.status(400).json({ error: playerReferenceError });
       return;
     }
     update.totalAmount = result.totalAmount;
