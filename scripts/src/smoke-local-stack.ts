@@ -66,6 +66,57 @@ async function fetchSessionsDirect(): Promise<unknown[]> {
   return [];
 }
 
+async function fetchPlayersDirect(): Promise<unknown[]> {
+  const res = await fetch(`${apiBase}/api/players`);
+  const body = res.ok ? await readJson(res) : null;
+  if (res.ok && Array.isArray(body) && body.length > 0) {
+    pass(`Players endpoint returned ${body.length} player record(s) directly from the API`);
+    return body;
+  }
+  fail(`Players endpoint returned no records directly from the API (HTTP ${res.status}) — did the player expansion run?`);
+  return [];
+}
+
+function checkPlayerReferences(
+  sessions: unknown[],
+  players: unknown[],
+): void {
+  const playerIds = new Set(
+    players
+      .filter((player): player is { id: number } =>
+        typeof player === "object" &&
+        player !== null &&
+        typeof (player as { id?: unknown }).id === "number",
+      )
+      .map((player) => player.id),
+  );
+  const invalidReferences = sessions.flatMap((session) => {
+    if (typeof session !== "object" || session === null) return [];
+    const balances = (session as { playerBalances?: unknown }).playerBalances;
+    if (!Array.isArray(balances)) return [];
+    return balances.filter((balance) => {
+      if (typeof balance !== "object" || balance === null) return false;
+      const typedBalance = balance as {
+        name?: unknown;
+        playerId?: unknown;
+      };
+      if (typeof typedBalance.name !== "string" || !typedBalance.name.trim()) {
+        return false;
+      }
+      return (
+        !Number.isInteger(typedBalance.playerId) ||
+        !playerIds.has(typedBalance.playerId as number)
+      );
+    });
+  });
+
+  if (invalidReferences.length === 0) {
+    pass("Every non-empty session balance references a seeded player record");
+  } else {
+    fail(`${invalidReferences.length} non-empty session balance(s) have invalid player references`);
+  }
+}
+
 async function checkProxy(direct: unknown[]): Promise<void> {
   const res = await fetch(`${webBase}/api/sessions`, {
     headers: { Origin: webBase },
@@ -88,6 +139,15 @@ async function checkSeedIsIdempotent(beforeCount: number): Promise<void> {
     return;
   }
 
+  try {
+    execFileSync("pnpm", ["--filter", "@workspace/scripts", "run", "seed:players"], {
+      stdio: "inherit",
+    });
+  } catch (error) {
+    fail(`Could not re-run the player expansion: ${(error as Error).message}`);
+    return;
+  }
+
   const res = await fetch(`${apiBase}/api/sessions`);
   const after = res.ok ? await readJson(res) : null;
   if (res.ok && Array.isArray(after) && after.length === beforeCount) {
@@ -102,6 +162,8 @@ async function main(): Promise<void> {
   await checkApiHealth();
   await checkWebRoot();
   const direct = await fetchSessionsDirect();
+  const players = await fetchPlayersDirect();
+  checkPlayerReferences(direct, players);
   await checkProxy(direct);
 
   console.log("\nRe-running the seed to confirm idempotency...");

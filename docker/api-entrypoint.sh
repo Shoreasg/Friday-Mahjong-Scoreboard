@@ -18,5 +18,8 @@ pnpm --filter @workspace/db run push
 echo "==> Seeding the database (no-op if mahjong_sessions already has rows)..."
 pnpm --filter @workspace/db run seed
 
+echo "==> Expanding session balances with player records..."
+pnpm --filter @workspace/scripts run seed:players
+
 echo "==> Starting the API server in watch mode..."
 exec pnpm --filter @workspace/api-server run watch
