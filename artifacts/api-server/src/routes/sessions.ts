@@ -35,7 +35,8 @@ function normalizedPlayerName(name: string): string {
 }
 
 async function resolvePlayerReferences(
-  queryDb: Pick<typeof db, "select">,
+  queryDb: Pick<typeof db, "select" | "insert">,
+  createdByUserId: string,
   playerBalances: SubmittedBalance[],
 ): Promise<{ playerBalances: SubmittedBalance[] } | { error: string }> {
   const submittedPlayerIds = playerBalances
@@ -83,9 +84,19 @@ async function resolvePlayerReferences(
     } else {
       player = playersByName.get(normalizedPlayerName(balance.name));
       if (!player) {
-        return {
-          error: `No player found for name "${balance.name}". Add the player to the roster first`,
-        };
+        const [createdPlayer] = await queryDb
+          .insert(playersTable)
+          .values({
+            name: balance.name.trim(),
+            createdByUserId,
+          })
+          .returning({ id: playersTable.id, name: playersTable.name });
+        if (!createdPlayer) {
+          return { error: `Could not create player "${balance.name}"` };
+        }
+        player = createdPlayer;
+        playersById.set(player.id, player);
+        playersByName.set(normalizedPlayerName(player.name), player);
       }
     }
     if (seenPlayerIds.has(player.id)) {
@@ -204,7 +215,18 @@ router.post("/sessions", async (req, res): Promise<void> => {
   }
 
   const transactionResult = await db.transaction(async (tx) => {
-    const resolved = await resolvePlayerReferences(tx, parsed.data.playerBalances);
+    const unlinkedResult = sessionResult(parsed.data.playerBalances);
+    if (!unlinkedResult) {
+      return {
+        error: "Exactly four player names are required and must be unique",
+      };
+    }
+
+    const resolved = await resolvePlayerReferences(
+      tx,
+      userId,
+      parsed.data.playerBalances,
+    );
     if ("error" in resolved) return resolved;
 
     const result = sessionResult(resolved.playerBalances);
@@ -366,7 +388,8 @@ router.get("/sessions/:id", async (req, res): Promise<void> => {
 });
 
 router.patch("/sessions/:id", async (req, res): Promise<void> => {
-  if (!(await requireAdmin(req, res))) return;
+  const userId = await requireAdmin(req, res);
+  if (!userId) return;
 
   const params = UpdateSessionParams.safeParse(req.params);
   const body = UpdateSessionBody.safeParse(req.body);
@@ -386,7 +409,18 @@ router.patch("/sessions/:id", async (req, res): Promise<void> => {
       update.rounds = body.data.rounds;
     }
     if (body.data.playerBalances !== undefined) {
-      const resolved = await resolvePlayerReferences(tx, body.data.playerBalances);
+      const unlinkedResult = sessionResult(body.data.playerBalances);
+      if (!unlinkedResult) {
+        return {
+          error: "Exactly four player names are required and must be unique",
+        };
+      }
+
+      const resolved = await resolvePlayerReferences(
+        tx,
+        userId,
+        body.data.playerBalances,
+      );
       if ("error" in resolved) return resolved;
 
       const result = sessionResult(resolved.playerBalances);

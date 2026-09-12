@@ -30,11 +30,12 @@ const mocks = vi.hoisted(() => {
     mutationResults,
     getUser: vi.fn(),
     select: vi.fn(() => query(selectResults.shift() ?? [])),
-    insert: vi.fn(() => ({
-      values: vi.fn(() => ({
-        returning: vi.fn(async () => mutationResults.shift() ?? []),
-      })),
-    })),
+    insert: vi.fn(() => {
+      const returning = vi.fn(async () => mutationResults.shift() ?? []);
+      return {
+        values: vi.fn(() => ({ returning })),
+      };
+    }),
     update: vi.fn(() => ({
       set: vi.fn(() => ({
         where: vi.fn(() => ({
@@ -345,27 +346,41 @@ describe("session authorization", () => {
     expect(mocks.getUser).toHaveBeenCalledTimes(3);
   });
 
-  it("rejects a name-only write for a player outside the roster", async () => {
-    const invalidBody = {
+  it("creates and links a player for a first-time name-only write", async () => {
+    const guestBody = {
       ...createBody,
       playerBalances: createBody.playerBalances.map((player, index) =>
         index === 0 ? { ...player, name: "Guest" } : player,
       ),
     };
+    const linkedSession = {
+      ...session,
+      playerBalances: guestBody.playerBalances.map((player, index) => ({
+        ...player,
+        playerId: index === 0 ? 5 : index + 1,
+      })),
+    };
     mocks.selectResults.push(writablePlayers);
+    mocks.mutationResults.push(
+      [{ id: 5, name: "Guest" }],
+      [linkedSession],
+    );
 
     const response = await request(
       "/api/sessions",
-      { method: "POST", body: JSON.stringify(invalidBody) },
+      { method: "POST", body: JSON.stringify(guestBody) },
       adminUserId,
     );
 
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(201);
     expect(await response.json()).toMatchObject({
-      error:
-        'No player found for name "Guest". Add the player to the roster first',
+      playerBalances: [
+        { name: "Guest", playerId: 5 },
+        { name: "Bob", playerId: 2 },
+        { name: "Carol", playerId: 3 },
+        { name: "Dave", playerId: 4 },
+      ],
     });
-    expect(mocks.db.insert).not.toHaveBeenCalled();
   });
 
   it("resolves name-only player balances during updates", async () => {
