@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { MahjongSession } from "@workspace/api-client-react";
+import { STARTING_BALANCE } from "@workspace/session-rules";
 import {
   buildWinRates,
   buildWinningsData,
@@ -9,7 +10,7 @@ import {
 
 type Balance = MahjongSession["playerBalances"][number];
 
-function balance(name: string, endingAmount = 500): Balance {
+function balance(name: string, endingAmount = STARTING_BALANCE): Balance {
   return {
     name,
     endingAmount,

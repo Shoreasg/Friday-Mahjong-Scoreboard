@@ -17,6 +17,9 @@
     },
     {
       "path": "../../lib/integrations-gemini-ai"
+    },
+    {
+      "path": "../../lib/session-rules"
     }
   ]
 }

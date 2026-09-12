@@ -11,6 +11,10 @@ import {
   UpdateSessionResponse,
 } from "@workspace/api-zod";
 import { db, mahjongSessionsTable } from "@workspace/db";
+import {
+  normalizePlayerName,
+  STARTING_BALANCE,
+} from "@workspace/session-rules";
 import { desc, eq, sql } from "drizzle-orm";
 import {
   Router,
@@ -20,7 +24,6 @@ import {
 import { requireAdmin } from "./requireAdmin";
 
 const router: IRouter = Router();
-const STARTING_BALANCE_CENTS = 50000;
 
 type SubmittedBalance = {
   name: string;
@@ -74,7 +77,7 @@ function sessionResult(playerBalances: SubmittedBalance[]) {
     if (!balance.name) {
       return null;
     }
-    const normalizedName = balance.name.toLocaleLowerCase();
+    const normalizedName = normalizePlayerName(balance.name);
     if (seenNames.has(normalizedName)) {
       return null;
     }
@@ -180,7 +183,7 @@ router.get("/sessions/summary", async (req, res): Promise<void> => {
   >();
   for (const session of sessions) {
     for (const player of normalizePlayerBalances(session.playerBalances)) {
-      const normalizedName = player.name.trim().toLocaleLowerCase();
+      const normalizedName = normalizePlayerName(player.name);
       const existingZhaHu = zhaHuByPlayer.get(normalizedName);
       if (existingZhaHu) {
         existingZhaHu.count += player.zhaHuCount;
@@ -203,7 +206,7 @@ router.get("/sessions/summary", async (req, res): Promise<void> => {
       }
 
       const netCents =
-        Math.round(player.endingAmount * 100) - STARTING_BALANCE_CENTS;
+        Math.round(player.endingAmount * 100) - STARTING_BALANCE * 100;
       const existingWinnings = winningsByPlayer.get(normalizedName);
       if (existingWinnings) {
         existingWinnings.netCents += netCents;
