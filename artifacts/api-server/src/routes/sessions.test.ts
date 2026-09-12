@@ -381,3 +381,98 @@ describe("session authorization", () => {
     },
   );
 });
+
+describe("player listing", () => {
+  const players = [
+    {
+      id: 1,
+      name: "Alex",
+      active: true,
+      createdByUserId: null,
+      createdAt: new Date("2026-09-01T12:00:00Z"),
+    },
+    {
+      id: 2,
+      name: "Bea",
+      active: false,
+      createdByUserId: null,
+      createdAt: new Date("2026-09-01T12:00:00Z"),
+    },
+    {
+      id: 3,
+      name: "Chen",
+      active: true,
+      createdByUserId: null,
+      createdAt: new Date("2026-09-01T12:00:00Z"),
+    },
+  ];
+
+  const sessions = [
+    {
+      playerBalances: [
+        {
+          playerId: 1,
+          name: "Alex",
+          endingAmount: 500,
+          zhaHuCount: 0,
+          xieXieKaiXiangCount: 0,
+        },
+        {
+          playerId: 2,
+          name: "Bea",
+          endingAmount: 500,
+          zhaHuCount: 0,
+          xieXieKaiXiangCount: 0,
+        },
+      ],
+    },
+    {
+      playerBalances: [
+        {
+          name: "Alex",
+          endingAmount: 500,
+          zhaHuCount: 0,
+          xieXieKaiXiangCount: 0,
+        },
+        {
+          playerId: 3,
+          name: "Chen",
+          endingAmount: 500,
+          zhaHuCount: 0,
+          xieXieKaiXiangCount: 0,
+        },
+      ],
+    },
+  ];
+
+  it("lists public players with session counts", async () => {
+    mocks.selectResults.push(players, sessions);
+
+    const response = await request("/api/players");
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject([
+      { id: 1, name: "Alex", active: true, sessionCount: 2 },
+      { id: 2, name: "Bea", active: false, sessionCount: 1 },
+      { id: 3, name: "Chen", active: true, sessionCount: 1 },
+    ]);
+    expect(mocks.getUser).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["true", [players[0], players[2]]],
+    ["false", [players[1]]],
+  ])("filters players by active=%s", async (active, expectedPlayers) => {
+    mocks.selectResults.push(expectedPlayers, sessions);
+
+    const response = await request(`/api/players?active=${active}`);
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject(
+      expectedPlayers.map((player) => ({
+        id: player.id,
+        active: player.active,
+      })),
+    );
+  });
+});

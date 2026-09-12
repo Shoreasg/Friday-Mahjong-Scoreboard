@@ -24,6 +24,7 @@ const STARTING_BALANCE_CENTS = 50000;
 
 type SubmittedBalance = {
   name: string;
+  playerId?: number;
   endingAmount: number;
   zhaHuCount: number;
   xieXieKaiXiangCount?: number;
@@ -31,8 +32,14 @@ type SubmittedBalance = {
 
 function normalizePlayerBalances(playerBalances: SubmittedBalance[]) {
   return playerBalances.map((balance) => {
+    const playerId = balance.playerId;
     const xieXieKaiXiangCount = balance.xieXieKaiXiangCount;
     return {
+      ...(typeof playerId === "number" &&
+      Number.isInteger(playerId) &&
+      playerId > 0
+        ? { playerId }
+        : {}),
       name: balance.name,
       endingAmount: balance.endingAmount,
       zhaHuCount:
@@ -63,12 +70,20 @@ function sessionResult(playerBalances: SubmittedBalance[]) {
     return null;
   }
 
-  const balances = playerBalances.map((balance) => ({
-    name: balance.name.trim(),
-    endingAmount: balance.endingAmount,
-    zhaHuCount: balance.zhaHuCount,
-    xieXieKaiXiangCount: balance.xieXieKaiXiangCount ?? 0,
-  }));
+  const balances = playerBalances.map((balance) => {
+    const playerId = balance.playerId;
+    return {
+      ...(typeof playerId === "number" &&
+      Number.isInteger(playerId) &&
+      playerId > 0
+        ? { playerId }
+        : {}),
+      name: balance.name.trim(),
+      endingAmount: balance.endingAmount,
+      zhaHuCount: balance.zhaHuCount,
+      xieXieKaiXiangCount: balance.xieXieKaiXiangCount ?? 0,
+    };
+  });
   const seenNames = new Set<string>();
   for (const balance of balances) {
     if (!balance.name) {
