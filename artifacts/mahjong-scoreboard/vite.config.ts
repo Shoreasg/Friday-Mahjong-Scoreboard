@@ -27,6 +27,15 @@ if (!basePath) {
   );
 }
 
+// Only the local Docker Compose stack sets this — Replit's deployed
+// configuration never does, so production's evaluated config is unchanged.
+// This unifies the browser's origin the same way Replit's router does:
+// relative `/api/*` calls and Clerk's same-origin session cookie work
+// unmodified. Vite does not rewrite the proxied request's Host header by
+// default, so it still matches the browser's Origin when it reaches the
+// API's trusted-origin check.
+const localApiProxyTarget = process.env.LOCAL_DEV_API_PROXY_TARGET;
+
 export default defineConfig({
   base: basePath,
   plugins: [
@@ -72,6 +81,16 @@ export default defineConfig({
     fs: {
       strict: true,
     },
+    ...(localApiProxyTarget
+      ? {
+          proxy: {
+            '/api': {
+              target: localApiProxyTarget,
+              changeOrigin: false,
+            },
+          },
+        }
+      : {}),
   },
   preview: {
     port,

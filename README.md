@@ -10,6 +10,13 @@ Reading the scoreboard is public. Creating, editing, and deleting sessions is ad
 
 GitHub shows `.html` files as source rather than rendering them, so open it locally after cloning. See [`docs/architecture/README.md`](docs/architecture/README.md) for details, and for how to keep it up to date — a repo hook checks for this automatically (below).
 
+## Running locally
+
+The app normally runs on Replit. To run it on your own machine, see
+[`docs/local-development.md`](docs/local-development.md) — Docker is the
+only prerequisite; `docker compose up` starts Postgres, the API server, and
+the web app together.
+
 ## Run & Operate
 
 - `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)

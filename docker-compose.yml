@@ -1,0 +1,128 @@
+# Local development stack for Friday Mahjong Scoreboard.
+# See docs/local-development.md for setup and everyday usage.
+#
+# `docker compose up` is the whole instruction: it provisions Postgres,
+# pushes the schema, seeds fictional sessions, and starts the API and web
+# app with hot reload. Everything runs linux/amd64, matching the workspace's
+# linux-x64-only dependency overrides, so the existing lockfile installs
+# unmodified regardless of host architecture.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    platform: linux/amd64
+    environment:
+      POSTGRES_USER: mahjong
+      POSTGRES_PASSWORD: mahjong
+      POSTGRES_DB: mahjong
+    ports:
+      - "${POSTGRES_HOST_PORT:-5433}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mahjong -d mahjong"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  # Browser-based database inspector — no client install needed.
+  adminer:
+    image: adminer:latest
+    platform: linux/amd64
+    ports:
+      - "${ADMINER_PORT:-8080}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    # linux/amd64 is pinned in docker/Dockerfile's FROM line, not here — this
+    # image is single-arch, and a run-time `platform:` alongside a locally
+    # built image is otherwise redundant.
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    working_dir: /workspace
+    command: ["sh", "docker/api-entrypoint.sh"]
+    env_file:
+      - .env
+    environment:
+      PORT: ${API_PORT:-5000}
+    ports:
+      - "${API_PORT:-5000}:${API_PORT:-5000}"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - .:/workspace
+      # Each node_modules path is masked with its own volume so the bind
+      # mount above never shadows container-installed linux binaries with
+      # whatever (or nothing) exists on the host — one per pnpm workspace
+      # package, plus the root.
+      - api_node_modules_root:/workspace/node_modules
+      - api_node_modules_api_server:/workspace/artifacts/api-server/node_modules
+      - api_node_modules_mahjong_scoreboard:/workspace/artifacts/mahjong-scoreboard/node_modules
+      - api_node_modules_mockup_sandbox:/workspace/artifacts/mockup-sandbox/node_modules
+      - api_node_modules_api_client_react:/workspace/lib/api-client-react/node_modules
+      - api_node_modules_api_spec:/workspace/lib/api-spec/node_modules
+      - api_node_modules_api_zod:/workspace/lib/api-zod/node_modules
+      - api_node_modules_db:/workspace/lib/db/node_modules
+      - api_node_modules_integrations_gemini_ai:/workspace/lib/integrations-gemini-ai/node_modules
+      - api_node_modules_scripts:/workspace/scripts/node_modules
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    working_dir: /workspace
+    command: ["sh", "docker/web-entrypoint.sh"]
+    env_file:
+      - .env
+    environment:
+      PORT: ${WEB_PORT:-5173}
+      BASE_PATH: ${BASE_PATH:-/}
+      # Guards the Vite proxy — see vite.config.ts. Set only here, never in
+      # Replit's environment, so production is provably unaffected.
+      LOCAL_DEV_API_PROXY_TARGET: http://api:${API_PORT:-5000}
+    ports:
+      - "${WEB_PORT:-5173}:${WEB_PORT:-5173}"
+    depends_on:
+      - api
+    volumes:
+      - .:/workspace
+      - web_node_modules_root:/workspace/node_modules
+      - web_node_modules_api_server:/workspace/artifacts/api-server/node_modules
+      - web_node_modules_mahjong_scoreboard:/workspace/artifacts/mahjong-scoreboard/node_modules
+      - web_node_modules_mockup_sandbox:/workspace/artifacts/mockup-sandbox/node_modules
+      - web_node_modules_api_client_react:/workspace/lib/api-client-react/node_modules
+      - web_node_modules_api_spec:/workspace/lib/api-spec/node_modules
+      - web_node_modules_api_zod:/workspace/lib/api-zod/node_modules
+      - web_node_modules_db:/workspace/lib/db/node_modules
+      - web_node_modules_integrations_gemini_ai:/workspace/lib/integrations-gemini-ai/node_modules
+      - web_node_modules_scripts:/workspace/scripts/node_modules
+
+volumes:
+  # Named (not anonymous) so `docker compose down` preserves both the
+  # database and installed dependencies; `docker compose down -v` discards
+  # both. That asymmetry is the documented reset mechanism.
+  pgdata:
+  api_node_modules_root:
+  api_node_modules_api_server:
+  api_node_modules_mahjong_scoreboard:
+  api_node_modules_mockup_sandbox:
+  api_node_modules_api_client_react:
+  api_node_modules_api_spec:
+  api_node_modules_api_zod:
+  api_node_modules_db:
+  api_node_modules_integrations_gemini_ai:
+  api_node_modules_scripts:
+  web_node_modules_root:
+  web_node_modules_api_server:
+  web_node_modules_mahjong_scoreboard:
+  web_node_modules_mockup_sandbox:
+  web_node_modules_api_client_react:
+  web_node_modules_api_spec:
+  web_node_modules_api_zod:
+  web_node_modules_db:
+  web_node_modules_integrations_gemini_ai:
+  web_node_modules_scripts:

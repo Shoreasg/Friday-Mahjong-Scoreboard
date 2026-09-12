@@ -2,6 +2,13 @@
 
 A shared scoreboard for friends to record weekly Friday Mahjong sessions, settlement amounts, rounds played, and winners.
 
+## Running locally
+
+This project runs on Replit day to day. To run the whole stack on a
+contributor's own machine instead, see `docs/local-development.md` — Docker
+Compose provisions Postgres, the API server, and the web app; Docker is the
+only prerequisite.
+
 ## Run & Operate
 
 - `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
