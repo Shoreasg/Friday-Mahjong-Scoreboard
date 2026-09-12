@@ -25,29 +25,38 @@ const mocks = vi.hoisted(() => {
     return chain;
   }
 
-  return {
+  const db = {
     selectResults,
     mutationResults,
     getUser: vi.fn(),
-    db: {
-      select: vi.fn(() => query(selectResults.shift() ?? [])),
-      insert: vi.fn(() => ({
-        values: vi.fn(() => ({
-          returning: vi.fn(async () => mutationResults.shift() ?? []),
-        })),
+    select: vi.fn(() => query(selectResults.shift() ?? [])),
+    insert: vi.fn(() => ({
+      values: vi.fn(() => ({
+        returning: vi.fn(async () => mutationResults.shift() ?? []),
       })),
-      update: vi.fn(() => ({
-        set: vi.fn(() => ({
-          where: vi.fn(() => ({
-            returning: vi.fn(async () => mutationResults.shift() ?? []),
-          })),
-        })),
-      })),
-      delete: vi.fn(() => ({
+    })),
+    update: vi.fn(() => ({
+      set: vi.fn(() => ({
         where: vi.fn(() => ({
           returning: vi.fn(async () => mutationResults.shift() ?? []),
         })),
       })),
+    })),
+    delete: vi.fn(() => ({
+      where: vi.fn(() => ({
+        returning: vi.fn(async () => mutationResults.shift() ?? []),
+      })),
+    })),
+  };
+  return {
+    selectResults,
+    mutationResults,
+    getUser: db.getUser,
+    db: {
+      ...db,
+      transaction: vi.fn(async (callback: (transactionDb: typeof db) => unknown) =>
+        callback(db),
+      ),
     },
   };
 });
@@ -99,6 +108,12 @@ const createBody = {
   rounds: 4,
   playerBalances: session.playerBalances,
 };
+const writablePlayers = [
+  { id: 1, name: "Alice" },
+  { id: 2, name: "Bob" },
+  { id: 3, name: "Carol" },
+  { id: 4, name: "Dave" },
+];
 
 let server: Server;
 let baseUrl: string;
@@ -286,13 +301,29 @@ describe("session authorization", () => {
     ["existing", adminUserId],
     ["second", secondAdminUserId],
   ])("allows the %s configured admin to create, update, and delete sessions", async (_label, userId) => {
-    mocks.mutationResults.push([session]);
+    mocks.selectResults.push(writablePlayers);
+    const linkedSession = {
+      ...session,
+      playerBalances: session.playerBalances.map((player, index) => ({
+        ...player,
+        playerId: index + 1,
+      })),
+    };
+    mocks.mutationResults.push([linkedSession]);
     const createResponse = await request(
       "/api/sessions",
       { method: "POST", body: JSON.stringify(createBody) },
       userId,
     );
     expect(createResponse.status).toBe(201);
+    expect(await createResponse.json()).toMatchObject({
+      playerBalances: [
+        { name: "Alice", playerId: 1 },
+        { name: "Bob", playerId: 2 },
+        { name: "Carol", playerId: 3 },
+        { name: "Dave", playerId: 4 },
+      ],
+    });
 
     const updatedSession = { ...session, rounds: 5 };
     mocks.mutationResults.push([updatedSession]);
@@ -312,6 +343,94 @@ describe("session authorization", () => {
     );
     expect(deleteResponse.status).toBe(204);
     expect(mocks.getUser).toHaveBeenCalledTimes(3);
+  });
+
+  it("rejects a name-only write for a player outside the roster", async () => {
+    const invalidBody = {
+      ...createBody,
+      playerBalances: createBody.playerBalances.map((player, index) =>
+        index === 0 ? { ...player, name: "Guest" } : player,
+      ),
+    };
+    mocks.selectResults.push(writablePlayers);
+
+    const response = await request(
+      "/api/sessions",
+      { method: "POST", body: JSON.stringify(invalidBody) },
+      adminUserId,
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      error:
+        'No player found for name "Guest". Add the player to the roster first',
+    });
+    expect(mocks.db.insert).not.toHaveBeenCalled();
+  });
+
+  it("resolves name-only player balances during updates", async () => {
+    const linkedSession = {
+      ...session,
+      playerBalances: session.playerBalances.map((player, index) => ({
+        ...player,
+        playerId: index + 1,
+      })),
+    };
+    mocks.selectResults.push(writablePlayers);
+    mocks.mutationResults.push([linkedSession]);
+
+    const response = await request(
+      "/api/sessions/1",
+      {
+        method: "PATCH",
+        body: JSON.stringify({ playerBalances: createBody.playerBalances }),
+      },
+      adminUserId,
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      playerBalances: [
+        { name: "Alice", playerId: 1 },
+        { name: "Bob", playerId: 2 },
+        { name: "Carol", playerId: 3 },
+        { name: "Dave", playerId: 4 },
+      ],
+    });
+  });
+
+  it("resolves mixed explicit and name-only player balances", async () => {
+    const mixedBody = {
+      ...createBody,
+      playerBalances: createBody.playerBalances.map((player, index) =>
+        index === 0 ? { ...player, playerId: 1 } : player,
+      ),
+    };
+    const linkedSession = {
+      ...session,
+      playerBalances: session.playerBalances.map((player, index) => ({
+        ...player,
+        playerId: index + 1,
+      })),
+    };
+    mocks.selectResults.push(writablePlayers);
+    mocks.mutationResults.push([linkedSession]);
+
+    const response = await request(
+      "/api/sessions",
+      { method: "POST", body: JSON.stringify(mixedBody) },
+      adminUserId,
+    );
+
+    expect(response.status).toBe(201);
+    expect(await response.json()).toMatchObject({
+      playerBalances: [
+        { name: "Alice", playerId: 1 },
+        { name: "Bob", playerId: 2 },
+        { name: "Carol", playerId: 3 },
+        { name: "Dave", playerId: 4 },
+      ],
+    });
   });
 
   it("returns 500 for signed-in writes when the admin list is missing", async () => {
