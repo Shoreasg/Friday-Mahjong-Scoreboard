@@ -188,6 +188,9 @@ importers:
       '@workspace/integrations-gemini-ai':
         specifier: workspace:*
         version: link:../../lib/integrations-gemini-ai
+      '@workspace/session-rules':
+        specifier: workspace:*
+        version: link:../../lib/session-rules
       cookie-parser:
         specifier: ^1.4.7
         version: 1.4.7
@@ -562,6 +565,9 @@ importers:
       '@workspace/api-client-react':
         specifier: workspace:*
         version: link:../../lib/api-client-react
+      '@workspace/session-rules':
+        specifier: workspace:*
+        version: link:../../lib/session-rules
       class-variance-authority:
         specifier: 'catalog:'
         version: 0.7.1
@@ -879,6 +885,8 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 25.9.5
+
+  lib/session-rules: {}
 
   scripts:
     devDependencies:

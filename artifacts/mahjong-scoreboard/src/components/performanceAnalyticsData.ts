@@ -1,7 +1,9 @@
 import type { MahjongSession } from "@workspace/api-client-react";
+import {
+  normalizePlayerName,
+  STARTING_BALANCE,
+} from "@workspace/session-rules";
 import { format, parseISO } from "date-fns";
-
-const STARTING_BALANCE = 500;
 
 export type PlayerIdentity = {
   key: string;
@@ -23,10 +25,6 @@ export type WinRate = {
   winRate: number;
 };
 
-export function normalizedName(name: string) {
-  return name.trim().toLocaleLowerCase();
-}
-
 export function chronologicalSessions(sessions: MahjongSession[]) {
   return [...sessions].sort(
     (a, b) => a.playedOn.localeCompare(b.playedOn) || a.id - b.id,
@@ -40,7 +38,7 @@ export function getPlayerIdentities(
   for (const session of sessions) {
     for (const player of session.playerBalances) {
       const name = player.name.trim();
-      const key = normalizedName(name);
+      const key = normalizePlayerName(name);
       if (!key) continue;
       const names = namesByKey.get(key) ?? new Set<string>();
       names.add(name);
@@ -77,7 +75,7 @@ export function buildWinningsData(
       const changes = new Map<string, number>();
 
       for (const player of session.playerBalances) {
-        const key = normalizedName(player.name);
+        const key = normalizePlayerName(player.name);
         const change = player.endingAmount - STARTING_BALANCE;
         changes.set(key, change);
         running.set(key, (running.get(key) ?? 0) + change);
@@ -113,13 +111,13 @@ export function buildWinRates(
   for (const session of sessions) {
     if (session.playerBalances.length === 0) continue;
     const participants = new Set(
-      session.playerBalances.map((player) => normalizedName(player.name)),
+      session.playerBalances.map((player) => normalizePlayerName(player.name)),
     );
     for (const key of participants) {
       const player = rates.get(key);
       if (player) player.sessions += 1;
     }
-    const winner = rates.get(normalizedName(session.winnerName));
+    const winner = rates.get(normalizePlayerName(session.winnerName));
     if (winner && participants.has(winner.key)) winner.wins += 1;
   }
 

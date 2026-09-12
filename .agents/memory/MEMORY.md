@@ -1,0 +1,1 @@
+- [CLI upgrades](cli-upgrades.md) — Nix package precedence can hide a newer workspace-local CLI.
