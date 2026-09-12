@@ -1,4 +1,4 @@
-modules = ["nodejs-24", "postgresql-16"]
+modules = ["nodejs-24", "postgresql-16", "python-base-3.13"]
 
 [deployment]
 router = "application"
@@ -25,5 +25,5 @@ channel = "stable-25_05"
 [userenv]
 
 [userenv.shared]
-ADMIN_EMAILS = "garyganweilun@gmail.com,weilun.gan@repl.it"
-VITE_ADMIN_EMAILS = "garyganweilun@gmail.com,weilun.gan@repl.it"
+ADMIN_EMAILS = "garyganweilun@gmail.com,weilun.gan@repl.it,ngjmn1994@gmail.com"
+VITE_ADMIN_EMAILS = "garyganweilun@gmail.com,weilun.gan@repl.it,ngjmn1994@gmail.com"
