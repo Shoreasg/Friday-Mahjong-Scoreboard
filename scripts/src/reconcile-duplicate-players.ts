@@ -1,5 +1,5 @@
 import { db, mahjongSessionsTable, playersTable } from "@workspace/db";
-import { normalizePlayerName } from "@workspace/session-rules";
+import { normalizePlayerName, PLAYER_WRITE_LOCK_KEY } from "@workspace/session-rules";
 import { asc, eq, inArray, sql } from "drizzle-orm";
 
 export async function reconcileDuplicatePlayers(): Promise<void> {
@@ -12,6 +12,10 @@ export async function reconcileDuplicatePlayers(): Promise<void> {
   }
 
   await db.transaction(async (tx) => {
+    // Serialize against session writes and seedPlayers so this
+    // reconciliation can't race a concurrent identity-affecting change.
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(${PLAYER_WRITE_LOCK_KEY})`);
+
     const players = await tx
       .select()
       .from(playersTable)

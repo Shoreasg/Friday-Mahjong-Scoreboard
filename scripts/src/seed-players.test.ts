@@ -27,6 +27,7 @@ const mocks = vi.hoisted(() => {
     selectResults,
     mutationResults,
     updateCalls,
+    execute: vi.fn(async () => ({ rows: [] })),
     select: vi.fn(() => selectChain(selectResults.shift() ?? [])),
     insert: vi.fn(() => {
       const returning = vi.fn(async () => mutationResults.shift() ?? []);

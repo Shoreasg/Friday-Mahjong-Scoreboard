@@ -4,8 +4,8 @@ import {
   playersTable,
   type PlayerBalance,
 } from "@workspace/db";
-import { normalizePlayerName } from "@workspace/session-rules";
-import { asc, eq } from "drizzle-orm";
+import { normalizePlayerName, PLAYER_WRITE_LOCK_KEY } from "@workspace/session-rules";
+import { asc, eq, sql } from "drizzle-orm";
 
 function nonEmptyBalances(value: PlayerBalance[] | null | undefined) {
   return (value ?? []).filter((balance) => normalizePlayerName(balance.name));
@@ -13,6 +13,10 @@ function nonEmptyBalances(value: PlayerBalance[] | null | undefined) {
 
 export async function seedPlayers(): Promise<void> {
   await db.transaction(async (tx) => {
+    // Serialize against session writes and reconcileDuplicatePlayers so
+    // this backfill can't race a concurrent identity-affecting change.
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(${PLAYER_WRITE_LOCK_KEY})`);
+
     const sessions = await tx
       .select({
         id: mahjongSessionsTable.id,

@@ -13,6 +13,7 @@ import {
 import { db, mahjongSessionsTable, playersTable } from "@workspace/db";
 import {
   normalizePlayerName,
+  PLAYER_WRITE_LOCK_KEY,
   STARTING_BALANCE,
 } from "@workspace/session-rules";
 import {
@@ -48,10 +49,14 @@ class SessionRequestError extends Error {
 }
 
 async function resolvePlayerReferences(
-  queryDb: Pick<typeof db, "select" | "insert">,
+  queryDb: Pick<typeof db, "select" | "insert" | "execute">,
   createdByUserId: string,
   playerBalances: SubmittedBalance[],
 ): Promise<SubmittedBalance[]> {
+  // Serialize against the backfill/reconciliation scripts and other
+  // concurrent session writes so player creation/merging can't race.
+  await queryDb.execute(sql`SELECT pg_advisory_xact_lock(${PLAYER_WRITE_LOCK_KEY})`);
+
   const submittedPlayerIds = playerBalances
     .map((balance) => balance.playerId)
     .filter((playerId): playerId is number => playerId !== undefined);
@@ -89,13 +94,10 @@ async function resolvePlayerReferences(
           error: `playerId ${balance.playerId} does not reference an existing player`,
         });
       }
-      if (
-        normalizePlayerName(balance.name) !== normalizePlayerName(player.name)
-      ) {
-        throw new SessionRequestError({
-          error: `playerId ${balance.playerId} does not match the player name`,
-        });
-      }
+      // The playerId is authoritative: a submitted name that no longer
+      // matches (e.g. stale client cache after a rename) does not
+      // invalidate the request — it's replaced with the canonical name
+      // below instead.
     } else {
       player = playersByName.get(normalizePlayerName(balance.name));
       if (!player) {
@@ -272,8 +274,7 @@ function sessionAnnouncement(
     .join("\n");
   const winner = players.find(
     (player) =>
-      player.name.trim().toLocaleLowerCase() ===
-      session.winnerName.trim().toLocaleLowerCase(),
+      normalizePlayerName(player.name) === normalizePlayerName(session.winnerName),
   );
   const winnerPosition = winner
     ? ` (${formatNetPosition(winner.endingAmount - STARTING_BALANCE)})`
@@ -346,13 +347,6 @@ router.post("/sessions", async (req, res): Promise<void> => {
   let transactionResult: { session: typeof mahjongSessionsTable.$inferSelect };
   try {
     transactionResult = await db.transaction(async (tx) => {
-      const unlinkedResult = sessionResult(parsed.data.playerBalances);
-      if (!unlinkedResult) {
-        throw new SessionRequestError({
-          error: "Exactly four player names are required and must be unique",
-        });
-      }
-
       const resolvedBalances = await resolvePlayerReferences(
         tx,
         userId,
@@ -554,13 +548,6 @@ router.patch("/sessions/:id", async (req, res): Promise<void> => {
         update.rounds = body.data.rounds;
       }
       if (body.data.playerBalances !== undefined) {
-        const unlinkedResult = sessionResult(body.data.playerBalances);
-        if (!unlinkedResult) {
-          throw new SessionRequestError({
-            error: "Exactly four player names are required and must be unique",
-          });
-        }
-
         const resolvedBalances = await resolvePlayerReferences(
           tx,
           userId,

@@ -29,6 +29,7 @@ const mocks = vi.hoisted(() => {
     selectResults,
     mutationResults,
     getUser: vi.fn(),
+    execute: vi.fn(async () => ({ rows: [] })),
     select: vi.fn(() => query(selectResults.shift() ?? [])),
     insert: vi.fn(() => {
       const returning = vi.fn(async () => mutationResults.shift() ?? []);
@@ -774,26 +775,42 @@ describe("session authorization", () => {
     expect(mocks.db.insert).not.toHaveBeenCalled();
   });
 
-  it("rejects a player reference paired with another player's name", async () => {
-    const invalidBody = {
+  it("treats a valid playerId as authoritative over a stale or mismatched submitted name", async () => {
+    const staleNameBody = {
       ...createBody,
       playerBalances: createBody.playerBalances.map((player, index) =>
         index === 0 ? { ...player, playerId: 1, name: "Not Alice" } : player,
       ),
     };
-    mocks.selectResults.push([{ id: 1, name: "Alice" }]);
+    const linkedSession = {
+      ...session,
+      playerBalances: session.playerBalances.map((player, index) => ({
+        ...player,
+        playerId: index + 1,
+      })),
+    };
+    mocks.selectResults.push(writablePlayers);
+    mocks.mutationResults.push([linkedSession]);
 
     const response = await request(
       "/api/sessions",
-      { method: "POST", body: JSON.stringify(invalidBody) },
+      { method: "POST", body: JSON.stringify(staleNameBody) },
       adminUserId,
     );
 
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(201);
     expect(await response.json()).toMatchObject({
-      error: "playerId 1 does not match the player name",
+      playerBalances: [
+        { name: "Alice", playerId: 1 },
+        { name: "Bob", playerId: 2 },
+        { name: "Carol", playerId: 3 },
+        { name: "Dave", playerId: 4 },
+      ],
     });
-    expect(mocks.db.insert).not.toHaveBeenCalled();
+    // No new player is created for the mismatched name — the ID wins and
+    // the only insert is the session row itself.
+    expect(mocks.db.insert).toHaveBeenCalledTimes(1);
+    expect(mocks.db.insert).toHaveBeenCalledWith(mahjongSessionsTable);
   });
 });
 
