@@ -11,13 +11,16 @@ only prerequisite.
 
 ## Run & Operate
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
-- `pnpm --filter @workspace/mahjong-scoreboard run dev` — run the web app through its managed workflow
+- Managed workflow `artifacts/api-server: API Server` — run the API server
+- Managed workflow `artifacts/mahjong-scoreboard: web` — run the main web app
+- `pnpm install --frozen-lockfile` — restore the imported workspace dependencies
+- `pnpm --filter @workspace/db run push` — apply the development database schema
+- `pnpm --filter @workspace/db run seed` — seed fictional sessions without overwriting existing rows
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
 - Required env: `DATABASE_URL`, `CLERK_SECRET_KEY`, `CLERK_PUBLISHABLE_KEY`, `VITE_CLERK_PUBLISHABLE_KEY`, `ADMIN_EMAILS`, `VITE_ADMIN_EMAILS`
+- Managed setup also provisions `AI_INTEGRATIONS_GEMINI_BASE_URL` and `AI_INTEGRATIONS_GEMINI_API_KEY`; the API imports Gemini at startup.
 - Optional Telegram env: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `SCOREBOARD_URL`
 
 ## Stack
