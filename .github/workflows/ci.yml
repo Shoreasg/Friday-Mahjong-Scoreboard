@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: mahjong
+          POSTGRES_PASSWORD: mahjong
+          POSTGRES_DB: mahjong
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U mahjong"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      DATABASE_URL: postgresql://mahjong:mahjong@localhost:5432/mahjong
+      # The API server imports the Gemini client eagerly at startup and
+      # throws without these, regardless of whether chip scanning is
+      # exercised. Same placeholders as .env.example.
+      AI_INTEGRATIONS_GEMINI_BASE_URL: https://localhost.invalid/not-a-real-endpoint
+      AI_INTEGRATIONS_GEMINI_API_KEY: ci-placeholder-not-a-real-key
+    steps:
+      - uses: actions/checkout@v4
+
+      # Matches the pnpm version pinned in docker/Dockerfile, so CI and the
+      # container image can't silently drift apart on lockfile behavior.
+      - uses: pnpm/action-setup@v4
+        with:
+          version: "10.15.1"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm run typecheck
+
+      # --if-present: not every package has a test script yet, and that's
+      # fine — this runs whatever exists rather than special-casing it here.
+      - name: Unit tests (mocked, no real DB required)
+        run: pnpm --filter @workspace/api-server --filter @workspace/scripts --if-present run test -- run
+
+      # Real-Postgres coverage against the service container above. Bootstraps
+      # its own isolated schema, so no prior migration/push step is needed.
+      - name: Integration tests (real Postgres)
+        run: pnpm --filter @workspace/scripts --if-present run test:integration
