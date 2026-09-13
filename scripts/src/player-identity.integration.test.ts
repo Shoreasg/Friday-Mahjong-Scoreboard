@@ -5,70 +5,113 @@
 // transaction rollback on failure, and concurrent first-time player
 // creation.
 //
+// Isolation: this suite never touches the shared/public schema. It
+// bootstraps a throwaway schema (its own players/mahjong_sessions tables
+// and unique index) on a real Postgres server, then redirects
+// DATABASE_URL's search_path at every module under test — including
+// @workspace/db's own connection pool — into that schema before anything
+// else is imported. The schema is dropped in afterAll. If the schema
+// bootstrap fails for any reason, every test fails loudly rather than
+// silently falling back to running against whatever the ambient
+// DATABASE_URL already points at.
+//
+// One caveat that schema isolation can't fully cover: PLAYER_WRITE_LOCK_KEY
+// is a Postgres advisory lock, which is scoped to the whole server, not a
+// schema. If something else on the same Postgres server takes that exact
+// lock key at the same moment this suite's advisory-lock test runs, that
+// test could see cross-talk. That's an inherent property of advisory locks
+// (see the PostgreSQL docs on pg_advisory_lock) rather than something this
+// suite's isolation strategy can change, and it never touches table data.
+//
 // Requires a live database — run via `pnpm --filter @workspace/scripts run
-// test:integration` against docker compose's Postgres (or any DATABASE_URL
-// with the players table already migrated). Not part of the default
-// `pnpm test` run; see scripts/vitest.config.ts.
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { afterAll, afterEach, describe, expect, it } from "vitest";
-import { db, mahjongSessionsTable, playersTable, pool } from "@workspace/db";
-import { PLAYER_WRITE_LOCK_KEY } from "@workspace/session-rules";
-import { eq, inArray, like, sql } from "drizzle-orm";
-import { reconcileDuplicatePlayers } from "./reconcile-duplicate-players";
-import { seedPlayers } from "./seed-players";
+// test:integration` against docker compose's Postgres (or any reachable
+// DATABASE_URL). Not part of the default `pnpm test` run; see
+// scripts/vitest.config.ts.
+import { randomUUID } from "node:crypto";
+import { afterAll, describe, expect, it } from "vitest";
+import pg from "pg";
 
-const TEST_NAME_PREFIX = "__integration_test__";
-const cleanupSessionIds: number[] = [];
-let tmpDir: string | undefined;
+const baseDatabaseUrl = process.env.DATABASE_URL;
+if (!baseDatabaseUrl) {
+  throw new Error(
+    "DATABASE_URL must be set to run the real-Postgres integration suite " +
+      "(pnpm --filter @workspace/scripts run test:integration)",
+  );
+}
+
+const schemaName = `it_${randomUUID().replace(/-/g, "")}`;
+
+// Bootstrap on the *unmodified* URL, before anything redirects search_path,
+// so this step can never accidentally land on the wrong schema.
+const bootstrapPool = new pg.Pool({ connectionString: baseDatabaseUrl });
+try {
+  await bootstrapPool.query(`CREATE SCHEMA "${schemaName}"`);
+  await bootstrapPool.query(`
+    CREATE TABLE "${schemaName}".players (
+      id serial PRIMARY KEY,
+      name text NOT NULL,
+      active boolean NOT NULL DEFAULT true,
+      created_by_user_id text,
+      created_at timestamptz NOT NULL DEFAULT now()
+    );
+    CREATE UNIQUE INDEX players_name_lower_unique
+      ON "${schemaName}".players (lower(trim(name)));
+    CREATE TABLE "${schemaName}".mahjong_sessions (
+      id serial PRIMARY KEY,
+      played_on date NOT NULL,
+      rounds integer NOT NULL,
+      total_amount double precision NOT NULL,
+      winner_name text NOT NULL,
+      player_balances jsonb NOT NULL DEFAULT '[]',
+      notes text,
+      created_by_user_id text,
+      created_at timestamptz NOT NULL DEFAULT now()
+    );
+  `);
+} finally {
+  await bootstrapPool.end();
+}
+
+// Every module below reads DATABASE_URL at import time (@workspace/db's
+// pool, transitively used by reconcileDuplicatePlayers and seedPlayers).
+// Redirecting it here, before those dynamic imports, is what makes the
+// code under test — not just this file's own queries — operate entirely
+// inside the isolated schema.
+const searchPathOption = encodeURIComponent(`-c search_path=${schemaName}`);
+process.env.DATABASE_URL = `${baseDatabaseUrl}${baseDatabaseUrl.includes("?") ? "&" : "?"}options=${searchPathOption}`;
+
+const { db, mahjongSessionsTable, playersTable, pool } = await import("@workspace/db");
+const { PLAYER_WRITE_LOCK_KEY } = await import("@workspace/session-rules");
+const { eq, inArray, sql } = await import("drizzle-orm");
+const { reconcileDuplicatePlayers } = await import("./reconcile-duplicate-players");
+const { seedPlayers } = await import("./seed-players");
 
 function uniqueName(label: string): string {
-  return `${TEST_NAME_PREFIX}${label} ${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  return `${label} ${Date.now()}_${Math.random().toString(36).slice(2)}`;
 }
 
-function writeMappingsFile(mapping: Record<string, number[]>): string {
-  tmpDir ??= mkdtempSync(join(tmpdir(), "player-merge-mappings-"));
-  const filePath = join(tmpDir, `mapping-${Date.now()}-${Math.random().toString(36).slice(2)}.json`);
-  writeFileSync(filePath, JSON.stringify(mapping));
-  return filePath;
-}
-
-// The unique index isn't creatable through the app layer (every insert
-// already goes through it), so real ambiguous-duplicate scenarios can only
-// be simulated by dropping it — exactly the pre-migration state the
-// reconcile script is designed for. Must match lib/db/src/schema/players.ts.
 async function withoutUniqueIndex<T>(run: () => Promise<T>): Promise<T> {
   await db.execute(sql`DROP INDEX players_name_lower_unique`);
   try {
     return await run();
   } finally {
-    // Whatever the test did or didn't clean up, only rows under our test
-    // prefix can possibly violate the constraint here — delete them before
-    // recreating it so a failed assertion never leaves the real unique
-    // index missing for every later test (and real dev/prod data never
-    // uses this prefix, so this is safe).
-    await db.delete(playersTable).where(like(playersTable.name, `${TEST_NAME_PREFIX}%`));
     await db.execute(
       sql`CREATE UNIQUE INDEX players_name_lower_unique ON players (lower(trim(name)))`,
     );
   }
 }
 
-afterEach(async () => {
-  if (cleanupSessionIds.length > 0) {
-    await db.delete(mahjongSessionsTable).where(inArray(mahjongSessionsTable.id, cleanupSessionIds));
-    cleanupSessionIds.length = 0;
-  }
-  await db.delete(playersTable).where(like(playersTable.name, `${TEST_NAME_PREFIX}%`));
-});
-
 afterAll(async () => {
-  if (tmpDir) rmSync(tmpDir, { recursive: true, force: true });
   await pool.end();
+  const cleanupPool = new pg.Pool({ connectionString: baseDatabaseUrl });
+  try {
+    await cleanupPool.query(`DROP SCHEMA "${schemaName}" CASCADE`);
+  } finally {
+    await cleanupPool.end();
+  }
 });
 
-describe("players table uniqueness (real Postgres)", () => {
+describe("players table uniqueness (real Postgres, isolated schema)", () => {
   it("rejects a case/whitespace variant of an existing name via onConflictDoNothing", async () => {
     const canonicalName = uniqueName("Sam");
     const [created] = await db
@@ -126,7 +169,7 @@ describe("PLAYER_WRITE_LOCK_KEY advisory lock (real Postgres)", () => {
   });
 });
 
-describe("reconcileDuplicatePlayers duplicate handling (real Postgres)", () => {
+describe("reconcileDuplicatePlayers duplicate handling (real Postgres, isolated schema)", () => {
   it("fails closed and writes nothing for a real ambiguous duplicate with no mapping supplied", async () => {
     const name = uniqueName("Sam");
     await withoutUniqueIndex(async () => {
@@ -140,6 +183,10 @@ describe("reconcileDuplicatePlayers duplicate handling (real Postgres)", () => {
 
       const remaining = await db.select().from(playersTable).where(eq(playersTable.name, name));
       expect(remaining).toHaveLength(1); // untouched: neither row merged nor deleted
+
+      // Clean up before the finally block recreates the unique index, or
+      // recreation would fail on our still-present duplicate.
+      await db.delete(playersTable).where(inArray(playersTable.id, rows.map((row) => row.id)));
     });
   });
 
@@ -165,9 +212,14 @@ describe("reconcileDuplicatePlayers duplicate handling (real Postgres)", () => {
         })
         .returning();
       if (!session) throw new Error("setup failed to insert session");
-      cleanupSessionIds.push(session.id);
 
-      const mappingsFile = writeMappingsFile({ [canonical.id]: [loser.id] });
+      const { mkdtempSync, rmSync, writeFileSync } = await import("node:fs");
+      const { tmpdir } = await import("node:os");
+      const { join } = await import("node:path");
+      const mappingsDir = mkdtempSync(join(tmpdir(), "player-merge-mappings-"));
+      const mappingsFile = join(mappingsDir, "mapping.json");
+      writeFileSync(mappingsFile, JSON.stringify({ [canonical.id]: [loser.id] }));
+
       const originalMappingsFile = process.env.PLAYER_MERGE_MAPPINGS_FILE;
       process.env.PLAYER_MERGE_MAPPINGS_FILE = mappingsFile;
       try {
@@ -178,6 +230,7 @@ describe("reconcileDuplicatePlayers duplicate handling (real Postgres)", () => {
         } else {
           process.env.PLAYER_MERGE_MAPPINGS_FILE = originalMappingsFile;
         }
+        rmSync(mappingsDir, { recursive: true, force: true });
       }
 
       const remaining = await db
@@ -197,7 +250,7 @@ describe("reconcileDuplicatePlayers duplicate handling (real Postgres)", () => {
   });
 });
 
-describe("seedPlayers backfill (real Postgres)", () => {
+describe("seedPlayers backfill (real Postgres, isolated schema)", () => {
   it("is idempotent: dry-run makes no changes, apply links the balance, repeat apply is a no-op", async () => {
     const name = uniqueName("Wendy");
     const [session] = await db
@@ -211,7 +264,6 @@ describe("seedPlayers backfill (real Postgres)", () => {
       })
       .returning();
     if (!session) throw new Error("setup failed to insert session");
-    cleanupSessionIds.push(session.id);
 
     process.env.DRY_RUN = "true";
     try {
@@ -263,7 +315,6 @@ describe("seedPlayers backfill (real Postgres)", () => {
       ])
       .returning();
     if (!validSession || !invalidSession) throw new Error("setup failed to insert sessions");
-    cleanupSessionIds.push(validSession.id, invalidSession.id);
 
     await expect(seedPlayers()).rejects.toThrow(/invalid player reference/);
 
@@ -284,7 +335,7 @@ describe("seedPlayers backfill (real Postgres)", () => {
   });
 });
 
-describe("concurrent first-time player creation (real Postgres)", () => {
+describe("concurrent first-time player creation (real Postgres, isolated schema)", () => {
   it("lets only one of two racing onConflictDoNothing inserts for the same normalized name win", async () => {
     const name = uniqueName("Concurrent");
     const [resultA, resultB] = await Promise.all([
@@ -303,7 +354,7 @@ describe("concurrent first-time player creation (real Postgres)", () => {
   });
 });
 
-describe("transaction rollback on failure (real Postgres)", () => {
+describe("transaction rollback on failure (real Postgres, isolated schema)", () => {
   it("discards a player insert when the transaction throws afterward", async () => {
     const name = uniqueName("RollbackProbe");
     await expect(

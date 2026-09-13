@@ -15,10 +15,12 @@
   "dependencies": {
     "@workspace/db": "workspace:*",
     "@workspace/session-rules": "workspace:*",
-    "drizzle-orm": "catalog:"
+    "drizzle-orm": "catalog:",
+    "pg": "^8.22.0"
   },
   "devDependencies": {
     "@types/node": "catalog:",
+    "@types/pg": "^8.20.0",
     "tsx": "catalog:",
     "vitest": "^3.2.4"
   }

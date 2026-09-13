@@ -20,6 +20,12 @@ function loadMergeMappings(filePath: string | undefined): MergeMappings | undefi
   if (!filePath) return undefined;
   const raw = JSON.parse(readFileSync(filePath, "utf8")) as Record<string, number[]>;
   const mappings: MergeMappings = new Map();
+  // canonical ID -> the entry that claimed it, and loser ID -> the
+  // canonical ID that claimed it — used below to reject any ID claimed by
+  // more than one entry, in either role, before any merge runs.
+  const canonicalOwners = new Map<number, number>();
+  const loserOwners = new Map<number, number>();
+
   for (const [canonicalIdRaw, loserIds] of Object.entries(raw)) {
     const canonicalId = Number(canonicalIdRaw);
     if (!Number.isInteger(canonicalId) || canonicalId <= 0) {
@@ -28,6 +34,36 @@ function loadMergeMappings(filePath: string | undefined): MergeMappings | undefi
     if (!Array.isArray(loserIds) || loserIds.some((id) => !Number.isInteger(id) || id <= 0)) {
       throw new Error(`Invalid loser player IDs for canonical #${canonicalId} in mappings file`);
     }
+    if (loserIds.includes(canonicalId)) {
+      throw new Error(`Canonical #${canonicalId} cannot also be listed as its own loser`);
+    }
+    if (loserOwners.has(canonicalId)) {
+      throw new Error(
+        `Canonical #${canonicalId} is also listed as a loser under canonical ` +
+          `#${loserOwners.get(canonicalId)} — a player can't be both`,
+      );
+    }
+    if (canonicalOwners.has(canonicalId)) {
+      throw new Error(`Canonical #${canonicalId} appears more than once in the mappings file`);
+    }
+    canonicalOwners.set(canonicalId, canonicalId);
+
+    for (const loserId of loserIds) {
+      if (canonicalOwners.has(loserId)) {
+        throw new Error(
+          `Player #${loserId} is listed as a loser under canonical #${canonicalId} but is ` +
+            `also a canonical ID itself — a player can't be both`,
+        );
+      }
+      if (loserOwners.has(loserId) && loserOwners.get(loserId) !== canonicalId) {
+        throw new Error(
+          `Player #${loserId} is assigned as a loser to both canonical #${loserOwners.get(loserId)} ` +
+            `and canonical #${canonicalId} — each player can only merge into one canonical`,
+        );
+      }
+      loserOwners.set(loserId, canonicalId);
+    }
+
     mappings.set(canonicalId, new Set(loserIds));
   }
   return mappings;
@@ -96,7 +132,7 @@ export async function reconcileDuplicatePlayers(): Promise<void> {
   const mappings = loadMergeMappings(process.env.PLAYER_MERGE_MAPPINGS_FILE);
 
   const [tableCheck] = (
-    await db.execute(sql`SELECT to_regclass('public.players') IS NOT NULL AS exists`)
+    await db.execute(sql`SELECT to_regclass('players') IS NOT NULL AS exists`)
   ).rows as { exists: boolean }[];
   if (!tableCheck?.exists) {
     console.log("players table does not exist yet; skipping reconciliation");

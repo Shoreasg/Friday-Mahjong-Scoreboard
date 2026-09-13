@@ -232,4 +232,38 @@ describe("reconcileDuplicatePlayers", () => {
     expect(mocks.updateCalls).toHaveLength(0);
     expect(mocks.deleteCalls).toHaveLength(0);
   });
+
+  it("rejects a mappings file that assigns the same loser to two different canonicals", async () => {
+    process.env.PLAYER_MERGE_MAPPINGS_FILE = "/fake/mappings.json";
+    mocks.readFileSync.mockReturnValue(JSON.stringify({ "1": [5], "2": [5] }));
+
+    // loadMergeMappings validates before the table-existence check even runs.
+    await expect(reconcileDuplicatePlayers()).rejects.toThrow(
+      /Player #5 is assigned as a loser to both canonical #1 and canonical #2/,
+    );
+    expect(mocks.updateCalls).toHaveLength(0);
+    expect(mocks.deleteCalls).toHaveLength(0);
+  });
+
+  it("rejects a mappings file where a canonical ID is also listed as a loser", async () => {
+    process.env.PLAYER_MERGE_MAPPINGS_FILE = "/fake/mappings.json";
+    mocks.readFileSync.mockReturnValue(JSON.stringify({ "1": [5], "5": [9] }));
+
+    await expect(reconcileDuplicatePlayers()).rejects.toThrow(
+      /Canonical #5 is also listed as a loser under canonical #1/,
+    );
+    expect(mocks.updateCalls).toHaveLength(0);
+    expect(mocks.deleteCalls).toHaveLength(0);
+  });
+
+  it("rejects a mappings file where a canonical is also its own loser", async () => {
+    process.env.PLAYER_MERGE_MAPPINGS_FILE = "/fake/mappings.json";
+    mocks.readFileSync.mockReturnValue(JSON.stringify({ "1": [1, 5] }));
+
+    await expect(reconcileDuplicatePlayers()).rejects.toThrow(
+      /Canonical #1 cannot also be listed as its own loser/,
+    );
+    expect(mocks.updateCalls).toHaveLength(0);
+    expect(mocks.deleteCalls).toHaveLength(0);
+  });
 });
