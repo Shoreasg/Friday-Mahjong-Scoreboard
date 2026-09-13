@@ -13,6 +13,7 @@ import { z } from "zod/v4";
 
 export type PlayerBalance = {
   name: string;
+  playerId?: number;
   endingAmount: number;
   zhaHuCount: number;
   xieXieKaiXiangCount: number;

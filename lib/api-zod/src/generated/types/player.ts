@@ -6,18 +6,18 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface PlayerBalance {
+export interface Player {
   /** @minimum 1 */
-  playerId?: number;
+  id: number;
   /**
      * @minLength 1
      * @maxLength 80
      */
   name: string;
+  active: boolean;
   /** @minimum 0 */
-  endingAmount: number;
-  /** @minimum 0 */
-  zhaHuCount: number;
-  /** @minimum 0 */
-  xieXieKaiXiangCount: number;
+  sessionCount: number;
+  /** @nullable */
+  createdByUserId: string | null;
+  createdAt: Date;
 }

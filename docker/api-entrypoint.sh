@@ -12,11 +12,17 @@ if ! pnpm install --frozen-lockfile; then
   pnpm install --no-frozen-lockfile
 fi
 
+echo "==> Reconciling duplicate player names before schema push..."
+pnpm --filter @workspace/scripts run reconcile:players
+
 echo "==> Pushing the Drizzle schema to Postgres..."
-pnpm --filter @workspace/db run push
+pnpm --filter @workspace/db run push-force
 
 echo "==> Seeding the database (no-op if mahjong_sessions already has rows)..."
 pnpm --filter @workspace/db run seed
+
+echo "==> Expanding session balances with player records..."
+pnpm --filter @workspace/scripts run seed:players
 
 echo "==> Starting the API server in watch mode..."
 exec pnpm --filter @workspace/api-server run watch

@@ -25,30 +25,41 @@ const mocks = vi.hoisted(() => {
     return chain;
   }
 
-  return {
+  const db = {
     selectResults,
     mutationResults,
     getUser: vi.fn(),
-    telegramSend: vi.fn(),
-    db: {
-      select: vi.fn(() => query(selectResults.shift() ?? [])),
-      insert: vi.fn(() => ({
-        values: vi.fn(() => ({
-          returning: vi.fn(async () => mutationResults.shift() ?? []),
-        })),
-      })),
-      update: vi.fn(() => ({
-        set: vi.fn(() => ({
-          where: vi.fn(() => ({
-            returning: vi.fn(async () => mutationResults.shift() ?? []),
-          })),
-        })),
-      })),
-      delete: vi.fn(() => ({
+    select: vi.fn(() => query(selectResults.shift() ?? [])),
+    insert: vi.fn(() => {
+      const returning = vi.fn(async () => mutationResults.shift() ?? []);
+      const onConflictDoNothing = vi.fn(() => ({ returning }));
+      return {
+        values: vi.fn(() => ({ returning, onConflictDoNothing })),
+      };
+    }),
+    update: vi.fn(() => ({
+      set: vi.fn(() => ({
         where: vi.fn(() => ({
           returning: vi.fn(async () => mutationResults.shift() ?? []),
         })),
       })),
+    })),
+    delete: vi.fn(() => ({
+      where: vi.fn(() => ({
+        returning: vi.fn(async () => mutationResults.shift() ?? []),
+      })),
+    })),
+  };
+  return {
+    selectResults,
+    mutationResults,
+    getUser: db.getUser,
+    telegramSend: vi.fn(),
+    db: {
+      ...db,
+      transaction: vi.fn(async (callback: (transactionDb: typeof db) => unknown) =>
+        callback(db),
+      ),
     },
   };
 });
@@ -75,6 +86,7 @@ vi.mock("@workspace/integrations-telegram", () => ({
 }));
 
 import app from "../app";
+import { mahjongSessionsTable } from "@workspace/db";
 
 const adminUserId = "admin-user";
 const secondAdminUserId = "second-admin-user";
@@ -104,6 +116,12 @@ const createBody = {
   rounds: 4,
   playerBalances: session.playerBalances,
 };
+const writablePlayers = [
+  { id: 1, name: "Alice" },
+  { id: 2, name: "Bob" },
+  { id: 3, name: "Carol" },
+  { id: 4, name: "Dave" },
+];
 
 let server: Server;
 let baseUrl: string;
@@ -222,6 +240,63 @@ describe("session authorization", () => {
     expect(mocks.getUser).not.toHaveBeenCalled();
   });
 
+  it("aggregates by playerId rather than name once balances are linked to players", async () => {
+    // Same playerId, different casing across sessions (e.g. a rename) should
+    // collapse into one aggregate row.
+    const renamedSession = {
+      ...session,
+      id: 2,
+      playerBalances: [
+        { name: "Alicia", playerId: 1, endingAmount: 120, zhaHuCount: 2, xieXieKaiXiangCount: 1 },
+        { name: "Bob", playerId: 2, endingAmount: 110, zhaHuCount: 0, xieXieKaiXiangCount: 0 },
+        { name: "Carol", playerId: 3, endingAmount: 90, zhaHuCount: 0, xieXieKaiXiangCount: 0 },
+        { name: "Dave", playerId: 4, endingAmount: 80, zhaHuCount: 0, xieXieKaiXiangCount: 0 },
+      ],
+    };
+    // Two different playerIds that happen to normalize to the same name
+    // string must NOT be merged.
+    const distinctPlayersSameNameSession = {
+      ...session,
+      id: 3,
+      playerBalances: [
+        { name: "Alex", playerId: 101, endingAmount: 100, zhaHuCount: 1, xieXieKaiXiangCount: 0 },
+        { name: "Alex", playerId: 102, endingAmount: 100, zhaHuCount: 1, xieXieKaiXiangCount: 0 },
+        { name: "Carol", playerId: 3, endingAmount: 100, zhaHuCount: 0, xieXieKaiXiangCount: 0 },
+        { name: "Dave", playerId: 4, endingAmount: 100, zhaHuCount: 0, xieXieKaiXiangCount: 0 },
+      ],
+    };
+    const linkedFirstSession = {
+      ...session,
+      playerBalances: session.playerBalances.map((player, index) => ({
+        ...player,
+        playerId: index + 1,
+      })),
+    };
+    mocks.selectResults.push(
+      [{ totalSessions: 3, totalRounds: 12, totalAmount: 1200 }],
+      [linkedFirstSession, renamedSession, distinctPlayersSameNameSession],
+      [{ winnerName: "Alice", wins: 1 }],
+    );
+
+    const summaryResponse = await request("/api/sessions/summary");
+
+    expect(summaryResponse.status).toBe(200);
+    const { zhaHuCounts } = (await summaryResponse.json()) as {
+      zhaHuCounts: { playerName: string; count: number }[];
+    };
+    // playerId 1 ("Alice" then renamed to "Alicia") merges to one entry.
+    const aliceEntries = zhaHuCounts.filter((entry: { playerName: string }) =>
+      ["Alice", "Alicia"].includes(entry.playerName),
+    );
+    expect(aliceEntries).toHaveLength(1);
+    expect(aliceEntries[0]).toMatchObject({ count: 3 });
+    // playerId 101 and 102 both normalize to "alex" but must stay distinct.
+    const alexEntries = zhaHuCounts.filter(
+      (entry: { playerName: string }) => entry.playerName === "Alex",
+    );
+    expect(alexEntries).toHaveLength(2);
+  });
+
   it("calculates cumulative winnings and losses from the $500 starting balance", async () => {
     const firstSession = {
       ...session,
@@ -298,13 +373,29 @@ describe("session authorization", () => {
     ["existing", adminUserId],
     ["second", secondAdminUserId],
   ])("allows the %s configured admin to create, update, and delete sessions", async (_label, userId) => {
-    mocks.mutationResults.push([session]);
+    mocks.selectResults.push(writablePlayers);
+    const linkedSession = {
+      ...session,
+      playerBalances: session.playerBalances.map((player, index) => ({
+        ...player,
+        playerId: index + 1,
+      })),
+    };
+    mocks.mutationResults.push([linkedSession]);
     const createResponse = await request(
       "/api/sessions",
       { method: "POST", body: JSON.stringify(createBody) },
       userId,
     );
     expect(createResponse.status).toBe(201);
+    expect(await createResponse.json()).toMatchObject({
+      playerBalances: [
+        { name: "Alice", playerId: 1 },
+        { name: "Bob", playerId: 2 },
+        { name: "Carol", playerId: 3 },
+        { name: "Dave", playerId: 4 },
+      ],
+    });
 
     const updatedSession = { ...session, rounds: 5 };
     mocks.mutationResults.push([updatedSession]);
@@ -325,6 +416,183 @@ describe("session authorization", () => {
     expect(deleteResponse.status).toBe(204);
     expect(mocks.getUser).toHaveBeenCalledTimes(3);
     expect(mocks.telegramSend).toHaveBeenCalledTimes(1);
+  });
+
+  it("creates and links a player for a first-time name-only write", async () => {
+    const guestBody = {
+      ...createBody,
+      playerBalances: createBody.playerBalances.map((player, index) =>
+        index === 0 ? { ...player, name: "Guest" } : player,
+      ),
+    };
+    const linkedSession = {
+      ...session,
+      playerBalances: guestBody.playerBalances.map((player, index) => ({
+        ...player,
+        playerId: index === 0 ? 5 : index + 1,
+      })),
+    };
+    mocks.selectResults.push(writablePlayers);
+    mocks.mutationResults.push(
+      [{ id: 5, name: "Guest" }],
+      [linkedSession],
+    );
+
+    const response = await request(
+      "/api/sessions",
+      { method: "POST", body: JSON.stringify(guestBody) },
+      adminUserId,
+    );
+
+    expect(response.status).toBe(201);
+    expect(await response.json()).toMatchObject({
+      playerBalances: [
+        { name: "Guest", playerId: 5 },
+        { name: "Bob", playerId: 2 },
+        { name: "Carol", playerId: 3 },
+        { name: "Dave", playerId: 4 },
+      ],
+    });
+  });
+
+  it("resolves name-only player balances during updates", async () => {
+    const linkedSession = {
+      ...session,
+      playerBalances: session.playerBalances.map((player, index) => ({
+        ...player,
+        playerId: index + 1,
+      })),
+    };
+    mocks.selectResults.push(writablePlayers);
+    mocks.mutationResults.push([linkedSession]);
+
+    const response = await request(
+      "/api/sessions/1",
+      {
+        method: "PATCH",
+        body: JSON.stringify({ playerBalances: createBody.playerBalances }),
+      },
+      adminUserId,
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      playerBalances: [
+        { name: "Alice", playerId: 1 },
+        { name: "Bob", playerId: 2 },
+        { name: "Carol", playerId: 3 },
+        { name: "Dave", playerId: 4 },
+      ],
+    });
+  });
+
+  it("resolves mixed explicit and name-only player balances", async () => {
+    const mixedBody = {
+      ...createBody,
+      playerBalances: createBody.playerBalances.map((player, index) =>
+        index === 0 ? { ...player, playerId: 1 } : player,
+      ),
+    };
+    const linkedSession = {
+      ...session,
+      playerBalances: session.playerBalances.map((player, index) => ({
+        ...player,
+        playerId: index + 1,
+      })),
+    };
+    mocks.selectResults.push(writablePlayers);
+    mocks.mutationResults.push([linkedSession]);
+
+    const response = await request(
+      "/api/sessions",
+      { method: "POST", body: JSON.stringify(mixedBody) },
+      adminUserId,
+    );
+
+    expect(response.status).toBe(201);
+    expect(await response.json()).toMatchObject({
+      playerBalances: [
+        { name: "Alice", playerId: 1 },
+        { name: "Bob", playerId: 2 },
+        { name: "Carol", playerId: 3 },
+        { name: "Dave", playerId: 4 },
+      ],
+    });
+  });
+
+  it("resolves a whitespace/case variant of an existing name to that player's canonical spelling", async () => {
+    const messyBody = {
+      ...createBody,
+      playerBalances: createBody.playerBalances.map((player, index) =>
+        index === 0 ? { ...player, name: "  ALICE  " } : player,
+      ),
+    };
+    const linkedSession = {
+      ...session,
+      playerBalances: session.playerBalances.map((player, index) => ({
+        ...player,
+        playerId: index + 1,
+      })),
+    };
+    mocks.selectResults.push(writablePlayers);
+    mocks.mutationResults.push([linkedSession]);
+
+    const response = await request(
+      "/api/sessions",
+      { method: "POST", body: JSON.stringify(messyBody) },
+      adminUserId,
+    );
+
+    expect(response.status).toBe(201);
+    expect(await response.json()).toMatchObject({
+      playerBalances: [
+        { name: "Alice", playerId: 1 },
+        { name: "Bob", playerId: 2 },
+        { name: "Carol", playerId: 3 },
+        { name: "Dave", playerId: 4 },
+      ],
+    });
+    // Linked to the existing player rather than creating a new one for the
+    // whitespace/case variant — the only insert is the session row itself.
+    expect(mocks.db.insert).toHaveBeenCalledTimes(1);
+    expect(mocks.db.insert).toHaveBeenCalledWith(mahjongSessionsTable);
+  });
+
+  it("does not create a session when a later balance fails validation after earlier names created new players", async () => {
+    const invalidBody = {
+      ...createBody,
+      playerBalances: [
+        { name: "New Player One", endingAmount: 130, zhaHuCount: 1, xieXieKaiXiangCount: 1 },
+        { name: "New Player Two", endingAmount: 100, zhaHuCount: 0, xieXieKaiXiangCount: 2 },
+        { name: "New Player Three", endingAmount: 90, zhaHuCount: 2, xieXieKaiXiangCount: 0 },
+        { name: "Dave", endingAmount: 80, zhaHuCount: 0, xieXieKaiXiangCount: 0, playerId: 999 },
+      ],
+    };
+    mocks.selectResults.push([]);
+    mocks.mutationResults.push(
+      [{ id: 10, name: "New Player One" }],
+      [{ id: 11, name: "New Player Two" }],
+      [{ id: 12, name: "New Player Three" }],
+    );
+
+    const response = await request(
+      "/api/sessions",
+      { method: "POST", body: JSON.stringify(invalidBody) },
+      adminUserId,
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      error: "playerId 999 does not reference an existing player",
+    });
+    // The first three balances each created a new player before the fourth
+    // balance's invalid playerId aborted the request. Whether those three
+    // inserts are actually rolled back is a real-Postgres-transaction
+    // guarantee this mock cannot observe directly — what this proves is that
+    // the request is rejected end-to-end (never reaches the session insert
+    // or a 201 response) rather than silently succeeding with orphaned
+    // player rows.
+    expect(mocks.db.insert).toHaveBeenCalledTimes(3);
   });
 
   it("returns 500 for signed-in writes when the admin list is missing", async () => {
@@ -373,6 +641,7 @@ describe("session authorization", () => {
         { name: "Dave", endingAmount: 80, zhaHuCount: 0, xieXieKaiXiangCount: 0 },
       ],
     };
+    mocks.selectResults.push(writablePlayers);
     mocks.mutationResults.push([escapedSession]);
 
     const response = await request(
@@ -407,6 +676,7 @@ describe("session authorization", () => {
 
   it("persists a session and reports a failed announcement separately", async () => {
     mocks.telegramSend.mockRejectedValue(new Error("Telegram is unavailable"));
+    mocks.selectResults.push(writablePlayers);
     mocks.mutationResults.push([session]);
 
     const response = await request(
@@ -459,4 +729,165 @@ describe("session authorization", () => {
       expect(mocks.db.insert).not.toHaveBeenCalled();
     },
   );
+
+  it("rejects a player reference that does not exist", async () => {
+    const invalidBody = {
+      ...createBody,
+      playerBalances: createBody.playerBalances.map((player, index) =>
+        index === 0 ? { ...player, playerId: 999 } : player,
+      ),
+    };
+    mocks.selectResults.push([]);
+
+    const response = await request(
+      "/api/sessions",
+      { method: "POST", body: JSON.stringify(invalidBody) },
+      adminUserId,
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      error: "playerId 999 does not reference an existing player",
+    });
+    expect(mocks.db.insert).not.toHaveBeenCalled();
+  });
+
+  it("rejects duplicate player references within a session", async () => {
+    const invalidBody = {
+      ...createBody,
+      playerBalances: createBody.playerBalances.map((player, index) =>
+        index < 2 ? { ...player, playerId: 1 } : player,
+      ),
+    };
+
+    const response = await request(
+      "/api/sessions",
+      { method: "POST", body: JSON.stringify(invalidBody) },
+      adminUserId,
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      error: "playerId values must be unique within a session",
+    });
+    expect(mocks.db.select).not.toHaveBeenCalled();
+    expect(mocks.db.insert).not.toHaveBeenCalled();
+  });
+
+  it("rejects a player reference paired with another player's name", async () => {
+    const invalidBody = {
+      ...createBody,
+      playerBalances: createBody.playerBalances.map((player, index) =>
+        index === 0 ? { ...player, playerId: 1, name: "Not Alice" } : player,
+      ),
+    };
+    mocks.selectResults.push([{ id: 1, name: "Alice" }]);
+
+    const response = await request(
+      "/api/sessions",
+      { method: "POST", body: JSON.stringify(invalidBody) },
+      adminUserId,
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      error: "playerId 1 does not match the player name",
+    });
+    expect(mocks.db.insert).not.toHaveBeenCalled();
+  });
+});
+
+describe("player listing", () => {
+  const players = [
+    {
+      id: 1,
+      name: "Alex",
+      active: true,
+      createdByUserId: null,
+      createdAt: new Date("2026-09-01T12:00:00Z"),
+    },
+    {
+      id: 2,
+      name: "Bea",
+      active: false,
+      createdByUserId: null,
+      createdAt: new Date("2026-09-01T12:00:00Z"),
+    },
+    {
+      id: 3,
+      name: "Chen",
+      active: true,
+      createdByUserId: null,
+      createdAt: new Date("2026-09-01T12:00:00Z"),
+    },
+  ];
+
+  const sessions = [
+    {
+      playerBalances: [
+        {
+          playerId: 1,
+          name: "Alex",
+          endingAmount: 500,
+          zhaHuCount: 0,
+          xieXieKaiXiangCount: 0,
+        },
+        {
+          playerId: 2,
+          name: "Bea",
+          endingAmount: 500,
+          zhaHuCount: 0,
+          xieXieKaiXiangCount: 0,
+        },
+      ],
+    },
+    {
+      playerBalances: [
+        {
+          name: "Alex",
+          endingAmount: 500,
+          zhaHuCount: 0,
+          xieXieKaiXiangCount: 0,
+        },
+        {
+          playerId: 3,
+          name: "Chen",
+          endingAmount: 500,
+          zhaHuCount: 0,
+          xieXieKaiXiangCount: 0,
+        },
+      ],
+    },
+  ];
+
+  it("lists public players with session counts", async () => {
+    mocks.selectResults.push(players, sessions);
+
+    const response = await request("/api/players");
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject([
+      { id: 1, name: "Alex", active: true, sessionCount: 2 },
+      { id: 2, name: "Bea", active: false, sessionCount: 1 },
+      { id: 3, name: "Chen", active: true, sessionCount: 1 },
+    ]);
+    expect(mocks.getUser).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["true", [players[0], players[2]]],
+    ["false", [players[1]]],
+  ])("filters players by active=%s", async (active, expectedPlayers) => {
+    mocks.selectResults.push(expectedPlayers, sessions);
+
+    const response = await request(`/api/players?active=${active}`);
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject(
+      expectedPlayers.map((player) => ({
+        id: player.id,
+        active: player.active,
+      })),
+    );
+  });
 });

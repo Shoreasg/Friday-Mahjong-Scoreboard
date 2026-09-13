@@ -23,9 +23,11 @@ import type {
   ChipScanInput,
   ChipScanResult,
   HealthStatus,
+  ListPlayersParams,
   MahjongSession,
   MahjongSessionInput,
   MahjongSessionUpdate,
+  Player,
   SessionCreationResponse,
   SessionSummary
 } from './api.schemas';
@@ -284,6 +286,91 @@ export const useCreateSession = <TError = ErrorType<void>,
       > => {
       return useMutation(getCreateSessionMutationOptions(options));
     }
+
+export const getListPlayersUrl = (params?: ListPlayersParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/players?${stringifiedParams}` : `/api/players`
+}
+
+/**
+ * Returns players with the number of sessions in which each player appears.
+ * @summary List Mahjong players
+ */
+export const listPlayers = async (params?: ListPlayersParams, options?: Parameters<typeof customFetch>[1]): Promise<Player[]> => {
+
+  return customFetch<Player[]>(getListPlayersUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPlayersQueryKey = (params?: ListPlayersParams,) => {
+    return [
+    `/api/players`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListPlayersQueryOptions = <TData = Awaited<ReturnType<typeof listPlayers>>, TError = ErrorType<unknown>>(params?: ListPlayersParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPlayers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPlayersQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPlayers>>> = ({ signal }) => listPlayers(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPlayers>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListPlayersQueryResult = NonNullable<Awaited<ReturnType<typeof listPlayers>>>
+export type ListPlayersQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List Mahjong players
+ */
+
+export function useListPlayers<TData = Awaited<ReturnType<typeof listPlayers>>, TError = ErrorType<unknown>>(
+ params?: ListPlayersParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPlayers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListPlayersQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getGetSessionSummaryUrl = () => {
 
