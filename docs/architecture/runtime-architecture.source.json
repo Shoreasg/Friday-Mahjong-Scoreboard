@@ -23,7 +23,7 @@
           "api",
           "db"
         ],
-        "note": "Browser SPA calls /api through the Replit router into Express and Drizzle."
+        "note": "Browser SPA calls /api through the Replit router into Express and Drizzle for sessions and players."
       },
       {
         "id": "identity",
@@ -207,7 +207,7 @@
         },
         {
           "path": "artifacts/api-server/src/routes/index.ts",
-          "label": "health, sessions, chip scans"
+          "label": "health, players, sessions, chip scans"
         },
         {
           "path": "artifacts/api-server/.replit-artifact/artifact.toml",
@@ -253,7 +253,7 @@
       "id": "db",
       "type": "database",
       "label": "PostgreSQL",
-      "sublabel": "mahjong_sessions, Drizzle",
+      "sublabel": "players, mahjong_sessions, Drizzle",
       "tag": "DATABASE_URL",
       "brand": "postgresql",
       "pos": [
@@ -270,8 +270,12 @@
           "label": "pg Pool + drizzle"
         },
         {
+          "path": "lib/db/src/schema/players.ts",
+          "label": "players roster table"
+        },
+        {
           "path": "lib/db/src/schema/mahjong-sessions.ts",
-          "label": "jsonb player_balances"
+          "label": "jsonb player_balances with player references"
         }
       ]
     },
@@ -400,7 +404,7 @@
       "id": "api-to-db",
       "from": "api",
       "to": "db",
-      "label": "SQL over pg Pool"
+      "label": "player and session SQL over pg Pool"
     },
     {
       "id": "api-to-gemini",
@@ -465,7 +469,7 @@
       "title": "Contract and data",
       "items": [
         "Orval builds api-client-react hooks and api-zod parsers",
-        "One mahjong_sessions table; drizzle-kit push, no migrations"
+        "players and mahjong_sessions tables; drizzle-kit push, no migrations"
       ]
     }
   ]

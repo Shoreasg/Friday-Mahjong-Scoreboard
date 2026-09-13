@@ -10,6 +10,8 @@ export interface HealthStatus {
 }
 
 export interface PlayerBalance {
+  /** @minimum 1 */
+  playerId?: number;
   /**
      * @minLength 1
      * @maxLength 80
@@ -90,6 +92,22 @@ export interface MahjongSessionUpdate {
      * @nullable
      */
   notes?: string | null;
+}
+
+export interface Player {
+  /** @minimum 1 */
+  id: number;
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  name: string;
+  active: boolean;
+  /** @minimum 0 */
+  sessionCount: number;
+  /** @nullable */
+  createdByUserId: string | null;
+  createdAt: string;
 }
 
 export type ChipDenomination = typeof ChipDenomination[keyof typeof ChipDenomination];
@@ -191,4 +209,11 @@ export interface SessionSummary {
   xieXieKaiXiangCounts: XieXieKaiXiangCount[];
   playerWinnings: PlayerWinnings[];
 }
+
+export type ListPlayersParams = {
+/**
+ * When provided, limit results to active or inactive players.
+ */
+active?: boolean;
+};
 

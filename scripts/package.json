@@ -6,10 +6,22 @@
   "scripts": {
     "hello": "tsx ./src/hello.ts",
     "smoke": "node --experimental-strip-types ./src/smoke-local-stack.ts",
+    "seed:players": "tsx ./src/seed-players.ts",
+    "reconcile:players": "tsx ./src/reconcile-duplicate-players.ts",
+    "test": "vitest run",
+    "test:integration": "vitest run -c vitest.integration.config.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@workspace/db": "workspace:*",
+    "@workspace/session-rules": "workspace:*",
+    "drizzle-orm": "catalog:",
+    "pg": "^8.22.0"
   },
   "devDependencies": {
     "@types/node": "catalog:",
-    "tsx": "catalog:"
+    "@types/pg": "^8.20.0",
+    "tsx": "catalog:",
+    "vitest": "^3.2.4"
   }
 }

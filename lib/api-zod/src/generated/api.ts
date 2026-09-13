@@ -22,6 +22,7 @@ export const HealthCheckResponse = zod.object({
  * @summary List Mahjong sessions
  */
 
+
 export const listSessionsResponsePlayerBalancesItemNameMax = 80;
 
 export const listSessionsResponsePlayerBalancesItemEndingAmountMin = 0;
@@ -39,6 +40,7 @@ export const ListSessionsResponseItem = zod.object({
   "totalAmount": zod.number(),
   "winnerName": zod.string(),
   "playerBalances": zod.array(zod.object({
+  "playerId": zod.int().min(1).optional(),
   "name": zod.string().min(1).max(listSessionsResponsePlayerBalancesItemNameMax),
   "endingAmount": zod.number().min(listSessionsResponsePlayerBalancesItemEndingAmountMin),
   "zhaHuCount": zod.int().min(listSessionsResponsePlayerBalancesItemZhaHuCountMin),
@@ -56,6 +58,7 @@ export const ListSessionsResponse = zod.array(ListSessionsResponseItem)
  * @summary Record a Mahjong session
  */
 export const createSessionBodyRoundsMax = 99;
+
 
 export const createSessionBodyPlayerBalancesItemNameMax = 80;
 
@@ -76,6 +79,7 @@ export const CreateSessionBody = zod.object({
   "playedOn": zod.coerce.date(),
   "rounds": zod.int().min(1).max(createSessionBodyRoundsMax),
   "playerBalances": zod.array(zod.object({
+  "playerId": zod.int().min(1).optional(),
   "name": zod.string().min(1).max(createSessionBodyPlayerBalancesItemNameMax),
   "endingAmount": zod.number().min(createSessionBodyPlayerBalancesItemEndingAmountMin),
   "zhaHuCount": zod.int().min(createSessionBodyPlayerBalancesItemZhaHuCountMin),
@@ -83,6 +87,7 @@ export const CreateSessionBody = zod.object({
 })).min(createSessionBodyPlayerBalancesMin).max(createSessionBodyPlayerBalancesMax),
   "notes": zod.string().max(createSessionBodyNotesMax).nullish()
 })
+
 
 
 export const createSessionResponseOnePlayerBalancesItemNameMax = 80;
@@ -102,6 +107,7 @@ export const CreateSessionResponse = zod.object({
   "totalAmount": zod.number(),
   "winnerName": zod.string(),
   "playerBalances": zod.array(zod.object({
+  "playerId": zod.int().min(1).optional(),
   "name": zod.string().min(1).max(createSessionResponseOnePlayerBalancesItemNameMax),
   "endingAmount": zod.number().min(createSessionResponseOnePlayerBalancesItemEndingAmountMin),
   "zhaHuCount": zod.int().min(createSessionResponseOnePlayerBalancesItemZhaHuCountMin),
@@ -125,9 +131,36 @@ export const CreateSessionResponse = zod.object({
 
 
 /**
+ * Returns players with the number of sessions in which each player appears.
+ * @summary List Mahjong players
+ */
+export const ListPlayersQueryParams = zod.object({
+  "active": zod.coerce.boolean().optional().describe('When provided, limit results to active or inactive players.')
+})
+
+
+export const listPlayersResponseNameMax = 80;
+
+export const listPlayersResponseSessionCountMin = 0;
+
+
+
+export const ListPlayersResponseItem = zod.object({
+  "id": zod.int().min(1),
+  "name": zod.string().min(1).max(listPlayersResponseNameMax),
+  "active": zod.boolean(),
+  "sessionCount": zod.int().min(listPlayersResponseSessionCountMin),
+  "createdByUserId": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+})
+export const ListPlayersResponse = zod.array(ListPlayersResponseItem)
+
+
+/**
  * Returns lightweight totals, cumulative player winnings, winner counts, Zha Hu counts, and 谢谢 Kai Xiang counts for the dashboard.
  * @summary Get Mahjong scoreboard summary
  */
+
 
 export const getSessionSummaryResponseLatestSessionOnePlayerBalancesItemNameMax = 80;
 
@@ -154,6 +187,7 @@ export const GetSessionSummaryResponse = zod.object({
   "totalAmount": zod.number(),
   "winnerName": zod.string(),
   "playerBalances": zod.array(zod.object({
+  "playerId": zod.int().min(1).optional(),
   "name": zod.string().min(1).max(getSessionSummaryResponseLatestSessionOnePlayerBalancesItemNameMax),
   "endingAmount": zod.number().min(getSessionSummaryResponseLatestSessionOnePlayerBalancesItemEndingAmountMin),
   "zhaHuCount": zod.int().min(getSessionSummaryResponseLatestSessionOnePlayerBalancesItemZhaHuCountMin),
@@ -193,6 +227,7 @@ export const GetSessionParams = zod.object({
 })
 
 
+
 export const getSessionResponsePlayerBalancesItemNameMax = 80;
 
 export const getSessionResponsePlayerBalancesItemEndingAmountMin = 0;
@@ -210,6 +245,7 @@ export const GetSessionResponse = zod.object({
   "totalAmount": zod.number(),
   "winnerName": zod.string(),
   "playerBalances": zod.array(zod.object({
+  "playerId": zod.int().min(1).optional(),
   "name": zod.string().min(1).max(getSessionResponsePlayerBalancesItemNameMax),
   "endingAmount": zod.number().min(getSessionResponsePlayerBalancesItemEndingAmountMin),
   "zhaHuCount": zod.int().min(getSessionResponsePlayerBalancesItemZhaHuCountMin),
@@ -233,6 +269,7 @@ export const UpdateSessionParams = zod.object({
 
 export const updateSessionBodyRoundsMax = 99;
 
+
 export const updateSessionBodyPlayerBalancesItemNameMax = 80;
 
 export const updateSessionBodyPlayerBalancesItemEndingAmountMin = 0;
@@ -252,6 +289,7 @@ export const UpdateSessionBody = zod.object({
   "playedOn": zod.coerce.date().optional(),
   "rounds": zod.int().min(1).max(updateSessionBodyRoundsMax).optional(),
   "playerBalances": zod.array(zod.object({
+  "playerId": zod.int().min(1).optional(),
   "name": zod.string().min(1).max(updateSessionBodyPlayerBalancesItemNameMax),
   "endingAmount": zod.number().min(updateSessionBodyPlayerBalancesItemEndingAmountMin),
   "zhaHuCount": zod.int().min(updateSessionBodyPlayerBalancesItemZhaHuCountMin),
@@ -259,6 +297,7 @@ export const UpdateSessionBody = zod.object({
 })).min(updateSessionBodyPlayerBalancesMin).max(updateSessionBodyPlayerBalancesMax).optional(),
   "notes": zod.string().max(updateSessionBodyNotesMax).nullish()
 })
+
 
 
 export const updateSessionResponsePlayerBalancesItemNameMax = 80;
@@ -278,6 +317,7 @@ export const UpdateSessionResponse = zod.object({
   "totalAmount": zod.number(),
   "winnerName": zod.string(),
   "playerBalances": zod.array(zod.object({
+  "playerId": zod.int().min(1).optional(),
   "name": zod.string().min(1).max(updateSessionResponsePlayerBalancesItemNameMax),
   "endingAmount": zod.number().min(updateSessionResponsePlayerBalancesItemEndingAmountMin),
   "zhaHuCount": zod.int().min(updateSessionResponsePlayerBalancesItemZhaHuCountMin),
