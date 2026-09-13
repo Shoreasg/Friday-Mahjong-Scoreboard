@@ -3,14 +3,11 @@ import {
   ListPlayersResponse,
 } from "@workspace/api-zod";
 import { db, mahjongSessionsTable, playersTable } from "@workspace/db";
+import { normalizePlayerName } from "@workspace/session-rules";
 import { eq } from "drizzle-orm";
 import { Router, type IRouter } from "express";
 
 const router: IRouter = Router();
-
-function normalizedName(name: string): string {
-  return name.trim().toLocaleLowerCase();
-}
 
 router.get("/players", async (req, res): Promise<void> => {
   const rawActive = req.query.active;
@@ -41,7 +38,7 @@ router.get("/players", async (req, res): Promise<void> => {
     .from(mahjongSessionsTable);
 
   const playerIdsByName = new Map(
-    players.map((player) => [normalizedName(player.name), player.id]),
+    players.map((player) => [normalizePlayerName(player.name), player.id]),
   );
   const sessionCounts = new Map<number, number>();
   for (const session of sessions) {
@@ -54,7 +51,7 @@ router.get("/players", async (req, res): Promise<void> => {
         continue;
       }
 
-      const playerId = playerIdsByName.get(normalizedName(balance.name));
+      const playerId = playerIdsByName.get(normalizePlayerName(balance.name));
       if (playerId !== undefined) matchedPlayerIds.add(playerId);
     }
     for (const playerId of matchedPlayerIds) {

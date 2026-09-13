@@ -4,17 +4,14 @@ import {
   playersTable,
   type PlayerBalance,
 } from "@workspace/db";
+import { normalizePlayerName } from "@workspace/session-rules";
 import { asc, eq } from "drizzle-orm";
 
-function normalizedName(name: string): string {
-  return name.trim().toLocaleLowerCase();
-}
-
 function nonEmptyBalances(value: PlayerBalance[] | null | undefined) {
-  return (value ?? []).filter((balance) => normalizedName(balance.name));
+  return (value ?? []).filter((balance) => normalizePlayerName(balance.name));
 }
 
-async function seedPlayers(): Promise<void> {
+export async function seedPlayers(): Promise<void> {
   await db.transaction(async (tx) => {
     const sessions = await tx
       .select({
@@ -28,7 +25,7 @@ async function seedPlayers(): Promise<void> {
     const playersById = new Map(existingPlayers.map((player) => [player.id, player]));
     const playersByName = new Map<string, (typeof existingPlayers)[number]>();
     for (const player of existingPlayers) {
-      const key = normalizedName(player.name);
+      const key = normalizePlayerName(player.name);
       if (playersByName.has(key)) {
         throw new Error(`Duplicate case-insensitive player name: ${player.name}`);
       }
@@ -51,7 +48,7 @@ async function seedPlayers(): Promise<void> {
           continue;
         }
 
-        const key = normalizedName(balance.name);
+        const key = normalizePlayerName(balance.name);
         if (!canonicalNames.has(key)) {
           canonicalNames.set(key, balance.name.trim());
         }
@@ -59,7 +56,7 @@ async function seedPlayers(): Promise<void> {
     }
 
     for (const name of canonicalNames.values()) {
-      const key = normalizedName(name);
+      const key = normalizePlayerName(name);
       if (playersByName.has(key)) continue;
 
       const [player] = await tx
@@ -75,7 +72,7 @@ async function seedPlayers(): Promise<void> {
     const refreshedPlayers = await tx.select().from(playersTable);
     const playersByNormalizedName = new Map<string, (typeof refreshedPlayers)[number]>();
     for (const player of refreshedPlayers) {
-      const key = normalizedName(player.name);
+      const key = normalizePlayerName(player.name);
       if (playersByNormalizedName.has(key)) {
         throw new Error(`Duplicate case-insensitive player name: ${player.name}`);
       }
@@ -83,12 +80,22 @@ async function seedPlayers(): Promise<void> {
     }
 
     for (const session of sessions) {
-      const balances = session.playerBalances ?? [];
+      const [lockedSession] = await tx
+        .select({
+          id: mahjongSessionsTable.id,
+          playerBalances: mahjongSessionsTable.playerBalances,
+        })
+        .from(mahjongSessionsTable)
+        .where(eq(mahjongSessionsTable.id, session.id))
+        .for("update");
+      if (!lockedSession) continue;
+
+      const balances = lockedSession.playerBalances ?? [];
       const expandedBalances = balances.map((balance) => {
-        if (!normalizedName(balance.name) || balance.playerId !== undefined) {
+        if (!normalizePlayerName(balance.name) || balance.playerId !== undefined) {
           return balance;
         }
-        const player = playersByNormalizedName.get(normalizedName(balance.name));
+        const player = playersByNormalizedName.get(normalizePlayerName(balance.name));
         if (!player) {
           throw new Error(`No player found for balance name: ${balance.name}`);
         }
@@ -105,10 +112,12 @@ async function seedPlayers(): Promise<void> {
         await tx
           .update(mahjongSessionsTable)
           .set({ playerBalances: expandedBalances })
-          .where(eq(mahjongSessionsTable.id, session.id));
+          .where(eq(mahjongSessionsTable.id, lockedSession.id));
       }
     }
   });
 }
 
-await seedPlayers();
+if (process.argv[1] === new URL(import.meta.url).pathname) {
+  await seedPlayers();
+}

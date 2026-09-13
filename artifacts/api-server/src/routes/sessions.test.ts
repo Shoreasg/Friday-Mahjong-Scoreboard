@@ -32,8 +32,9 @@ const mocks = vi.hoisted(() => {
     select: vi.fn(() => query(selectResults.shift() ?? [])),
     insert: vi.fn(() => {
       const returning = vi.fn(async () => mutationResults.shift() ?? []);
+      const onConflictDoNothing = vi.fn(() => ({ returning }));
       return {
-        values: vi.fn(() => ({ returning })),
+        values: vi.fn(() => ({ returning, onConflictDoNothing })),
       };
     }),
     update: vi.fn(() => ({
@@ -85,6 +86,7 @@ vi.mock("@workspace/integrations-telegram", () => ({
 }));
 
 import app from "../app";
+import { mahjongSessionsTable } from "@workspace/db";
 
 const adminUserId = "admin-user";
 const secondAdminUserId = "second-admin-user";
@@ -236,6 +238,63 @@ describe("session authorization", () => {
       ],
     });
     expect(mocks.getUser).not.toHaveBeenCalled();
+  });
+
+  it("aggregates by playerId rather than name once balances are linked to players", async () => {
+    // Same playerId, different casing across sessions (e.g. a rename) should
+    // collapse into one aggregate row.
+    const renamedSession = {
+      ...session,
+      id: 2,
+      playerBalances: [
+        { name: "Alicia", playerId: 1, endingAmount: 120, zhaHuCount: 2, xieXieKaiXiangCount: 1 },
+        { name: "Bob", playerId: 2, endingAmount: 110, zhaHuCount: 0, xieXieKaiXiangCount: 0 },
+        { name: "Carol", playerId: 3, endingAmount: 90, zhaHuCount: 0, xieXieKaiXiangCount: 0 },
+        { name: "Dave", playerId: 4, endingAmount: 80, zhaHuCount: 0, xieXieKaiXiangCount: 0 },
+      ],
+    };
+    // Two different playerIds that happen to normalize to the same name
+    // string must NOT be merged.
+    const distinctPlayersSameNameSession = {
+      ...session,
+      id: 3,
+      playerBalances: [
+        { name: "Alex", playerId: 101, endingAmount: 100, zhaHuCount: 1, xieXieKaiXiangCount: 0 },
+        { name: "Alex", playerId: 102, endingAmount: 100, zhaHuCount: 1, xieXieKaiXiangCount: 0 },
+        { name: "Carol", playerId: 3, endingAmount: 100, zhaHuCount: 0, xieXieKaiXiangCount: 0 },
+        { name: "Dave", playerId: 4, endingAmount: 100, zhaHuCount: 0, xieXieKaiXiangCount: 0 },
+      ],
+    };
+    const linkedFirstSession = {
+      ...session,
+      playerBalances: session.playerBalances.map((player, index) => ({
+        ...player,
+        playerId: index + 1,
+      })),
+    };
+    mocks.selectResults.push(
+      [{ totalSessions: 3, totalRounds: 12, totalAmount: 1200 }],
+      [linkedFirstSession, renamedSession, distinctPlayersSameNameSession],
+      [{ winnerName: "Alice", wins: 1 }],
+    );
+
+    const summaryResponse = await request("/api/sessions/summary");
+
+    expect(summaryResponse.status).toBe(200);
+    const { zhaHuCounts } = (await summaryResponse.json()) as {
+      zhaHuCounts: { playerName: string; count: number }[];
+    };
+    // playerId 1 ("Alice" then renamed to "Alicia") merges to one entry.
+    const aliceEntries = zhaHuCounts.filter((entry: { playerName: string }) =>
+      ["Alice", "Alicia"].includes(entry.playerName),
+    );
+    expect(aliceEntries).toHaveLength(1);
+    expect(aliceEntries[0]).toMatchObject({ count: 3 });
+    // playerId 101 and 102 both normalize to "alex" but must stay distinct.
+    const alexEntries = zhaHuCounts.filter(
+      (entry: { playerName: string }) => entry.playerName === "Alex",
+    );
+    expect(alexEntries).toHaveLength(2);
   });
 
   it("calculates cumulative winnings and losses from the $500 starting balance", async () => {
@@ -461,6 +520,81 @@ describe("session authorization", () => {
     });
   });
 
+  it("resolves a whitespace/case variant of an existing name to that player's canonical spelling", async () => {
+    const messyBody = {
+      ...createBody,
+      playerBalances: createBody.playerBalances.map((player, index) =>
+        index === 0 ? { ...player, name: "  ALICE  " } : player,
+      ),
+    };
+    const linkedSession = {
+      ...session,
+      playerBalances: session.playerBalances.map((player, index) => ({
+        ...player,
+        playerId: index + 1,
+      })),
+    };
+    mocks.selectResults.push(writablePlayers);
+    mocks.mutationResults.push([linkedSession]);
+
+    const response = await request(
+      "/api/sessions",
+      { method: "POST", body: JSON.stringify(messyBody) },
+      adminUserId,
+    );
+
+    expect(response.status).toBe(201);
+    expect(await response.json()).toMatchObject({
+      playerBalances: [
+        { name: "Alice", playerId: 1 },
+        { name: "Bob", playerId: 2 },
+        { name: "Carol", playerId: 3 },
+        { name: "Dave", playerId: 4 },
+      ],
+    });
+    // Linked to the existing player rather than creating a new one for the
+    // whitespace/case variant — the only insert is the session row itself.
+    expect(mocks.db.insert).toHaveBeenCalledTimes(1);
+    expect(mocks.db.insert).toHaveBeenCalledWith(mahjongSessionsTable);
+  });
+
+  it("does not create a session when a later balance fails validation after earlier names created new players", async () => {
+    const invalidBody = {
+      ...createBody,
+      playerBalances: [
+        { name: "New Player One", endingAmount: 130, zhaHuCount: 1, xieXieKaiXiangCount: 1 },
+        { name: "New Player Two", endingAmount: 100, zhaHuCount: 0, xieXieKaiXiangCount: 2 },
+        { name: "New Player Three", endingAmount: 90, zhaHuCount: 2, xieXieKaiXiangCount: 0 },
+        { name: "Dave", endingAmount: 80, zhaHuCount: 0, xieXieKaiXiangCount: 0, playerId: 999 },
+      ],
+    };
+    mocks.selectResults.push([]);
+    mocks.mutationResults.push(
+      [{ id: 10, name: "New Player One" }],
+      [{ id: 11, name: "New Player Two" }],
+      [{ id: 12, name: "New Player Three" }],
+    );
+
+    const response = await request(
+      "/api/sessions",
+      { method: "POST", body: JSON.stringify(invalidBody) },
+      adminUserId,
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      error: "playerId 999 does not reference an existing player",
+    });
+    // The first three balances each created a new player before the fourth
+    // balance's invalid playerId aborted the request. Whether those three
+    // inserts are actually rolled back is a real-Postgres-transaction
+    // guarantee this mock cannot observe directly — what this proves is that
+    // the request is rejected end-to-end (never reaches the session insert
+    // or a 201 response) rather than silently succeeding with orphaned
+    // player rows.
+    expect(mocks.db.insert).toHaveBeenCalledTimes(3);
+  });
+
   it("returns 500 for signed-in writes when the admin list is missing", async () => {
     delete process.env.ADMIN_EMAILS;
 
@@ -507,6 +641,7 @@ describe("session authorization", () => {
         { name: "Dave", endingAmount: 80, zhaHuCount: 0, xieXieKaiXiangCount: 0 },
       ],
     };
+    mocks.selectResults.push(writablePlayers);
     mocks.mutationResults.push([escapedSession]);
 
     const response = await request(
@@ -541,6 +676,7 @@ describe("session authorization", () => {
 
   it("persists a session and reports a failed announcement separately", async () => {
     mocks.telegramSend.mockRejectedValue(new Error("Telegram is unavailable"));
+    mocks.selectResults.push(writablePlayers);
     mocks.mutationResults.push([session]);
 
     const response = await request(

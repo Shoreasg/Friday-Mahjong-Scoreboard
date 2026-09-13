@@ -41,11 +41,17 @@ type SubmittedBalance = {
   xieXieKaiXiangCount?: number;
 };
 
+class SessionRequestError extends Error {
+  constructor(public readonly body: { error: string }) {
+    super(body.error);
+  }
+}
+
 async function resolvePlayerReferences(
   queryDb: Pick<typeof db, "select" | "insert">,
   createdByUserId: string,
   playerBalances: SubmittedBalance[],
-): Promise<{ playerBalances: SubmittedBalance[] } | { error: string }> {
+): Promise<SubmittedBalance[]> {
   const submittedPlayerIds = playerBalances
     .map((balance) => balance.playerId)
     .filter((playerId): playerId is number => playerId !== undefined);
@@ -53,10 +59,12 @@ async function resolvePlayerReferences(
     (playerId) => !Number.isInteger(playerId) || playerId <= 0,
   );
   if (invalidPlayerId !== undefined) {
-    return { error: "playerId must be a positive integer" };
+    throw new SessionRequestError({ error: "playerId must be a positive integer" });
   }
   if (new Set(submittedPlayerIds).size !== submittedPlayerIds.length) {
-    return { error: "playerId values must be unique within a session" };
+    throw new SessionRequestError({
+      error: "playerId values must be unique within a session",
+    });
   }
 
   const players = await queryDb
@@ -73,47 +81,65 @@ async function resolvePlayerReferences(
     let player;
     if (balance.playerId !== undefined) {
       if (!Number.isInteger(balance.playerId) || balance.playerId <= 0) {
-        return { error: "playerId must be a positive integer" };
+        throw new SessionRequestError({ error: "playerId must be a positive integer" });
       }
       player = playersById.get(balance.playerId);
       if (!player) {
-        return {
+        throw new SessionRequestError({
           error: `playerId ${balance.playerId} does not reference an existing player`,
-        };
+        });
       }
       if (
         normalizePlayerName(balance.name) !== normalizePlayerName(player.name)
       ) {
-        return {
+        throw new SessionRequestError({
           error: `playerId ${balance.playerId} does not match the player name`,
-        };
+        });
       }
     } else {
       player = playersByName.get(normalizePlayerName(balance.name));
       if (!player) {
+        const trimmedName = balance.name.trim();
         const [createdPlayer] = await queryDb
           .insert(playersTable)
           .values({
-            name: balance.name.trim(),
+            name: trimmedName,
             createdByUserId,
           })
+          .onConflictDoNothing()
           .returning({ id: playersTable.id, name: playersTable.name });
-        if (!createdPlayer) {
-          return { error: `Could not create player "${balance.name}"` };
+        if (createdPlayer) {
+          player = createdPlayer;
+        } else {
+          // Someone else concurrently created a player with the same
+          // trim+case-insensitive name; use theirs instead of erroring.
+          const [existingPlayer] = await queryDb
+            .select({ id: playersTable.id, name: playersTable.name })
+            .from(playersTable)
+            .where(
+              sql`lower(trim(${playersTable.name})) = ${normalizePlayerName(trimmedName)}`,
+            );
+          if (!existingPlayer) {
+            throw new SessionRequestError({
+              error: `Could not create player "${balance.name}"`,
+            });
+          }
+          player = existingPlayer;
         }
-        player = createdPlayer;
         playersById.set(player.id, player);
         playersByName.set(normalizePlayerName(player.name), player);
       }
     }
     if (seenPlayerIds.has(player.id)) {
-      return { error: "playerId values must be unique within a session" };
+      throw new SessionRequestError({
+        error: "playerId values must be unique within a session",
+      });
     }
     seenPlayerIds.add(player.id);
-    resolvedBalances.push({ ...balance, playerId: player.id });
+    resolvedBalances.push({ ...balance, name: player.name, playerId: player.id });
   }
 
-  return { playerBalances: resolvedBalances };
+  return resolvedBalances;
 }
 
 function normalizePlayerBalances(playerBalances: SubmittedBalance[]) {
@@ -317,48 +343,55 @@ router.post("/sessions", async (req, res): Promise<void> => {
     return;
   }
 
-  const transactionResult = await db.transaction(async (tx) => {
-    const unlinkedResult = sessionResult(parsed.data.playerBalances);
-    if (!unlinkedResult) {
-      return {
-        error: "Exactly four player names are required and must be unique",
-      };
+  let transactionResult: { session: typeof mahjongSessionsTable.$inferSelect };
+  try {
+    transactionResult = await db.transaction(async (tx) => {
+      const unlinkedResult = sessionResult(parsed.data.playerBalances);
+      if (!unlinkedResult) {
+        throw new SessionRequestError({
+          error: "Exactly four player names are required and must be unique",
+        });
+      }
+
+      const resolvedBalances = await resolvePlayerReferences(
+        tx,
+        userId,
+        parsed.data.playerBalances,
+      );
+
+      const result = sessionResult(resolvedBalances);
+      if (!result) {
+        throw new SessionRequestError({
+          error: "Exactly four player names are required and must be unique",
+        });
+      }
+
+      const [session] = await tx
+        .insert(mahjongSessionsTable)
+        .values({
+          playedOn: dateOnly(parsed.data.playedOn),
+          rounds: parsed.data.rounds,
+          totalAmount: result.totalAmount,
+          winnerName: result.winnerName,
+          playerBalances: result.playerBalances,
+          notes: parsed.data.notes?.trim() || null,
+          createdByUserId: userId,
+        })
+        .returning();
+      if (!session) {
+        throw new SessionRequestError({ error: "Session was not created" });
+      }
+
+      return { session };
+    });
+  } catch (err) {
+    if (err instanceof SessionRequestError) {
+      res.status(400).json(err.body);
+      return;
     }
-
-    const resolved = await resolvePlayerReferences(
-      tx,
-      userId,
-      parsed.data.playerBalances,
-    );
-    if ("error" in resolved) return resolved;
-
-    const result = sessionResult(resolved.playerBalances);
-    if (!result) {
-      return {
-        error: "Exactly four player names are required and must be unique",
-      };
-    }
-
-    const [session] = await tx
-      .insert(mahjongSessionsTable)
-      .values({
-        playedOn: dateOnly(parsed.data.playedOn),
-        rounds: parsed.data.rounds,
-        totalAmount: result.totalAmount,
-        winnerName: result.winnerName,
-        playerBalances: result.playerBalances,
-        notes: parsed.data.notes?.trim() || null,
-        createdByUserId: userId,
-      })
-      .returning();
-
-    return session ? { session } : { error: "Session was not created" };
-  });
-
-  if ("error" in transactionResult) {
-    res.status(400).json({ error: transactionResult.error });
-    return;
+    throw err;
   }
+
   const announcement = await announceSession(req, transactionResult.session);
   res.status(201).json(
     CreateSessionResponse.parse({
@@ -393,36 +426,39 @@ router.get("/sessions/summary", async (req, res): Promise<void> => {
     .orderBy(desc(sql`count(*)`), mahjongSessionsTable.winnerName);
 
   const zhaHuByPlayer = new Map<
-    string,
+    string | number,
     { playerName: string; count: number }
   >();
   const xieXieKaiXiangByPlayer = new Map<
-    string,
+    string | number,
     { playerName: string; count: number }
   >();
   const winningsByPlayer = new Map<
-    string,
+    string | number,
     { playerName: string; netCents: number }
   >();
   for (const session of sessions) {
     for (const player of normalizePlayerBalances(session.playerBalances)) {
-      const normalizedName = normalizePlayerName(player.name);
-      const existingZhaHu = zhaHuByPlayer.get(normalizedName);
+      const identityKey: string | number =
+        typeof player.playerId === "number"
+          ? player.playerId
+          : normalizePlayerName(player.name);
+      const existingZhaHu = zhaHuByPlayer.get(identityKey);
       if (existingZhaHu) {
         existingZhaHu.count += player.zhaHuCount;
       } else {
-        zhaHuByPlayer.set(normalizedName, {
+        zhaHuByPlayer.set(identityKey, {
           playerName: player.name.trim(),
           count: player.zhaHuCount,
         });
       }
 
       const existingXieXieKaiXiang =
-        xieXieKaiXiangByPlayer.get(normalizedName);
+        xieXieKaiXiangByPlayer.get(identityKey);
       if (existingXieXieKaiXiang) {
         existingXieXieKaiXiang.count += player.xieXieKaiXiangCount;
       } else {
-        xieXieKaiXiangByPlayer.set(normalizedName, {
+        xieXieKaiXiangByPlayer.set(identityKey, {
           playerName: player.name.trim(),
           count: player.xieXieKaiXiangCount,
         });
@@ -430,11 +466,11 @@ router.get("/sessions/summary", async (req, res): Promise<void> => {
 
       const netCents =
         Math.round(player.endingAmount * 100) - STARTING_BALANCE * 100;
-      const existingWinnings = winningsByPlayer.get(normalizedName);
+      const existingWinnings = winningsByPlayer.get(identityKey);
       if (existingWinnings) {
         existingWinnings.netCents += netCents;
       } else {
-        winningsByPlayer.set(normalizedName, {
+        winningsByPlayer.set(identityKey, {
           playerName: player.name.trim(),
           netCents,
         });
@@ -507,56 +543,60 @@ router.patch("/sessions/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  const transactionResult = await db.transaction(async (tx) => {
-    const update: Partial<typeof mahjongSessionsTable.$inferInsert> = {};
-    if (body.data.playedOn) {
-      update.playedOn = dateOnly(body.data.playedOn);
-    }
-    if (body.data.rounds !== undefined) {
-      update.rounds = body.data.rounds;
-    }
-    if (body.data.playerBalances !== undefined) {
-      const unlinkedResult = sessionResult(body.data.playerBalances);
-      if (!unlinkedResult) {
-        return {
-          error: "Exactly four player names are required and must be unique",
-        };
+  let transactionResult: { session: typeof mahjongSessionsTable.$inferSelect } | { notFound: true };
+  try {
+    transactionResult = await db.transaction(async (tx) => {
+      const update: Partial<typeof mahjongSessionsTable.$inferInsert> = {};
+      if (body.data.playedOn) {
+        update.playedOn = dateOnly(body.data.playedOn);
+      }
+      if (body.data.rounds !== undefined) {
+        update.rounds = body.data.rounds;
+      }
+      if (body.data.playerBalances !== undefined) {
+        const unlinkedResult = sessionResult(body.data.playerBalances);
+        if (!unlinkedResult) {
+          throw new SessionRequestError({
+            error: "Exactly four player names are required and must be unique",
+          });
+        }
+
+        const resolvedBalances = await resolvePlayerReferences(
+          tx,
+          userId,
+          body.data.playerBalances,
+        );
+
+        const result = sessionResult(resolvedBalances);
+        if (!result) {
+          throw new SessionRequestError({
+            error: "Exactly four player names are required and must be unique",
+          });
+        }
+        update.totalAmount = result.totalAmount;
+        update.winnerName = result.winnerName;
+        update.playerBalances = result.playerBalances;
+      }
+      if (body.data.notes !== undefined) {
+        update.notes = body.data.notes?.trim() || null;
       }
 
-      const resolved = await resolvePlayerReferences(
-        tx,
-        userId,
-        body.data.playerBalances,
-      );
-      if ("error" in resolved) return resolved;
+      const [session] = await tx
+        .update(mahjongSessionsTable)
+        .set(update)
+        .where(eq(mahjongSessionsTable.id, params.data.id))
+        .returning();
 
-      const result = sessionResult(resolved.playerBalances);
-      if (!result) {
-        return {
-          error: "Exactly four player names are required and must be unique",
-        };
-      }
-      update.totalAmount = result.totalAmount;
-      update.winnerName = result.winnerName;
-      update.playerBalances = result.playerBalances;
+      return session ? { session } : { notFound: true };
+    });
+  } catch (err) {
+    if (err instanceof SessionRequestError) {
+      res.status(400).json(err.body);
+      return;
     }
-    if (body.data.notes !== undefined) {
-      update.notes = body.data.notes?.trim() || null;
-    }
-
-    const [session] = await tx
-      .update(mahjongSessionsTable)
-      .set(update)
-      .where(eq(mahjongSessionsTable.id, params.data.id))
-      .returning();
-
-    return session ? { session } : { notFound: true };
-  });
-
-  if ("error" in transactionResult) {
-    res.status(400).json({ error: transactionResult.error });
-    return;
+    throw err;
   }
+
   if ("notFound" in transactionResult) {
     res.status(404).json({ error: "Session not found" });
     return;
