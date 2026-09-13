@@ -11,7 +11,68 @@ function nonEmptyBalances(value: PlayerBalance[] | null | undefined) {
   return (value ?? []).filter((balance) => normalizePlayerName(balance.name));
 }
 
+async function planSeedPlayers(): Promise<void> {
+  // Read-only preview: reuses the same lookups as the real run but never
+  // writes, so an operator can review what would change before committing.
+  const sessions = await db
+    .select({
+      id: mahjongSessionsTable.id,
+      playerBalances: mahjongSessionsTable.playerBalances,
+    })
+    .from(mahjongSessionsTable)
+    .orderBy(asc(mahjongSessionsTable.id));
+
+  const existingPlayers = await db.select().from(playersTable);
+  const playersById = new Map(existingPlayers.map((player) => [player.id, player]));
+  const playersByName = new Map(
+    existingPlayers.map((player) => [normalizePlayerName(player.name), player]),
+  );
+
+  const newPlayerNames = new Map<string, string>();
+  const linksToCreate: { sessionId: number; name: string }[] = [];
+  for (const session of sessions) {
+    for (const balance of nonEmptyBalances(session.playerBalances)) {
+      if (balance.playerId !== undefined) {
+        if (
+          !Number.isInteger(balance.playerId) ||
+          balance.playerId <= 0 ||
+          !playersById.has(balance.playerId)
+        ) {
+          throw new Error(`Session ${session.id} has an invalid player reference`);
+        }
+        continue;
+      }
+
+      const key = normalizePlayerName(balance.name);
+      if (!playersByName.has(key)) {
+        newPlayerNames.set(key, balance.name.trim());
+      }
+      linksToCreate.push({ sessionId: session.id, name: balance.name.trim() });
+    }
+  }
+
+  if (newPlayerNames.size === 0 && linksToCreate.length === 0) {
+    console.log("[dry run] No changes needed.");
+    return;
+  }
+  for (const name of newPlayerNames.values()) {
+    console.log(`[dry run] Would create player "${name}"`);
+  }
+  const linksBySession = new Map<number, string[]>();
+  for (const { sessionId, name } of linksToCreate) {
+    linksBySession.set(sessionId, [...(linksBySession.get(sessionId) ?? []), name]);
+  }
+  for (const [sessionId, names] of linksBySession) {
+    console.log(`[dry run] Would link session ${sessionId} balances to players: ${names.join(", ")}`);
+  }
+}
+
 export async function seedPlayers(): Promise<void> {
+  if (process.env.DRY_RUN === "true") {
+    await planSeedPlayers();
+    return;
+  }
+
   await db.transaction(async (tx) => {
     // Serialize against session writes and reconcileDuplicatePlayers so
     // this backfill can't race a concurrent identity-affecting change.

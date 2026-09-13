@@ -1,10 +1,11 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => {
   const selectResults: unknown[] = [];
   const executeResults: unknown[] = [];
   const updateCalls: { table: unknown; values: unknown }[] = [];
   const deleteCalls: { table: unknown; whereClause: unknown }[] = [];
+  const readFileSync = vi.fn();
 
   function selectChain(result: unknown) {
     const chain = {
@@ -47,6 +48,7 @@ const mocks = vi.hoisted(() => {
     executeResults,
     updateCalls,
     deleteCalls,
+    readFileSync,
     db: {
       ...db,
       transaction: vi.fn(async (callback: (transactionDb: typeof db) => unknown) =>
@@ -61,6 +63,8 @@ vi.mock("@workspace/db", async (importOriginal) => {
   return { ...original, db: mocks.db };
 });
 
+vi.mock("node:fs", () => ({ readFileSync: mocks.readFileSync }));
+
 const { playersTable, mahjongSessionsTable } = await import("@workspace/db");
 const { reconcileDuplicatePlayers } = await import("./reconcile-duplicate-players");
 
@@ -73,6 +77,14 @@ beforeEach(() => {
   mocks.db.update.mockClear();
   mocks.db.delete.mockClear();
   mocks.db.transaction.mockClear();
+  mocks.readFileSync.mockReset();
+  delete process.env.DRY_RUN;
+  delete process.env.PLAYER_MERGE_MAPPINGS_FILE;
+});
+
+afterEach(() => {
+  delete process.env.DRY_RUN;
+  delete process.env.PLAYER_MERGE_MAPPINGS_FILE;
 });
 
 describe("reconcileDuplicatePlayers", () => {
@@ -122,6 +134,59 @@ describe("reconcileDuplicatePlayers", () => {
 
     await reconcileDuplicatePlayers();
 
+    expect(mocks.updateCalls).toHaveLength(0);
+    expect(mocks.deleteCalls).toHaveLength(0);
+  });
+
+  it("reports duplicates without writing anything in dry-run mode", async () => {
+    process.env.DRY_RUN = "true";
+    mocks.executeResults.push({ rows: [{ exists: true }] });
+    mocks.selectResults.push([
+      { id: 1, name: "Tom", active: false },
+      { id: 5, name: " tom ", active: true },
+    ]);
+
+    await reconcileDuplicatePlayers();
+
+    expect(mocks.db.transaction).not.toHaveBeenCalled();
+    expect(mocks.updateCalls).toHaveLength(0);
+    expect(mocks.deleteCalls).toHaveLength(0);
+  });
+
+  it("uses an explicit mapping's canonical choice instead of oldest-row-wins", async () => {
+    process.env.PLAYER_MERGE_MAPPINGS_FILE = "/fake/mappings.json";
+    mocks.readFileSync.mockReturnValue(JSON.stringify({ "5": [1] }));
+    mocks.executeResults.push({ rows: [{ exists: true }] });
+    mocks.selectResults.push(
+      [
+        { id: 1, name: "Tom", active: false },
+        { id: 5, name: " tom ", active: true },
+      ],
+      [],
+    );
+
+    await reconcileDuplicatePlayers();
+
+    expect(mocks.deleteCalls).toEqual([
+      expect.objectContaining({ table: playersTable }),
+    ]);
+    // Canonical is #5 per the mapping, not #1 (which oldest-row-wins would pick).
+    const playerUpdate = mocks.updateCalls.find((call) => call.table === playersTable);
+    expect(playerUpdate).toBeUndefined(); // #5 is already active; nothing to reactivate.
+  });
+
+  it("refuses to guess when a mappings file is supplied but doesn't cover a duplicate group", async () => {
+    process.env.PLAYER_MERGE_MAPPINGS_FILE = "/fake/mappings.json";
+    mocks.readFileSync.mockReturnValue(JSON.stringify({}));
+    mocks.executeResults.push({ rows: [{ exists: true }] });
+    mocks.selectResults.push([
+      { id: 1, name: "Tom", active: false },
+      { id: 5, name: " tom ", active: true },
+    ]);
+
+    await expect(reconcileDuplicatePlayers()).rejects.toThrow(
+      /No approved merge mapping/,
+    );
     expect(mocks.updateCalls).toHaveLength(0);
     expect(mocks.deleteCalls).toHaveLength(0);
   });

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => {
   const selectResults: unknown[] = [];
@@ -69,6 +69,12 @@ beforeEach(() => {
   mocks.db.select.mockClear();
   mocks.db.insert.mockClear();
   mocks.db.update.mockClear();
+  mocks.db.transaction.mockClear();
+  delete process.env.DRY_RUN;
+});
+
+afterEach(() => {
+  delete process.env.DRY_RUN;
 });
 
 describe("seedPlayers", () => {
@@ -136,6 +142,25 @@ describe("seedPlayers", () => {
 
     await seedPlayers();
 
+    expect(mocks.db.insert).not.toHaveBeenCalled();
+    expect(mocks.updateCalls).toHaveLength(0);
+  });
+
+  it("reports planned changes without writing anything in dry-run mode", async () => {
+    process.env.DRY_RUN = "true";
+    const sessions = [
+      {
+        id: 1,
+        playerBalances: [
+          { name: "Alice", endingAmount: 100, zhaHuCount: 0, xieXieKaiXiangCount: 0 },
+        ],
+      },
+    ];
+    mocks.selectResults.push(sessions, []);
+
+    await seedPlayers();
+
+    expect(mocks.db.transaction).not.toHaveBeenCalled();
     expect(mocks.db.insert).not.toHaveBeenCalled();
     expect(mocks.updateCalls).toHaveLength(0);
   });
