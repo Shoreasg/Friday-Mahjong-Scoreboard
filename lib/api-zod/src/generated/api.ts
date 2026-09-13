@@ -90,13 +90,13 @@ export const CreateSessionBody = zod.object({
 
 
 
-export const createSessionResponsePlayerBalancesItemNameMax = 80;
+export const createSessionResponseOnePlayerBalancesItemNameMax = 80;
 
-export const createSessionResponsePlayerBalancesItemEndingAmountMin = 0;
+export const createSessionResponseOnePlayerBalancesItemEndingAmountMin = 0;
 
-export const createSessionResponsePlayerBalancesItemZhaHuCountMin = 0;
+export const createSessionResponseOnePlayerBalancesItemZhaHuCountMin = 0;
 
-export const createSessionResponsePlayerBalancesItemXieXieKaiXiangCountMin = 0;
+export const createSessionResponseOnePlayerBalancesItemXieXieKaiXiangCountMin = 0;
 
 
 
@@ -108,15 +108,26 @@ export const CreateSessionResponse = zod.object({
   "winnerName": zod.string(),
   "playerBalances": zod.array(zod.object({
   "playerId": zod.int().min(1).optional(),
-  "name": zod.string().min(1).max(createSessionResponsePlayerBalancesItemNameMax),
-  "endingAmount": zod.number().min(createSessionResponsePlayerBalancesItemEndingAmountMin),
-  "zhaHuCount": zod.int().min(createSessionResponsePlayerBalancesItemZhaHuCountMin),
-  "xieXieKaiXiangCount": zod.int().min(createSessionResponsePlayerBalancesItemXieXieKaiXiangCountMin)
+  "name": zod.string().min(1).max(createSessionResponseOnePlayerBalancesItemNameMax),
+  "endingAmount": zod.number().min(createSessionResponseOnePlayerBalancesItemEndingAmountMin),
+  "zhaHuCount": zod.int().min(createSessionResponseOnePlayerBalancesItemZhaHuCountMin),
+  "xieXieKaiXiangCount": zod.int().min(createSessionResponseOnePlayerBalancesItemXieXieKaiXiangCountMin)
 })),
   "notes": zod.string().nullable(),
   "createdByUserId": zod.string().nullable(),
   "createdAt": zod.coerce.date()
-})
+}).and(zod.object({
+  "announcement": zod.union([zod.object({
+  "status": zod.enum(['sent']),
+  "messageId": zod.int().nullable()
+}),zod.object({
+  "status": zod.enum(['skipped']),
+  "reason": zod.enum(['not_configured'])
+}),zod.object({
+  "status": zod.enum(['failed']),
+  "reason": zod.enum(['delivery_failed'])
+})])
+}))
 
 
 /**

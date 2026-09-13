@@ -11,6 +11,13 @@ import {
   UpdateSessionResponse,
 } from "@workspace/api-zod";
 import { db, mahjongSessionsTable, playersTable } from "@workspace/db";
+import {
+  normalizePlayerName,
+  STARTING_BALANCE,
+} from "@workspace/session-rules";
+import {
+  sendTelegramMessage,
+} from "@workspace/integrations-telegram";
 import { desc, eq, sql } from "drizzle-orm";
 import {
   Router,
@@ -20,7 +27,11 @@ import {
 import { requireAdmin } from "./requireAdmin";
 
 const router: IRouter = Router();
-const STARTING_BALANCE_CENTS = 50000;
+
+type AnnouncementOutcome =
+  | { status: "sent"; messageId: number | null }
+  | { status: "skipped"; reason: "not_configured" }
+  | { status: "failed"; reason: "delivery_failed" };
 
 type SubmittedBalance = {
   name: string;
@@ -29,10 +40,6 @@ type SubmittedBalance = {
   zhaHuCount: number;
   xieXieKaiXiangCount?: number;
 };
-
-function normalizedPlayerName(name: string): string {
-  return name.trim().toLocaleLowerCase();
-}
 
 async function resolvePlayerReferences(
   queryDb: Pick<typeof db, "select" | "insert">,
@@ -57,7 +64,7 @@ async function resolvePlayerReferences(
     .from(playersTable);
   const playersById = new Map(players.map((player) => [player.id, player]));
   const playersByName = new Map(
-    players.map((player) => [normalizedPlayerName(player.name), player]),
+    players.map((player) => [normalizePlayerName(player.name), player]),
   );
   const seenPlayerIds = new Set<number>();
   const resolvedBalances: SubmittedBalance[] = [];
@@ -75,14 +82,14 @@ async function resolvePlayerReferences(
         };
       }
       if (
-        normalizedPlayerName(balance.name) !== normalizedPlayerName(player.name)
+        normalizePlayerName(balance.name) !== normalizePlayerName(player.name)
       ) {
         return {
           error: `playerId ${balance.playerId} does not match the player name`,
         };
       }
     } else {
-      player = playersByName.get(normalizedPlayerName(balance.name));
+      player = playersByName.get(normalizePlayerName(balance.name));
       if (!player) {
         const [createdPlayer] = await queryDb
           .insert(playersTable)
@@ -96,7 +103,7 @@ async function resolvePlayerReferences(
         }
         player = createdPlayer;
         playersById.set(player.id, player);
-        playersByName.set(normalizedPlayerName(player.name), player);
+        playersByName.set(normalizePlayerName(player.name), player);
       }
     }
     if (seenPlayerIds.has(player.id)) {
@@ -168,7 +175,7 @@ function sessionResult(playerBalances: SubmittedBalance[]) {
     if (!balance.name) {
       return null;
     }
-    const normalizedName = balance.name.toLocaleLowerCase();
+    const normalizedName = normalizePlayerName(balance.name);
     if (seenNames.has(normalizedName)) {
       return null;
     }
@@ -192,6 +199,102 @@ function sessionResult(playerBalances: SubmittedBalance[]) {
 
 function dateOnly(value: Date): string {
   return value.toISOString().slice(0, 10);
+}
+
+function escapeTelegramHtml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+
+function formatMoney(value: number): string {
+  return `$${value.toFixed(2)}`;
+}
+
+function formatNetPosition(value: number): string {
+  return `${value >= 0 ? "+" : "-"}${formatMoney(Math.abs(value))}`;
+}
+
+function scoreboardUrl(req: Request): string {
+  const configuredUrl = process.env.SCOREBOARD_URL?.trim();
+  if (configuredUrl) {
+    return configuredUrl.replace(/\/+$/, "");
+  }
+
+  const forwardedProto = req.get("x-forwarded-proto")?.split(",")[0]?.trim();
+  const protocol = forwardedProto || req.protocol;
+  return `${protocol}://${req.get("host")}`;
+}
+
+function sessionAnnouncement(
+  req: Request,
+  session: typeof mahjongSessionsTable.$inferSelect,
+): string {
+  const players = normalizePlayerBalances(session.playerBalances);
+  const playerLines = players
+    .map((player) => {
+      const netPosition = player.endingAmount - STARTING_BALANCE;
+      return [
+        `• <b>${escapeTelegramHtml(player.name)}</b>`,
+        `${formatMoney(player.endingAmount)} (${formatNetPosition(netPosition)})`,
+        `诈胡 ${player.zhaHuCount}`,
+        `谢谢开相 ${player.xieXieKaiXiangCount}`,
+      ].join(" · ");
+    })
+    .join("\n");
+  const winner = players.find(
+    (player) =>
+      player.name.trim().toLocaleLowerCase() ===
+      session.winnerName.trim().toLocaleLowerCase(),
+  );
+  const winnerPosition = winner
+    ? ` (${formatNetPosition(winner.endingAmount - STARTING_BALANCE)})`
+    : "";
+  const notes = session.notes
+    ? `\n\n<b>Notes</b>\n${escapeTelegramHtml(session.notes)}`
+    : "";
+
+  return [
+    `<b>Friday Mahjong · ${escapeTelegramHtml(session.playedOn)}</b>`,
+    `Winner: <b>${escapeTelegramHtml(session.winnerName)}</b>${winnerPosition}`,
+    "",
+    `<b>Players</b>\n${playerLines}`,
+    "",
+    `<b>Rounds</b>: ${session.rounds}`,
+    `<b>Settlement total</b>: ${formatMoney(session.totalAmount)}`,
+    `<b>Starting balance</b>: ${formatMoney(STARTING_BALANCE)} per player`,
+    notes,
+    "",
+    `<a href="${escapeTelegramHtml(scoreboardUrl(req))}">Open the scoreboard</a>`,
+  ]
+    .filter((line, index, lines) => !(line === "" && lines[index - 1] === ""))
+    .join("\n");
+}
+
+async function announceSession(
+  req: Request,
+  session: typeof mahjongSessionsTable.$inferSelect,
+): Promise<AnnouncementOutcome> {
+  try {
+    const result = await sendTelegramMessage({
+      text: sessionAnnouncement(req, session),
+      parseMode: "HTML",
+    });
+    return result.status === "sent"
+      ? { status: "sent", messageId: result.messageId }
+      : { status: "skipped", reason: result.reason };
+  } catch (error) {
+    req.log.warn(
+      {
+        err: error,
+        sessionId: session.id,
+      },
+      "Telegram session announcement failed",
+    );
+    return { status: "failed", reason: "delivery_failed" };
+  }
 }
 
 router.get("/sessions", async (req, res): Promise<void> => {
@@ -256,9 +359,13 @@ router.post("/sessions", async (req, res): Promise<void> => {
     res.status(400).json({ error: transactionResult.error });
     return;
   }
-  res
-    .status(201)
-    .json(CreateSessionResponse.parse(normalizeSession(transactionResult.session)));
+  const announcement = await announceSession(req, transactionResult.session);
+  res.status(201).json(
+    CreateSessionResponse.parse({
+      ...normalizeSession(transactionResult.session),
+      announcement,
+    }),
+  );
 });
 
 router.get("/sessions/summary", async (req, res): Promise<void> => {
@@ -299,7 +406,7 @@ router.get("/sessions/summary", async (req, res): Promise<void> => {
   >();
   for (const session of sessions) {
     for (const player of normalizePlayerBalances(session.playerBalances)) {
-      const normalizedName = player.name.trim().toLocaleLowerCase();
+      const normalizedName = normalizePlayerName(player.name);
       const existingZhaHu = zhaHuByPlayer.get(normalizedName);
       if (existingZhaHu) {
         existingZhaHu.count += player.zhaHuCount;
@@ -322,7 +429,7 @@ router.get("/sessions/summary", async (req, res): Promise<void> => {
       }
 
       const netCents =
-        Math.round(player.endingAmount * 100) - STARTING_BALANCE_CENTS;
+        Math.round(player.endingAmount * 100) - STARTING_BALANCE * 100;
       const existingWinnings = winningsByPlayer.get(normalizedName);
       if (existingWinnings) {
         existingWinnings.netCents += netCents;

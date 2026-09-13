@@ -62,7 +62,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/MahjongSession"
+                $ref: "#/components/schemas/SessionCreationResponse"
         "400":
           description: Invalid session
         "401":
@@ -251,6 +251,49 @@ components:
         - notes
         - createdByUserId
         - createdAt
+    SessionCreationResponse:
+      allOf:
+        - $ref: "#/components/schemas/MahjongSession"
+        - type: object
+          properties:
+            announcement:
+              $ref: "#/components/schemas/TelegramAnnouncementOutcome"
+          required:
+            - announcement
+    TelegramAnnouncementOutcome:
+      oneOf:
+        - type: object
+          properties:
+            status:
+              type: string
+              enum: [sent]
+            messageId:
+              type: ["integer", "null"]
+          required:
+            - status
+            - messageId
+        - type: object
+          properties:
+            status:
+              type: string
+              enum: [skipped]
+            reason:
+              type: string
+              enum: [not_configured]
+          required:
+            - status
+            - reason
+        - type: object
+          properties:
+            status:
+              type: string
+              enum: [failed]
+            reason:
+              type: string
+              enum: [delivery_failed]
+          required:
+            - status
+            - reason
     MahjongSessionInput:
       type: object
       properties:

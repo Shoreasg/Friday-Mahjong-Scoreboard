@@ -7,11 +7,11 @@
     "quality_profile": "showcase",
     "viewBox": [
       1360,
-      560
+      650
     ],
     "repository": {
       "url": "https://github.com/Shoreasg/Friday-Mahjong-Scoreboard",
-      "revision": "a435f4d1f694c462b4f9369cd1d5f671b0563113"
+      "revision": "6abfe65ad0aed7dbc222a13507e811e4c0498228"
     },
     "views": [
       {
@@ -301,6 +301,28 @@
         }
       ]
     }
+    ,
+    {
+      "id": "telegram",
+      "type": "external",
+      "label": "Telegram",
+      "sublabel": "Bot API · optional outbound",
+      "tag": "@workspace/integrations-telegram",
+      "pos": [
+        1110,
+        500
+      ],
+      "size": [
+        200,
+        76
+      ],
+      "sources": [
+        {
+          "path": "lib/integrations-telegram/src/index.ts",
+          "label": "lazy sendMessage adapter"
+        }
+      ]
+    }
   ],
   "boundaries": [
     {
@@ -389,6 +411,14 @@
       "from": "api",
       "to": "gemini",
       "label": "chip photo to stack counts",
+      "fromSide": "bottom",
+      "toSide": "left"
+    },
+    {
+      "id": "api-to-telegram",
+      "from": "api",
+      "to": "telegram",
+      "label": "optional session result announcement",
       "fromSide": "bottom",
       "toSide": "left"
     },

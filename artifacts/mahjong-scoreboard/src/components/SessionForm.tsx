@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { type MahjongSessionInput } from "@workspace/api-client-react";
+import { STARTING_BALANCE } from "@workspace/session-rules";
 import { cn } from "@/lib/utils";
 
 const ChipStackScanner = lazy(() =>
@@ -61,7 +62,7 @@ export function SessionForm({
             }
           : {
               name: "",
-              endingAmount: 500,
+              endingAmount: STARTING_BALANCE,
               zhaHuCount: 0,
               xieXieKaiXiangCount: 0,
             };
@@ -111,7 +112,7 @@ export function SessionForm({
             <div>
               <h3 className="font-black text-foreground uppercase tracking-widest text-lg">Player balances</h3>
               <p className="text-sm font-bold text-muted-foreground">
-                All four players start with $500. Count each time “谢谢 Kai Xiang” is said.
+                All four players start with ${STARTING_BALANCE}. Count each time “谢谢 Kai Xiang” is said.
               </p>
             </div>
           </div>
@@ -128,7 +129,7 @@ export function SessionForm({
                 <div className="flex items-center justify-between col-span-full mb-1">
                   <span className="text-sm font-black uppercase text-secondary-foreground bg-secondary border-2 border-ink px-2 py-1 brutal-shadow-sm tracking-widest">Player {index + 1}</span>
                   {!compact && (
-                    <span className="bg-tile border-2 border-ink px-2.5 py-1 text-xs font-black text-foreground brutal-shadow-sm">Starts at $500</span>
+                    <span className="bg-tile border-2 border-ink px-2.5 py-1 text-xs font-black text-foreground brutal-shadow-sm">Starts at ${STARTING_BALANCE}</span>
                   )}
                 </div>
                 <FormField
