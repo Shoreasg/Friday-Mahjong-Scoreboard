@@ -96,7 +96,23 @@ describe("reconcileDuplicatePlayers", () => {
     expect(mocks.db.transaction).not.toHaveBeenCalled();
   });
 
-  it("merges a case/whitespace duplicate into the oldest row, remapping balances and reactivating an active alias", async () => {
+  it("throws and writes nothing when duplicates exist and no mapping file is supplied", async () => {
+    mocks.executeResults.push({ rows: [{ exists: true }] });
+    mocks.selectResults.push([
+      { id: 1, name: "Tom", active: false },
+      { id: 5, name: " tom ", active: true },
+    ]);
+
+    await expect(reconcileDuplicatePlayers()).rejects.toThrow(
+      /No approved merge mapping/,
+    );
+    expect(mocks.updateCalls).toHaveLength(0);
+    expect(mocks.deleteCalls).toHaveLength(0);
+  });
+
+  it("merges a case/whitespace duplicate per an explicit mapping, remapping balances and reactivating an active alias", async () => {
+    process.env.PLAYER_MERGE_MAPPINGS_FILE = "/fake/mappings.json";
+    mocks.readFileSync.mockReturnValue(JSON.stringify({ "1": [5] }));
     mocks.executeResults.push({ rows: [{ exists: true }] });
     mocks.selectResults.push(
       [
@@ -138,19 +154,45 @@ describe("reconcileDuplicatePlayers", () => {
     expect(mocks.deleteCalls).toHaveLength(0);
   });
 
-  it("reports duplicates without writing anything in dry-run mode", async () => {
+  it("reports an unresolved duplicate group without writing or throwing in dry-run mode", async () => {
     process.env.DRY_RUN = "true";
     mocks.executeResults.push({ rows: [{ exists: true }] });
     mocks.selectResults.push([
       { id: 1, name: "Tom", active: false },
       { id: 5, name: " tom ", active: true },
     ]);
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 
     await reconcileDuplicatePlayers();
 
+    expect(logSpy).toHaveBeenCalledWith(
+      expect.stringContaining("[dry run] Unresolved duplicate group"),
+    );
     expect(mocks.db.transaction).not.toHaveBeenCalled();
     expect(mocks.updateCalls).toHaveLength(0);
     expect(mocks.deleteCalls).toHaveLength(0);
+    logSpy.mockRestore();
+  });
+
+  it("reports a resolvable duplicate group's plan in dry-run mode when a mapping is supplied", async () => {
+    process.env.DRY_RUN = "true";
+    process.env.PLAYER_MERGE_MAPPINGS_FILE = "/fake/mappings.json";
+    mocks.readFileSync.mockReturnValue(JSON.stringify({ "1": [5] }));
+    mocks.executeResults.push({ rows: [{ exists: true }] });
+    mocks.selectResults.push([
+      { id: 1, name: "Tom", active: false },
+      { id: 5, name: " tom ", active: true },
+    ]);
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    await reconcileDuplicatePlayers();
+
+    expect(logSpy).toHaveBeenCalledWith(
+      expect.stringContaining("[dry run] Would merge duplicate players into #1 (Tom): #5 ( tom )"),
+    );
+    expect(mocks.updateCalls).toHaveLength(0);
+    expect(mocks.deleteCalls).toHaveLength(0);
+    logSpy.mockRestore();
   });
 
   it("uses an explicit mapping's canonical choice instead of oldest-row-wins", async () => {

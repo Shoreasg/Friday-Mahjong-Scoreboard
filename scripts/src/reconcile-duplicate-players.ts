@@ -6,9 +6,15 @@ import { asc, eq, inArray, sql } from "drizzle-orm";
 type PlayerRow = { id: number; name: string; active: boolean };
 
 // Explicit, operator-approved merge decisions: canonical player ID -> the
-// loser IDs that should be folded into it. Required whenever a duplicate
-// group can't be resolved by the oldest-row-wins default (see below).
+// loser IDs that should be folded into it. Required for every duplicate
+// group — this script never guesses which row is canonical, because two
+// different real people can share a normalized name and an automatic
+// merge would silently delete one of their player records.
 type MergeMappings = Map<number, Set<number>>;
+
+type GroupResolution =
+  | { ok: true; canonical: PlayerRow; losers: PlayerRow[] }
+  | { ok: false; reason: string };
 
 function loadMergeMappings(filePath: string | undefined): MergeMappings | undefined {
   if (!filePath) return undefined;
@@ -27,56 +33,53 @@ function loadMergeMappings(filePath: string | undefined): MergeMappings | undefi
   return mappings;
 }
 
-function resolveCanonicalAndLosers(
-  group: PlayerRow[],
-  mappings: MergeMappings | undefined,
-): { canonical: PlayerRow; losers: PlayerRow[] } {
+// Every duplicate group must be explicitly covered by an operator-approved
+// mapping. There is no default guess (not even oldest-row-wins): two
+// different real people can share a normalized name, and this script has
+// no way to tell that apart from the same person's inconsistent
+// capitalization. Supply PLAYER_MERGE_MAPPINGS_FILE — after reviewing a
+// DRY_RUN=true report — to resolve real duplicates.
+function resolveGroup(group: PlayerRow[], mappings: MergeMappings | undefined): GroupResolution {
   const groupIds = new Set(group.map((player) => player.id));
+  const describe = (players: PlayerRow[]) =>
+    players.map((player) => `#${player.id} (${player.name})`).join(", ");
 
-  if (mappings) {
-    // Strict mode: the operator supplied a mappings file, so every
-    // ambiguous group must be explicitly covered by it. Guessing
-    // (oldest-row-wins) is not acceptable once explicit review is in play.
-    const matchingEntry = [...mappings.entries()].find(([canonicalId]) =>
-      groupIds.has(canonicalId),
-    );
-    if (!matchingEntry) {
-      throw new Error(
-        `No approved merge mapping for duplicate name group: ${group
-          .map((player) => `#${player.id} (${player.name})`)
-          .join(", ")}. Add an entry to the mappings file or resolve the ambiguity manually.`,
-      );
-    }
-    const [canonicalId, approvedLoserIds] = matchingEntry;
-    const coveredIds = new Set([canonicalId, ...approvedLoserIds]);
-    const uncovered = group.filter((player) => !coveredIds.has(player.id));
-    if (uncovered.length > 0) {
-      throw new Error(
-        `Merge mapping for canonical #${canonicalId} does not cover every row in the duplicate ` +
-          `group: missing ${uncovered.map((player) => `#${player.id} (${player.name})`).join(", ")}`,
-      );
-    }
-    const extra = [...approvedLoserIds].filter((id) => !groupIds.has(id));
-    if (extra.length > 0) {
-      throw new Error(
-        `Merge mapping for canonical #${canonicalId} references IDs outside this duplicate group: ${extra.join(", ")}`,
-      );
-    }
-    const canonical = group.find((player) => player.id === canonicalId);
-    if (!canonical) {
-      throw new Error(`Canonical player #${canonicalId} from mappings file was not found`);
-    }
-    return { canonical, losers: group.filter((player) => player.id !== canonicalId) };
+  const matchingEntry = mappings
+    ? [...mappings.entries()].find(([canonicalId]) => groupIds.has(canonicalId))
+    : undefined;
+  if (!matchingEntry) {
+    return {
+      ok: false,
+      reason:
+        `No approved merge mapping for duplicate name group: ${describe(group)}. Run with ` +
+        `DRY_RUN=true to review, then supply PLAYER_MERGE_MAPPINGS_FILE covering every ` +
+        `duplicate group before merging.`,
+    };
   }
 
-  // Default (no mappings file supplied): oldest row wins. This is the safe
-  // assumption for this project's actual duplicates — inconsistent
-  // capitalization of the same person's name, not two different people —
-  // and keeps the automated dev/Docker flow working without operator
-  // intervention. Anyone who needs to review ambiguous collisions before
-  // merging can supply PLAYER_MERGE_MAPPINGS_FILE to switch to strict mode.
-  const [canonical, ...losers] = group;
-  return { canonical, losers };
+  const [canonicalId, approvedLoserIds] = matchingEntry;
+  const coveredIds = new Set([canonicalId, ...approvedLoserIds]);
+  const uncovered = group.filter((player) => !coveredIds.has(player.id));
+  if (uncovered.length > 0) {
+    return {
+      ok: false,
+      reason:
+        `Merge mapping for canonical #${canonicalId} does not cover every row in the duplicate ` +
+        `group: missing ${describe(uncovered)}`,
+    };
+  }
+  const extra = [...approvedLoserIds].filter((id) => !groupIds.has(id));
+  if (extra.length > 0) {
+    return {
+      ok: false,
+      reason: `Merge mapping for canonical #${canonicalId} references IDs outside this duplicate group: ${extra.join(", ")}`,
+    };
+  }
+  const canonical = group.find((player) => player.id === canonicalId);
+  if (!canonical) {
+    return { ok: false, reason: `Canonical player #${canonicalId} from mappings file was not found` };
+  }
+  return { ok: true, canonical, losers: group.filter((player) => player.id !== canonicalId) };
 }
 
 function groupDuplicates(players: PlayerRow[]): PlayerRow[][] {
@@ -103,10 +106,16 @@ export async function reconcileDuplicatePlayers(): Promise<void> {
   if (dryRun) {
     const players = await db.select().from(playersTable).orderBy(asc(playersTable.id));
     for (const group of groupDuplicates(players)) {
-      const { canonical, losers } = resolveCanonicalAndLosers(group, mappings);
+      const resolution = resolveGroup(group, mappings);
+      if (!resolution.ok) {
+        console.log(`[dry run] Unresolved duplicate group: ${resolution.reason}`);
+        continue;
+      }
       console.log(
-        `[dry run] Would merge duplicate players into #${canonical.id} (${canonical.name}): ` +
-          `${losers.map((player) => `#${player.id} (${player.name})`).join(", ")}`,
+        `[dry run] Would merge duplicate players into #${resolution.canonical.id} ` +
+          `(${resolution.canonical.name}): ${resolution.losers
+            .map((player) => `#${player.id} (${player.name})`)
+            .join(", ")}`,
       );
     }
     return;
@@ -123,7 +132,11 @@ export async function reconcileDuplicatePlayers(): Promise<void> {
       .orderBy(asc(playersTable.id));
 
     for (const group of groupDuplicates(players)) {
-      const { canonical, losers } = resolveCanonicalAndLosers(group, mappings);
+      const resolution = resolveGroup(group, mappings);
+      if (!resolution.ok) {
+        throw new Error(resolution.reason);
+      }
+      const { canonical, losers } = resolution;
       const loserIds = losers.map((player) => player.id);
 
       console.log(
