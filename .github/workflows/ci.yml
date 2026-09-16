@@ -38,9 +38,12 @@ jobs:
         with:
           version: "10.15.1"
 
+      # 24 (not 20), matching docker/Dockerfile (node:24-bookworm-slim) and
+      # .replit (nodejs-24): the web app's test script uses
+      # `node --experimental-strip-types`, which needs Node >= 22.6.
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
@@ -50,7 +53,14 @@ jobs:
       # --if-present: not every package has a test script yet, and that's
       # fine — this runs whatever exists rather than special-casing it here.
       - name: Unit tests (mocked, no real DB required)
-        run: pnpm --filter @workspace/api-server --filter @workspace/scripts --if-present run test -- run
+        run: pnpm --filter @workspace/api-server --filter @workspace/scripts --filter @workspace/integrations-telegram --if-present run test -- run
+
+      # Separate step because this package's test script is Node's own test
+      # runner (`node --experimental-strip-types --test`), not vitest — it
+      # would treat the `-- run` argument above as a test file path instead
+      # of ignoring it.
+      - name: Web app unit tests (node:test)
+        run: pnpm --filter @workspace/mahjong-scoreboard run test
 
       # Real-Postgres coverage against the service container above. Bootstraps
       # its own isolated schema, so no prior migration/push step is needed.
