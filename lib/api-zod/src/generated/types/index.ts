@@ -20,6 +20,7 @@ export * from './mahjongSessionUpdate';
 export * from './player';
 export * from './playerBalance';
 export * from './playerInput';
+export * from './playerUpdate';
 export * from './playerWinnings';
 export * from './profitNightCount';
 export * from './sessionCreationResponse';

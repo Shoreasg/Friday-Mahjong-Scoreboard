@@ -179,6 +179,43 @@ export const CreatePlayerResponse = zod.object({
 
 
 /**
+ * A rename is reflected in every session, chart and leaderboard, since sessions reference players by id. Inactive players keep their full history but are not offered when recording a new session.
+ * @summary Rename a player or change whether they are active
+ */
+
+
+
+export const UpdatePlayerParams = zod.object({
+  "id": zod.coerce.number().int().min(1).describe('Player identifier')
+})
+
+export const updatePlayerBodyNameMax = 80;
+
+
+
+export const UpdatePlayerBody = zod.object({
+  "name": zod.string().min(1).max(updatePlayerBodyNameMax).optional(),
+  "active": zod.boolean().optional()
+})
+
+
+export const updatePlayerResponseNameMax = 80;
+
+export const updatePlayerResponseSessionCountMin = 0;
+
+
+
+export const UpdatePlayerResponse = zod.object({
+  "id": zod.int().min(1),
+  "name": zod.string().min(1).max(updatePlayerResponseNameMax),
+  "active": zod.boolean(),
+  "sessionCount": zod.int().min(updatePlayerResponseSessionCountMin),
+  "createdByUserId": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
  * Returns lightweight totals, cumulative player winnings, nights each player finished in profit, Zha Hu counts, and 谢谢 Kai Xiang counts for the dashboard.
  * @summary Get Mahjong scoreboard summary
  */

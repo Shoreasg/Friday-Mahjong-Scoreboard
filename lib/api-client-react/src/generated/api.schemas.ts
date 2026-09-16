@@ -110,6 +110,15 @@ export interface PlayerInput {
   name: string;
 }
 
+export interface PlayerUpdate {
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  name?: string;
+  active?: boolean;
+}
+
 export interface Player {
   /** @minimum 1 */
   id: number;

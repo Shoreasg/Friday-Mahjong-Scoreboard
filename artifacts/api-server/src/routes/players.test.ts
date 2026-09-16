@@ -223,3 +223,99 @@ describe("player creation", () => {
     expect(mocks.db.insert).not.toHaveBeenCalled();
   });
 });
+
+describe("player updates", () => {
+  async function patchPlayer(id: number, body: unknown, userId: string | undefined = adminUserId) {
+    return request(
+      `/api/players/${id}`,
+      { method: "PATCH", body: JSON.stringify(body) },
+      userId,
+    );
+  }
+
+  it("renames a player, keeping their session history", async () => {
+    mocks.mutationResults.push([{ ...roster[0], name: "Alexander" }]);
+    mocks.selectResults.push(sessions);
+
+    const response = await patchPlayer(1, { name: " Alexander " });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      id: 1,
+      name: "Alexander",
+      active: true,
+      sessionCount: 2,
+    });
+    const setMock = (mocks.db.update.mock.results[0]?.value as { set: ReturnType<typeof vi.fn> }).set;
+    expect(setMock).toHaveBeenCalledWith({ name: "Alexander" });
+  });
+
+  it.each([
+    ["marks a player inactive", 1, false],
+    ["reactivates a returning player", 2, true],
+  ])("%s without losing their history", async (_label, id, active) => {
+    const player = roster.find((candidate) => candidate.id === id)!;
+    mocks.mutationResults.push([{ ...player, active }]);
+    mocks.selectResults.push(sessions);
+
+    const response = await patchPlayer(id, { active });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      id,
+      active,
+      sessionCount: id === 1 ? 2 : 1,
+    });
+    const setMock = (mocks.db.update.mock.results[0]?.value as { set: ReturnType<typeof vi.fn> }).set;
+    expect(setMock).toHaveBeenCalledWith({ active });
+  });
+
+  it("reports a conflict when renaming to another player's name", async () => {
+    mocks.db.update.mockImplementationOnce(() => ({
+      set: vi.fn(() => ({
+        where: vi.fn(() => ({
+          returning: vi.fn(async () => {
+            throw Object.assign(new Error("duplicate key"), { code: "23505" });
+          }),
+        })),
+      })),
+    }));
+
+    const response = await patchPlayer(1, { name: "bea" });
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({ error: 'A player named "bea" already exists' });
+  });
+
+  it("returns 404 for a player that doesn't exist", async () => {
+    mocks.mutationResults.push([]);
+
+    const response = await patchPlayer(99, { active: false });
+
+    expect(response.status).toBe(404);
+  });
+
+  it.each([
+    ["an empty update", {}],
+    ["a blank name", { name: "   " }],
+  ])("rejects %s", async (_label, body) => {
+    const response = await patchPlayer(1, body);
+
+    expect(response.status).toBe(400);
+    expect(mocks.db.update).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["signed-out", undefined, 401],
+    ["non-admin", viewerUserId, 403],
+  ])("rejects %s callers", async (_label, userId, status) => {
+    const response = await request(
+      "/api/players/1",
+      { method: "PATCH", body: JSON.stringify({ active: false }) },
+      userId,
+    );
+
+    expect(response.status).toBe(status);
+    expect(mocks.db.update).not.toHaveBeenCalled();
+  });
+});

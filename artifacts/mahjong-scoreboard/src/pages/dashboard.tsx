@@ -7,13 +7,14 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { SessionForm } from "@/components/SessionForm";
 import { format, parseISO } from "date-fns";
-import { Trophy, Plus, LogOut, Coins, Activity, Trash2, Edit2, ChevronDown, LogIn, Flame, Flower2, BarChart3 } from "lucide-react";
+import { Trophy, Plus, LogOut, Coins, Activity, Trash2, Edit2, ChevronDown, LogIn, Flame, Flower2, BarChart3, Users } from "lucide-react";
 import { lazy, Suspense, useState } from "react";
 import { useClerk, useUser } from "@clerk/react";
 import { toast } from "sonner";
 import type { MahjongSession } from "@workspace/api-client-react";
 import { Link } from "wouter";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { useIsAdmin } from "@/hooks/use-is-admin";
 import { getSessionCreationNotification } from "@/lib/session-announcement";
 
 const PerformanceAnalytics = lazy(() =>
@@ -60,22 +61,9 @@ function formatSignedCurrency(amount: number) {
 
 export default function Dashboard() {
   const { signOut } = useClerk();
-  const { isSignedIn, user } = useUser();
+  const { isSignedIn } = useUser();
   const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
-  const adminEmails = new Set(
-    import.meta.env.VITE_ADMIN_EMAILS
-      ?.split(",")
-      .map((email: string) => email.trim().toLocaleLowerCase())
-      .filter(Boolean),
-  );
-  const isAdmin = Boolean(
-    isSignedIn &&
-    adminEmails.size > 0 &&
-    user?.emailAddresses.some(
-      ({ emailAddress }) =>
-        adminEmails.has(emailAddress.trim().toLocaleLowerCase()),
-    ),
-  );
+  const isAdmin = useIsAdmin();
   
   const { data: summary, isLoading: isLoadingSummary } = useGetSessionSummary();
   const { data: sessions, isLoading: isLoadingSessions } = useListSessions();
@@ -182,6 +170,14 @@ export default function Dashboard() {
           </div>
           <div className="flex items-center gap-3">
             <ThemeToggle />
+            {isAdmin && (
+              <Button asChild variant="outline" size="sm" className="border-2 font-black uppercase tracking-widest text-xs">
+                <Link href="/app/players" data-testid="link-roster">
+                  <Users className="w-4 h-4 sm:mr-2" strokeWidth={3} />
+                  <span className="hidden sm:inline">Roster</span>
+                </Link>
+              </Button>
+            )}
             {isSignedIn ? (
               <Button variant="outline" size="sm" onClick={() => signOut({ redirectUrl: `${basePath}/app` || "/app" })} data-testid="button-sign-out" className="border-2 font-black uppercase tracking-widest text-xs">
                 <LogOut className="w-4 h-4 mr-2" strokeWidth={3} />

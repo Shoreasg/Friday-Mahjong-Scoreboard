@@ -1,6 +1,6 @@
 # Friday Mahjong Scoreboard
 
-A shared scoreboard for a friend group to record weekly Friday Mahjong sessions: date, rounds played, settlement amounts, per-player ending balances, the winner, and two house-rule counters — **Zha Hu** (诈胡) and **谢谢开相 / Kai Xiang**.
+A shared scoreboard for a friend group to record weekly Friday Mahjong sessions: date, rounds played, the base pot, per-player ending balances, and two house-rule counters — **Zha Hu** (诈胡) and **谢谢开相 / Kai Xiang**.
 
 Reading the scoreboard is public. Creating, editing, and deleting sessions is admin-only, gated by Google sign-in through Clerk plus an email allowlist.
 
@@ -54,11 +54,14 @@ the web app together.
 
 ## Product
 
-- Public introduction, scoreboard, cumulative totals, winner standings, and weekly history
+- Public introduction, scoreboard, cumulative totals, nights-in-profit standings, and weekly history
 - Admin-only creation, editing, and deletion of completed Mahjong sessions
-- Persistent tracking of date, rounds, settlement amount, winner, per-player Zha Hu and 谢谢 Kai Xiang counts, and optional notes
-- Cumulative leaderboards for net winnings, match wins, Zha Hu incidents, and 谢谢 Kai Xiang occurrences
-- Cumulative player winnings use each recorded ending balance minus the $500 starting balance; legacy sessions without balances are excluded
+- Players are first-class records; each seat of a session references a player by id, so renaming a player (from the admin-only roster at `/app/players`) is reflected on every past session and leaderboard. Inactive players keep their history but aren't offered when recording a session
+- Each session stores the base pot it was played for (prefilled at $2000, i.e. $500 each). The four whole-dollar ending amounts must sum exactly to it; the rules live in `lib/session-rules` and are enforced by both the form and the API
+- Winning a night means finishing strictly above the per-player share (base pot ÷ 4), so a night can have several winners or none; session cards also show who had the largest stack
+- Persistent tracking of date, rounds, base pot, per-player ending balances, Zha Hu and 谢谢 Kai Xiang counts, and optional notes
+- Cumulative leaderboards for net winnings, nights in profit, Zha Hu incidents, and 谢谢 Kai Xiang occurrences
+- Cumulative player winnings sum each ending balance minus that session's own per-player share; legacy sessions without balances are excluded
 - Public analytics compare cumulative winnings over time, per-player win rates, and session-level Zha Hu / 谢谢 Kai Xiang activity
 
 ## Gotchas
