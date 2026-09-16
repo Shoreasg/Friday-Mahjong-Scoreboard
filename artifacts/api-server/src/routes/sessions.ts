@@ -22,6 +22,7 @@ import {
   netWinnings,
   perPlayerShare,
   PLAYER_WRITE_LOCK_KEY,
+  validateBasePot,
   validateSession,
   validateStakes,
 } from "@workspace/session-rules";
@@ -415,12 +416,17 @@ router.patch("/sessions/:id", async (req, res): Promise<void> => {
         if (!existing) return { notFound: true };
 
         const basePot = body.data.basePot ?? existing.basePot;
+        // A legacy session with no balances has nothing to sum, so its base
+        // pot can be corrected on its own; the sum-to-basePot rule only
+        // applies once a session actually has balances to check it against.
         const sessionError = body.data.playerBalances
           ? validateSession({ basePot, playerBalances: body.data.playerBalances })
-          : validateStakes(
-              basePot,
-              existing.playerBalances.map((balance) => balance.endingAmount),
-            );
+          : existing.playerBalances.length === 0
+            ? validateBasePot(basePot)
+            : validateStakes(
+                basePot,
+                existing.playerBalances.map((balance) => balance.endingAmount),
+              );
         if (sessionError) {
           throw new SessionRequestError({ error: sessionError });
         }

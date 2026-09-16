@@ -45,14 +45,17 @@ async function columnNames(
 
 export function sessionProblems(session: LegacySessionRow): string[] {
   const problems: string[] = [];
+
+  const balances = session.player_balances ?? [];
+  // Legacy sessions recorded before balances existed have nothing to sum, and
+  // their total can't be verified either — they're excluded from winnings —
+  // so the base-pot rules don't apply to them at all.
+  if (balances.length === 0) return problems;
+
   const basePotError = validateBasePot(Number(session.total_amount));
   if (basePotError) {
     problems.push(`total_amount ${session.total_amount}: ${basePotError}`);
   }
-
-  const balances = session.player_balances ?? [];
-  // Legacy sessions recorded before balances existed have nothing to sum.
-  if (balances.length === 0) return problems;
 
   let sum = 0;
   for (const balance of balances) {
@@ -116,8 +119,12 @@ export async function renameTotalAmountToBasePot(): Promise<void> {
     }
 
     await tx.execute(sql`ALTER TABLE mahjong_sessions RENAME COLUMN total_amount TO base_pot`);
+    // A no-balance row's total was never checked against validateBasePot
+    // above, so it can be any double (including a non-integer one). Round it
+    // explicitly rather than relying on the implicit double->integer cast,
+    // whose rounding/overflow behavior is easy to get wrong by assumption.
     await tx.execute(
-      sql`ALTER TABLE mahjong_sessions ALTER COLUMN base_pot TYPE integer USING base_pot::integer`,
+      sql`ALTER TABLE mahjong_sessions ALTER COLUMN base_pot TYPE integer USING round(base_pot)::integer`,
     );
     console.log(`Renamed total_amount to base_pot on ${sessions.length} session(s)`);
   });

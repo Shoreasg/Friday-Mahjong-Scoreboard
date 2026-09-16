@@ -44,7 +44,14 @@ const sessionSchema = z.object({
   }),
   playerBalances: z.array(z.object({
     playerId: z.number({ error: "Choose a player" }).int().positive("Choose a player"),
-    endingAmount: z.coerce.number().int("Use whole dollars").min(0, "Amount cannot be negative"),
+    // An empty field is not the same as an explicitly typed 0 (a busted
+    // player): normalize only the empty/unset case to undefined so z.number
+    // rejects it with a "must be entered" message, rather than z.coerce
+    // silently turning "" into a valid 0.
+    endingAmount: z.preprocess(
+      (value) => (value === "" || value === undefined || value === null ? undefined : Number(value)),
+      z.number({ error: "Enter an ending amount" }).int("Use whole dollars").min(0, "Amount cannot be negative"),
+    ),
     zhaHuCount: z.coerce.number().int("Use a whole number").min(0, "Count cannot be negative"),
     xieXieKaiXiangCount: z.coerce.number().int("Use a whole number").min(0, "Count cannot be negative"),
   })).length(4, "Enter all four players"),
@@ -95,7 +102,9 @@ export function SessionForm({
             }
           : {
               playerId: undefined as unknown as number,
-              endingAmount: perPlayerShare(CUSTOMARY_BASE_POT),
+              // Left empty (not prefilled to a balanced share) so a
+              // forgotten seat can't slip through as already "Balanced".
+              endingAmount: undefined as unknown as number,
               zhaHuCount: 0,
               xieXieKaiXiangCount: 0,
             };
@@ -106,13 +115,19 @@ export function SessionForm({
 
   const basePot = Number(form.watch("basePot"));
   const basePotValid = validateBasePot(basePot) === null;
-  const endingAmounts = form
-    .watch("playerBalances")
-    .map((player) => Number(player.endingAmount) || 0);
+  const playerBalances = form.watch("playerBalances");
+  const endingAmounts = playerBalances.map((player) => Number(player.endingAmount) || 0);
   const allocation = allocationAgainstBasePot(basePotValid ? basePot : 0, endingAmounts);
-  const seatPlayerIds = form.watch("playerBalances").map((player) => player.playerId);
+  const seatPlayerIds = playerBalances.map((player) => player.playerId);
+  // An empty amount field is not a valid 0 (that's a busted player, entered
+  // explicitly), so the tally can only read "balanced" for real once every
+  // seat has an amount typed in.
+  const allAmountsEntered = playerBalances.every(
+    (player) => (player.endingAmount as unknown) !== undefined && (player.endingAmount as unknown) !== "",
+  );
   const canSubmit =
     basePotValid &&
+    allAmountsEntered &&
     allocation.status === "balanced" &&
     seatPlayerIds.every((playerId) => Number.isInteger(playerId) && playerId > 0);
 

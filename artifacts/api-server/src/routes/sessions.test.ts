@@ -560,6 +560,33 @@ describe("session stakes", () => {
     expect(mocks.db.update).not.toHaveBeenCalled();
   });
 
+  it("accepts a base-only change on a legacy session that has no balances", async () => {
+    mocks.selectResults.push([sessionWith({ playerBalances: [] })]);
+    mocks.mutationResults.push([sessionWith({ basePot: 800, playerBalances: [] })]);
+
+    const response = await request(
+      "/api/sessions/1",
+      { method: "PATCH", body: JSON.stringify({ basePot: 800 }) },
+      adminUserId,
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ basePot: 800 });
+  });
+
+  it("still rejects an invalid base pot on a legacy session that has no balances", async () => {
+    mocks.selectResults.push([sessionWith({ playerBalances: [] })]);
+
+    const response = await request(
+      "/api/sessions/1",
+      { method: "PATCH", body: JSON.stringify({ basePot: 402 }) },
+      adminUserId,
+    );
+
+    expect(response.status).toBe(400);
+    expect(mocks.db.update).not.toHaveBeenCalled();
+  });
+
   it("returns 404 when changing the stakes of a session that doesn't exist", async () => {
     mocks.selectResults.push([]);
 

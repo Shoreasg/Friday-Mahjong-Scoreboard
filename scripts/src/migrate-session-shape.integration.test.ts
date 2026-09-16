@@ -122,6 +122,21 @@ describe("renameTotalAmountToBasePot (real Postgres, isolated schema)", () => {
     expect(await columns()).toMatchObject({ total_amount: "double precision" });
   });
 
+  it("renames total_amount even when a legacy row has no balances to verify", async () => {
+    await createLegacyTable([
+      { totalAmount: 2000, amounts: [500, 500, 500, 500] },
+      // A legacy row recorded before balances existed: nothing to sum, so
+      // the base-pot rules don't apply and it can't block the rename.
+      { totalAmount: 0, amounts: [] },
+    ]);
+
+    await renameTotalAmountToBasePot();
+
+    expect(await columns()).toMatchObject({ base_pot: "integer" });
+    const rows = await db.execute(sql`SELECT base_pot FROM mahjong_sessions ORDER BY id`);
+    expect(rows.rows).toEqual([{ base_pot: 2000 }, { base_pot: 0 }]);
+  });
+
   it("fails closed, naming the session, when a session's amounts don't sum to its total", async () => {
     await createLegacyTable([
       { totalAmount: 2000, amounts: [500, 500, 500, 500] },
