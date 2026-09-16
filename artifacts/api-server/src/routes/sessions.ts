@@ -12,9 +12,11 @@ import {
 } from "@workspace/api-zod";
 import { db, mahjongSessionsTable, playersTable } from "@workspace/db";
 import {
+  netWinnings,
   normalizePlayerName,
+  perPlayerShare,
   PLAYER_WRITE_LOCK_KEY,
-  STARTING_BALANCE,
+  validateStakes,
 } from "@workspace/session-rules";
 import {
   sendTelegramMessage,
@@ -218,10 +220,6 @@ function sessionResult(playerBalances: SubmittedBalance[]) {
   return {
     playerBalances: balances,
     winnerName: winner.name,
-    totalAmount: balances.reduce(
-      (total, balance) => total + balance.endingAmount,
-      0,
-    ),
   };
 }
 
@@ -263,7 +261,7 @@ function sessionAnnouncement(
   const players = normalizePlayerBalances(session.playerBalances);
   const playerLines = players
     .map((player) => {
-      const netPosition = player.endingAmount - STARTING_BALANCE;
+      const netPosition = netWinnings(player.endingAmount, session.basePot);
       return [
         `• <b>${escapeTelegramHtml(player.name)}</b>`,
         `${formatMoney(player.endingAmount)} (${formatNetPosition(netPosition)})`,
@@ -277,7 +275,7 @@ function sessionAnnouncement(
       normalizePlayerName(player.name) === normalizePlayerName(session.winnerName),
   );
   const winnerPosition = winner
-    ? ` (${formatNetPosition(winner.endingAmount - STARTING_BALANCE)})`
+    ? ` (${formatNetPosition(netWinnings(winner.endingAmount, session.basePot))})`
     : "";
   const notes = session.notes
     ? `\n\n<b>Notes</b>\n${escapeTelegramHtml(session.notes)}`
@@ -290,8 +288,7 @@ function sessionAnnouncement(
     `<b>Players</b>\n${playerLines}`,
     "",
     `<b>Rounds</b>: ${session.rounds}`,
-    `<b>Settlement total</b>: ${formatMoney(session.totalAmount)}`,
-    `<b>Starting balance</b>: ${formatMoney(STARTING_BALANCE)} per player`,
+    `<b>Base pot</b>: ${formatMoney(session.basePot)} (${formatMoney(perPlayerShare(session.basePot))} per player)`,
     notes,
     "",
     `<a href="${escapeTelegramHtml(scoreboardUrl(req))}">Open the scoreboard</a>`,
@@ -344,6 +341,15 @@ router.post("/sessions", async (req, res): Promise<void> => {
     return;
   }
 
+  const stakesError = validateStakes(
+    parsed.data.basePot,
+    parsed.data.playerBalances.map((balance) => balance.endingAmount),
+  );
+  if (stakesError) {
+    res.status(400).json({ error: stakesError });
+    return;
+  }
+
   let transactionResult: { session: typeof mahjongSessionsTable.$inferSelect };
   try {
     transactionResult = await db.transaction(async (tx) => {
@@ -365,7 +371,7 @@ router.post("/sessions", async (req, res): Promise<void> => {
         .values({
           playedOn: dateOnly(parsed.data.playedOn),
           rounds: parsed.data.rounds,
-          totalAmount: result.totalAmount,
+          basePot: parsed.data.basePot,
           winnerName: result.winnerName,
           playerBalances: result.playerBalances,
           notes: parsed.data.notes?.trim() || null,
@@ -400,7 +406,7 @@ router.get("/sessions/summary", async (req, res): Promise<void> => {
     .select({
       totalSessions: sql<number>`count(*)::int`,
       totalRounds: sql<number>`coalesce(sum(${mahjongSessionsTable.rounds}), 0)::int`,
-      totalAmount: sql<number>`coalesce(sum(${mahjongSessionsTable.totalAmount}), 0)::float8`,
+      totalAmount: sql<number>`coalesce(sum(${mahjongSessionsTable.basePot}), 0)::float8`,
     })
     .from(mahjongSessionsTable);
 
@@ -458,8 +464,9 @@ router.get("/sessions/summary", async (req, res): Promise<void> => {
         });
       }
 
-      const netCents =
-        Math.round(player.endingAmount * 100) - STARTING_BALANCE * 100;
+      const netCents = Math.round(
+        netWinnings(player.endingAmount, session.basePot) * 100,
+      );
       const existingWinnings = winningsByPlayer.get(identityKey);
       if (existingWinnings) {
         existingWinnings.netCents += netCents;
@@ -541,6 +548,28 @@ router.patch("/sessions/:id", async (req, res): Promise<void> => {
   try {
     transactionResult = await db.transaction(async (tx) => {
       const update: Partial<typeof mahjongSessionsTable.$inferInsert> = {};
+      if (body.data.basePot !== undefined || body.data.playerBalances !== undefined) {
+        // Either half of the money can change on its own, so the rule is
+        // checked against the session as it will be after this update.
+        const [existing] = await tx
+          .select({
+            basePot: mahjongSessionsTable.basePot,
+            playerBalances: mahjongSessionsTable.playerBalances,
+          })
+          .from(mahjongSessionsTable)
+          .where(eq(mahjongSessionsTable.id, params.data.id));
+        if (!existing) return { notFound: true };
+
+        const basePot = body.data.basePot ?? existing.basePot;
+        const endingAmounts = (
+          body.data.playerBalances ?? existing.playerBalances
+        ).map((balance) => balance.endingAmount);
+        const stakesError = validateStakes(basePot, endingAmounts);
+        if (stakesError) {
+          throw new SessionRequestError({ error: stakesError });
+        }
+        update.basePot = basePot;
+      }
       if (body.data.playedOn) {
         update.playedOn = dateOnly(body.data.playedOn);
       }
@@ -560,7 +589,6 @@ router.patch("/sessions/:id", async (req, res): Promise<void> => {
             error: "Exactly four player names are required and must be unique",
           });
         }
-        update.totalAmount = result.totalAmount;
         update.winnerName = result.winnerName;
         update.playerBalances = result.playerBalances;
       }

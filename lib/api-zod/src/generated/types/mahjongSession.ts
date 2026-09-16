@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { BasePot } from './basePot';
 import type { PlayerBalance } from './playerBalance';
 
 export interface MahjongSession {
@@ -12,7 +13,7 @@ export interface MahjongSession {
   playedOn: Date;
   /** @minimum 1 */
   rounds: number;
-  totalAmount: number;
+  basePot: BasePot;
   winnerName: string;
   playerBalances: PlayerBalance[];
   /** @nullable */

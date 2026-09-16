@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { MahjongSession } from "@workspace/api-client-react";
-import { STARTING_BALANCE } from "@workspace/session-rules";
 import {
   buildWinRates,
   buildWinningsData,
@@ -10,7 +9,7 @@ import {
 
 type Balance = MahjongSession["playerBalances"][number];
 
-function balance(name: string, endingAmount = STARTING_BALANCE): Balance {
+function balance(name: string, endingAmount = 500): Balance {
   return {
     name,
     endingAmount,
@@ -24,15 +23,13 @@ function session(
   playedOn: string,
   winnerName: string,
   playerBalances: Balance[],
+  basePot = 2000,
 ): MahjongSession {
   return {
     id,
     playedOn,
     rounds: 4,
-    totalAmount: playerBalances.reduce(
-      (total, player) => total + player.endingAmount,
-      0,
-    ),
+    basePot,
     winnerName,
     playerBalances,
     notes: null,
@@ -113,6 +110,25 @@ describe("cumulative winnings", () => {
     assert.deepEqual(
       data.map((point) => point[`${alice}Delta`]),
       [50, 25],
+    );
+  });
+});
+
+describe("cumulative winnings against each session's own base", () => {
+  it("measures each night against the share that night was played for", () => {
+    const sessions = [
+      session(1, "2026-05-01", "Alice", [balance("Alice", 560)], 2000),
+      session(2, "2026-05-08", "Alice", [balance("Alice", 230)], 800),
+    ];
+    const players = getPlayerIdentities(sessions);
+    const alice = players[0].seriesKey;
+
+    const data = buildWinningsData(sessions, players);
+
+    assert.deepEqual(data.map((point) => point[alice]), [60, 90]);
+    assert.deepEqual(
+      data.map((point) => point[`${alice}Delta`]),
+      [60, 30],
     );
   });
 });

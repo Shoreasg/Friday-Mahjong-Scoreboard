@@ -23,6 +23,7 @@ export const HealthCheckResponse = zod.object({
  */
 
 
+
 export const listSessionsResponsePlayerBalancesItemNameMax = 80;
 
 export const listSessionsResponsePlayerBalancesItemEndingAmountMin = 0;
@@ -37,12 +38,12 @@ export const ListSessionsResponseItem = zod.object({
   "id": zod.int(),
   "playedOn": zod.coerce.date(),
   "rounds": zod.int().min(1),
-  "totalAmount": zod.number(),
+  "basePot": zod.int().min(1).describe('Whole dollars the session was played for across all four players. Must divide evenly by four, and the four ending amounts must sum to it exactly (enforced by the server beyond this schema).'),
   "winnerName": zod.string(),
   "playerBalances": zod.array(zod.object({
   "playerId": zod.int().min(1).optional(),
   "name": zod.string().min(1).max(listSessionsResponsePlayerBalancesItemNameMax),
-  "endingAmount": zod.number().min(listSessionsResponsePlayerBalancesItemEndingAmountMin),
+  "endingAmount": zod.int().min(listSessionsResponsePlayerBalancesItemEndingAmountMin).describe('Whole dollars the player finished the session with.'),
   "zhaHuCount": zod.int().min(listSessionsResponsePlayerBalancesItemZhaHuCountMin),
   "xieXieKaiXiangCount": zod.int().min(listSessionsResponsePlayerBalancesItemXieXieKaiXiangCountMin)
 })),
@@ -58,6 +59,7 @@ export const ListSessionsResponse = zod.array(ListSessionsResponseItem)
  * @summary Record a Mahjong session
  */
 export const createSessionBodyRoundsMax = 99;
+
 
 
 export const createSessionBodyPlayerBalancesItemNameMax = 80;
@@ -78,15 +80,17 @@ export const createSessionBodyNotesMax = 500;
 export const CreateSessionBody = zod.object({
   "playedOn": zod.coerce.date(),
   "rounds": zod.int().min(1).max(createSessionBodyRoundsMax),
+  "basePot": zod.int().min(1).describe('Whole dollars the session was played for across all four players. Must divide evenly by four, and the four ending amounts must sum to it exactly (enforced by the server beyond this schema).'),
   "playerBalances": zod.array(zod.object({
   "playerId": zod.int().min(1).optional(),
   "name": zod.string().min(1).max(createSessionBodyPlayerBalancesItemNameMax),
-  "endingAmount": zod.number().min(createSessionBodyPlayerBalancesItemEndingAmountMin),
+  "endingAmount": zod.int().min(createSessionBodyPlayerBalancesItemEndingAmountMin).describe('Whole dollars the player finished the session with.'),
   "zhaHuCount": zod.int().min(createSessionBodyPlayerBalancesItemZhaHuCountMin),
   "xieXieKaiXiangCount": zod.int().min(createSessionBodyPlayerBalancesItemXieXieKaiXiangCountMin)
 })).min(createSessionBodyPlayerBalancesMin).max(createSessionBodyPlayerBalancesMax),
   "notes": zod.string().max(createSessionBodyNotesMax).nullish()
 })
+
 
 
 
@@ -104,12 +108,12 @@ export const CreateSessionResponse = zod.object({
   "id": zod.int(),
   "playedOn": zod.coerce.date(),
   "rounds": zod.int().min(1),
-  "totalAmount": zod.number(),
+  "basePot": zod.int().min(1).describe('Whole dollars the session was played for across all four players. Must divide evenly by four, and the four ending amounts must sum to it exactly (enforced by the server beyond this schema).'),
   "winnerName": zod.string(),
   "playerBalances": zod.array(zod.object({
   "playerId": zod.int().min(1).optional(),
   "name": zod.string().min(1).max(createSessionResponseOnePlayerBalancesItemNameMax),
-  "endingAmount": zod.number().min(createSessionResponseOnePlayerBalancesItemEndingAmountMin),
+  "endingAmount": zod.int().min(createSessionResponseOnePlayerBalancesItemEndingAmountMin).describe('Whole dollars the player finished the session with.'),
   "zhaHuCount": zod.int().min(createSessionResponseOnePlayerBalancesItemZhaHuCountMin),
   "xieXieKaiXiangCount": zod.int().min(createSessionResponseOnePlayerBalancesItemXieXieKaiXiangCountMin)
 })),
@@ -162,6 +166,7 @@ export const ListPlayersResponse = zod.array(ListPlayersResponseItem)
  */
 
 
+
 export const getSessionSummaryResponseLatestSessionOnePlayerBalancesItemNameMax = 80;
 
 export const getSessionSummaryResponseLatestSessionOnePlayerBalancesItemEndingAmountMin = 0;
@@ -184,12 +189,12 @@ export const GetSessionSummaryResponse = zod.object({
   "id": zod.int(),
   "playedOn": zod.coerce.date(),
   "rounds": zod.int().min(1),
-  "totalAmount": zod.number(),
+  "basePot": zod.int().min(1).describe('Whole dollars the session was played for across all four players. Must divide evenly by four, and the four ending amounts must sum to it exactly (enforced by the server beyond this schema).'),
   "winnerName": zod.string(),
   "playerBalances": zod.array(zod.object({
   "playerId": zod.int().min(1).optional(),
   "name": zod.string().min(1).max(getSessionSummaryResponseLatestSessionOnePlayerBalancesItemNameMax),
-  "endingAmount": zod.number().min(getSessionSummaryResponseLatestSessionOnePlayerBalancesItemEndingAmountMin),
+  "endingAmount": zod.int().min(getSessionSummaryResponseLatestSessionOnePlayerBalancesItemEndingAmountMin).describe('Whole dollars the player finished the session with.'),
   "zhaHuCount": zod.int().min(getSessionSummaryResponseLatestSessionOnePlayerBalancesItemZhaHuCountMin),
   "xieXieKaiXiangCount": zod.int().min(getSessionSummaryResponseLatestSessionOnePlayerBalancesItemXieXieKaiXiangCountMin)
 })),
@@ -228,6 +233,7 @@ export const GetSessionParams = zod.object({
 
 
 
+
 export const getSessionResponsePlayerBalancesItemNameMax = 80;
 
 export const getSessionResponsePlayerBalancesItemEndingAmountMin = 0;
@@ -242,12 +248,12 @@ export const GetSessionResponse = zod.object({
   "id": zod.int(),
   "playedOn": zod.coerce.date(),
   "rounds": zod.int().min(1),
-  "totalAmount": zod.number(),
+  "basePot": zod.int().min(1).describe('Whole dollars the session was played for across all four players. Must divide evenly by four, and the four ending amounts must sum to it exactly (enforced by the server beyond this schema).'),
   "winnerName": zod.string(),
   "playerBalances": zod.array(zod.object({
   "playerId": zod.int().min(1).optional(),
   "name": zod.string().min(1).max(getSessionResponsePlayerBalancesItemNameMax),
-  "endingAmount": zod.number().min(getSessionResponsePlayerBalancesItemEndingAmountMin),
+  "endingAmount": zod.int().min(getSessionResponsePlayerBalancesItemEndingAmountMin).describe('Whole dollars the player finished the session with.'),
   "zhaHuCount": zod.int().min(getSessionResponsePlayerBalancesItemZhaHuCountMin),
   "xieXieKaiXiangCount": zod.int().min(getSessionResponsePlayerBalancesItemXieXieKaiXiangCountMin)
 })),
@@ -270,6 +276,7 @@ export const UpdateSessionParams = zod.object({
 export const updateSessionBodyRoundsMax = 99;
 
 
+
 export const updateSessionBodyPlayerBalancesItemNameMax = 80;
 
 export const updateSessionBodyPlayerBalancesItemEndingAmountMin = 0;
@@ -288,15 +295,17 @@ export const updateSessionBodyNotesMax = 500;
 export const UpdateSessionBody = zod.object({
   "playedOn": zod.coerce.date().optional(),
   "rounds": zod.int().min(1).max(updateSessionBodyRoundsMax).optional(),
+  "basePot": zod.int().min(1).optional().describe('Whole dollars the session was played for across all four players. Must divide evenly by four, and the four ending amounts must sum to it exactly (enforced by the server beyond this schema).'),
   "playerBalances": zod.array(zod.object({
   "playerId": zod.int().min(1).optional(),
   "name": zod.string().min(1).max(updateSessionBodyPlayerBalancesItemNameMax),
-  "endingAmount": zod.number().min(updateSessionBodyPlayerBalancesItemEndingAmountMin),
+  "endingAmount": zod.int().min(updateSessionBodyPlayerBalancesItemEndingAmountMin).describe('Whole dollars the player finished the session with.'),
   "zhaHuCount": zod.int().min(updateSessionBodyPlayerBalancesItemZhaHuCountMin),
   "xieXieKaiXiangCount": zod.int().min(updateSessionBodyPlayerBalancesItemXieXieKaiXiangCountMin)
 })).min(updateSessionBodyPlayerBalancesMin).max(updateSessionBodyPlayerBalancesMax).optional(),
   "notes": zod.string().max(updateSessionBodyNotesMax).nullish()
 })
+
 
 
 
@@ -314,12 +323,12 @@ export const UpdateSessionResponse = zod.object({
   "id": zod.int(),
   "playedOn": zod.coerce.date(),
   "rounds": zod.int().min(1),
-  "totalAmount": zod.number(),
+  "basePot": zod.int().min(1).describe('Whole dollars the session was played for across all four players. Must divide evenly by four, and the four ending amounts must sum to it exactly (enforced by the server beyond this schema).'),
   "winnerName": zod.string(),
   "playerBalances": zod.array(zod.object({
   "playerId": zod.int().min(1).optional(),
   "name": zod.string().min(1).max(updateSessionResponsePlayerBalancesItemNameMax),
-  "endingAmount": zod.number().min(updateSessionResponsePlayerBalancesItemEndingAmountMin),
+  "endingAmount": zod.int().min(updateSessionResponsePlayerBalancesItemEndingAmountMin).describe('Whole dollars the player finished the session with.'),
   "zhaHuCount": zod.int().min(updateSessionResponsePlayerBalancesItemZhaHuCountMin),
   "xieXieKaiXiangCount": zod.int().min(updateSessionResponsePlayerBalancesItemXieXieKaiXiangCountMin)
 })),

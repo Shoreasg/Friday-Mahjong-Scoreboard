@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { BasePot } from './basePot';
 import type { PlayerBalance } from './playerBalance';
 
 export interface MahjongSessionUpdate {
@@ -14,6 +15,7 @@ export interface MahjongSessionUpdate {
      * @maximum 99
      */
   rounds?: number;
+  basePot?: BasePot;
   /**
      * @minItems 4
      * @maxItems 4

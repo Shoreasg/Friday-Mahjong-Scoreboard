@@ -1,7 +1,7 @@
 import type { MahjongSession } from "@workspace/api-client-react";
 import {
   normalizePlayerName,
-  STARTING_BALANCE,
+  netWinnings,
 } from "@workspace/session-rules";
 import { format, parseISO } from "date-fns";
 
@@ -76,7 +76,7 @@ export function buildWinningsData(
 
       for (const player of session.playerBalances) {
         const key = normalizePlayerName(player.name);
-        const change = player.endingAmount - STARTING_BALANCE;
+        const change = netWinnings(player.endingAmount, session.basePot);
         changes.set(key, change);
         running.set(key, (running.get(key) ?? 0) + change);
         appeared.add(key);

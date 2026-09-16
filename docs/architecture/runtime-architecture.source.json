@@ -275,7 +275,7 @@
         },
         {
           "path": "lib/db/src/schema/mahjong-sessions.ts",
-          "label": "jsonb player_balances with player references"
+          "label": "integer base_pot; jsonb player_balances with player references"
         }
       ]
     },
@@ -469,7 +469,7 @@
       "title": "Contract and data",
       "items": [
         "Orval builds api-client-react hooks and api-zod parsers",
-        "players and mahjong_sessions tables; drizzle-kit push, no migrations"
+        "players and mahjong_sessions tables; drizzle-kit push plus pre-push column migrations"
       ]
     }
   ]

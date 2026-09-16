@@ -1,6 +1,5 @@
 import {
   date,
-  doublePrecision,
   integer,
   jsonb,
   pgTable,
@@ -23,7 +22,9 @@ export const mahjongSessionsTable = pgTable("mahjong_sessions", {
   id: serial("id").primaryKey(),
   playedOn: date("played_on", { mode: "string" }).notNull(),
   rounds: integer("rounds").notNull(),
-  totalAmount: doublePrecision("total_amount").notNull(),
+  // Whole dollars the session was played for across all four players. The
+  // four ending amounts must sum to it exactly (see @workspace/session-rules).
+  basePot: integer("base_pot").notNull(),
   winnerName: text("winner_name").notNull(),
   playerBalances: jsonb("player_balances")
     .$type<PlayerBalance[]>()

@@ -14,7 +14,10 @@ export interface PlayerBalance {
      * @maxLength 80
      */
   name: string;
-  /** @minimum 0 */
+  /**
+     * Whole dollars the player finished the session with.
+     * @minimum 0
+     */
   endingAmount: number;
   /** @minimum 0 */
   zhaHuCount: number;

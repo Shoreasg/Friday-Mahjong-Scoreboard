@@ -225,9 +225,8 @@ components:
           type: integer
           format: int32
           minimum: 1
-        totalAmount:
-          type: number
-          format: double
+        basePot:
+          $ref: "#/components/schemas/BasePot"
         winnerName:
           type: string
         playerBalances:
@@ -245,7 +244,7 @@ components:
         - id
         - playedOn
         - rounds
-        - totalAmount
+        - basePot
         - winnerName
         - playerBalances
         - notes
@@ -305,6 +304,8 @@ components:
           format: int32
           minimum: 1
           maximum: 99
+        basePot:
+          $ref: "#/components/schemas/BasePot"
         playerBalances:
           type: array
           minItems: 4
@@ -317,6 +318,7 @@ components:
       required:
         - playedOn
         - rounds
+        - basePot
         - playerBalances
     MahjongSessionUpdate:
       type: object
@@ -329,6 +331,8 @@ components:
           format: int32
           minimum: 1
           maximum: 99
+        basePot:
+          $ref: "#/components/schemas/BasePot"
         playerBalances:
           type: array
           minItems: 4
@@ -338,6 +342,14 @@ components:
         notes:
           type: ["string", "null"]
           maxLength: 500
+    BasePot:
+      type: integer
+      format: int32
+      minimum: 1
+      description: >-
+        Whole dollars the session was played for across all four players.
+        Must divide evenly by four, and the four ending amounts must sum to it
+        exactly (enforced by the server beyond this schema).
     PlayerBalance:
       type: object
       properties:
@@ -350,9 +362,10 @@ components:
           minLength: 1
           maxLength: 80
         endingAmount:
-          type: number
-          format: double
+          type: integer
+          format: int32
           minimum: 0
+          description: Whole dollars the player finished the session with.
         zhaHuCount:
           type: integer
           format: int32

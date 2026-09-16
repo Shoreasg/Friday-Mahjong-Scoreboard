@@ -15,6 +15,9 @@ fi
 echo "==> Reconciling duplicate player names before schema push..."
 pnpm --filter @workspace/scripts run reconcile:players
 
+echo "==> Migrating session columns that a forced schema push would otherwise drop..."
+pnpm --filter @workspace/scripts run migrate:sessions
+
 echo "==> Pushing the Drizzle schema to Postgres..."
 pnpm --filter @workspace/db run push-force
 

@@ -60,7 +60,7 @@ try {
       id serial PRIMARY KEY,
       played_on date NOT NULL,
       rounds integer NOT NULL,
-      total_amount double precision NOT NULL,
+      base_pot integer NOT NULL,
       winner_name text NOT NULL,
       player_balances jsonb NOT NULL DEFAULT '[]',
       notes text,
@@ -204,7 +204,7 @@ describe("reconcileDuplicatePlayers duplicate handling (real Postgres, isolated 
         .values({
           playedOn: "2026-01-01",
           rounds: 1,
-          totalAmount: 0,
+          basePot: 2000,
           winnerName: name,
           playerBalances: [
             { name: loser.name, playerId: loser.id, endingAmount: 500, zhaHuCount: 0, xieXieKaiXiangCount: 0 },
@@ -258,7 +258,7 @@ describe("seedPlayers backfill (real Postgres, isolated schema)", () => {
       .values({
         playedOn: "2026-01-02",
         rounds: 1,
-        totalAmount: 0,
+        basePot: 2000,
         winnerName: name,
         playerBalances: [{ name, endingAmount: 500, zhaHuCount: 0, xieXieKaiXiangCount: 0 }],
       })
@@ -299,14 +299,14 @@ describe("seedPlayers backfill (real Postgres, isolated schema)", () => {
         {
           playedOn: "2026-01-03",
           rounds: 1,
-          totalAmount: 0,
+          basePot: 2000,
           winnerName: validName,
           playerBalances: [{ name: validName, endingAmount: 500, zhaHuCount: 0, xieXieKaiXiangCount: 0 }],
         },
         {
           playedOn: "2026-01-04",
           rounds: 1,
-          totalAmount: 0,
+          basePot: 2000,
           winnerName: "Dangling",
           playerBalances: [
             { name: "Dangling", playerId: 999_999, endingAmount: 500, zhaHuCount: 0, xieXieKaiXiangCount: 0 },

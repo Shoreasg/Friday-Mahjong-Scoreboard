@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './basePot';
 export * from './chipDenomination';
 export * from './chipScanInput';
 export * from './chipScanInputMimeType';

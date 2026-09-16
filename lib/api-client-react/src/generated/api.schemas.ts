@@ -9,6 +9,12 @@ export interface HealthStatus {
   status: string;
 }
 
+/**
+ * Whole dollars the session was played for across all four players. Must divide evenly by four, and the four ending amounts must sum to it exactly (enforced by the server beyond this schema).
+ * @minimum 1
+ */
+export type BasePot = number;
+
 export interface PlayerBalance {
   /** @minimum 1 */
   playerId?: number;
@@ -17,7 +23,10 @@ export interface PlayerBalance {
      * @maxLength 80
      */
   name: string;
-  /** @minimum 0 */
+  /**
+     * Whole dollars the player finished the session with.
+     * @minimum 0
+     */
   endingAmount: number;
   /** @minimum 0 */
   zhaHuCount: number;
@@ -30,7 +39,7 @@ export interface MahjongSession {
   playedOn: string;
   /** @minimum 1 */
   rounds: number;
-  totalAmount: number;
+  basePot: BasePot;
   winnerName: string;
   playerBalances: PlayerBalance[];
   /** @nullable */
@@ -63,6 +72,7 @@ export interface MahjongSessionInput {
      * @maximum 99
      */
   rounds: number;
+  basePot: BasePot;
   /**
      * @minItems 4
      * @maxItems 4
@@ -82,6 +92,7 @@ export interface MahjongSessionUpdate {
      * @maximum 99
      */
   rounds?: number;
+  basePot?: BasePot;
   /**
      * @minItems 4
      * @maxItems 4

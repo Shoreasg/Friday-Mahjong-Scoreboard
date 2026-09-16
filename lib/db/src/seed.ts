@@ -128,7 +128,9 @@ async function seed(): Promise<void> {
     seedSessions.map((session) => ({
       playedOn: session.playedOn,
       rounds: session.rounds,
-      totalAmount: session.playerBalances.reduce(
+      // Every fictional night below was played for $500 each, and its four
+      // ending amounts already sum to that.
+      basePot: session.playerBalances.reduce(
         (total, balance) => total + balance.endingAmount,
         0,
       ),

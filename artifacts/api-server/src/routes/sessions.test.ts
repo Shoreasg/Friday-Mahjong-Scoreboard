@@ -99,7 +99,7 @@ const session = {
   id: 1,
   playedOn: "2026-09-04",
   rounds: 4,
-  totalAmount: 400,
+  basePot: 400,
   winnerName: "Alice",
   playerBalances: [
     { name: "Alice", endingAmount: 130, zhaHuCount: 1, xieXieKaiXiangCount: 1 },
@@ -115,6 +115,7 @@ const session = {
 const createBody = {
   playedOn: "2026-09-04",
   rounds: 4,
+  basePot: 400,
   playerBalances: session.playerBalances,
 };
 const writablePlayers = [
@@ -298,24 +299,29 @@ describe("session authorization", () => {
     expect(alexEntries).toHaveLength(2);
   });
 
-  it("calculates cumulative winnings and losses from the $500 starting balance", async () => {
+  it("calculates cumulative winnings from each session's own base pot", async () => {
+    // $2000 base: a $500 share each.
     const firstSession = {
       ...session,
+      basePot: 2000,
       playerBalances: [
         { name: "Tom", endingAmount: 565, zhaHuCount: 0 },
         { name: "Dick", endingAmount: 510, zhaHuCount: 0 },
-        { name: "Harry", endingAmount: 450, zhaHuCount: 0 },
+        { name: "Harry", endingAmount: 525, zhaHuCount: 0 },
         { name: "Ben", endingAmount: 400, zhaHuCount: 0 },
       ],
     };
+    // $800 base: a $200 share each, so Tom's 200 breaks even here rather
+    // than counting as a $300 loss against the customary stakes.
     const secondSession = {
       ...session,
       id: 2,
+      basePot: 800,
       playerBalances: [
-        { name: "tom", endingAmount: 500, zhaHuCount: 0 },
-        { name: "DICK", endingAmount: 490, zhaHuCount: 0 },
-        { name: "Ivy", endingAmount: 500, zhaHuCount: 0 },
-        { name: "Zoe", endingAmount: 565, zhaHuCount: 0 },
+        { name: "tom", endingAmount: 200, zhaHuCount: 0 },
+        { name: "DICK", endingAmount: 190, zhaHuCount: 0 },
+        { name: "Ivy", endingAmount: 145, zhaHuCount: 0 },
+        { name: "Zoe", endingAmount: 265, zhaHuCount: 0 },
       ],
     };
     const legacySession = {
@@ -324,7 +330,7 @@ describe("session authorization", () => {
       playerBalances: [],
     };
     mocks.selectResults.push(
-      [{ totalSessions: 3, totalRounds: 12, totalAmount: 3980 }],
+      [{ totalSessions: 3, totalRounds: 12, totalAmount: 3200 }],
       [firstSession, secondSession, legacySession],
       [],
     );
@@ -336,9 +342,9 @@ describe("session authorization", () => {
       playerWinnings: [
         { playerName: "Tom", netAmount: 65 },
         { playerName: "Zoe", netAmount: 65 },
+        { playerName: "Harry", netAmount: 25 },
         { playerName: "Dick", netAmount: 0 },
-        { playerName: "Ivy", netAmount: 0 },
-        { playerName: "Harry", netAmount: -50 },
+        { playerName: "Ivy", netAmount: -55 },
         { playerName: "Ben", netAmount: -100 },
       ],
     });
@@ -464,7 +470,7 @@ describe("session authorization", () => {
         playerId: index + 1,
       })),
     };
-    mocks.selectResults.push(writablePlayers);
+    mocks.selectResults.push([session], writablePlayers);
     mocks.mutationResults.push([linkedSession]);
 
     const response = await request(
@@ -661,14 +667,15 @@ describe("session authorization", () => {
     });
     const [{ text }] = mocks.telegramSend.mock.calls[0] as [{ text: string }];
     expect(text).toContain("https://scoreboard.example/app");
-    expect(text).toContain("Winner: <b>A &amp; &lt;Ace&gt;</b> (-$370.00)");
-    expect(text).toContain("$130.00 (-$370.00)");
-    expect(text).toContain("$100.00 (-$400.00)");
-    expect(text).toContain("$90.00 (-$410.00)");
-    expect(text).toContain("$80.00 (-$420.00)");
+    // Net positions are measured against this session's own $400 base,
+    // i.e. a $100 share each.
+    expect(text).toContain("Winner: <b>A &amp; &lt;Ace&gt;</b> (+$30.00)");
+    expect(text).toContain("$130.00 (+$30.00)");
+    expect(text).toContain("$100.00 (+$0.00)");
+    expect(text).toContain("$90.00 (-$10.00)");
+    expect(text).toContain("$80.00 (-$20.00)");
     expect(text).toContain("<b>Rounds</b>: 4");
-    expect(text).toContain("<b>Settlement total</b>: $400.00");
-    expect(text).toContain("<b>Starting balance</b>: $500.00 per player");
+    expect(text).toContain("<b>Base pot</b>: $400.00 ($100.00 per player)");
     expect(text).toContain("诈胡 1");
     expect(text).toContain("谢谢开相 1");
     expect(text).toContain("Bring snacks &amp; &lt;tea&gt;");
@@ -811,6 +818,145 @@ describe("session authorization", () => {
     // the only insert is the session row itself.
     expect(mocks.db.insert).toHaveBeenCalledTimes(1);
     expect(mocks.db.insert).toHaveBeenCalledWith(mahjongSessionsTable);
+  });
+});
+
+describe("session stakes", () => {
+  function withAmounts(amounts: number[]) {
+    return createBody.playerBalances.map((player, index) => ({
+      ...player,
+      endingAmount: amounts[index],
+    }));
+  }
+
+  async function createWith(body: unknown) {
+    return request(
+      "/api/sessions",
+      { method: "POST", body: JSON.stringify(body) },
+      adminUserId,
+    );
+  }
+
+  it.each([0, -400, 400.5, 402])(
+    "rejects a base pot of %s that is not a positive whole number divisible by four",
+    async (basePot) => {
+      const response = await createWith({
+        ...createBody,
+        basePot,
+        playerBalances: withAmounts([basePot, 0, 0, 0]),
+      });
+
+      expect(response.status).toBe(400);
+      expect(mocks.db.transaction).not.toHaveBeenCalled();
+      expect(mocks.db.insert).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    ["short of", [130, 100, 90, 79], "Ending amounts are $1 short of the $400 base pot"],
+    ["over", [130, 100, 90, 90], "Ending amounts exceed the $400 base pot by $10"],
+  ])("rejects ending amounts that fall %s the base pot", async (_label, amounts, error) => {
+    const response = await createWith({
+      ...createBody,
+      playerBalances: withAmounts(amounts as number[]),
+    });
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error });
+    expect(mocks.db.insert).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["a non-integer", 129.5],
+    ["a negative", -30],
+  ])("rejects %s ending amount", async (_label, amount) => {
+    const response = await createWith({
+      ...createBody,
+      playerBalances: withAmounts([amount, 100, 90, 210 - amount]),
+    });
+
+    expect(response.status).toBe(400);
+    expect(mocks.db.insert).not.toHaveBeenCalled();
+  });
+
+  it("accepts a player who busted out at zero", async () => {
+    const bustedBalances = withAmounts([220, 100, 80, 0]);
+    mocks.selectResults.push(writablePlayers);
+    mocks.mutationResults.push([{ ...session, playerBalances: bustedBalances }]);
+
+    const response = await createWith({ ...createBody, playerBalances: bustedBalances });
+
+    expect(response.status).toBe(201);
+    expect(await response.json()).toMatchObject({
+      basePot: 400,
+      playerBalances: [
+        { endingAmount: 220 },
+        { endingAmount: 100 },
+        { endingAmount: 80 },
+        { endingAmount: 0 },
+      ],
+    });
+  });
+
+  it("stores the base pot the creator supplied", async () => {
+    const balances = withAmounts([700, 500, 450, 350]);
+    mocks.selectResults.push(writablePlayers);
+    mocks.mutationResults.push([{ ...session, basePot: 2000, playerBalances: balances }]);
+
+    const response = await createWith({ ...createBody, basePot: 2000, playerBalances: balances });
+
+    expect(response.status).toBe(201);
+    expect(await response.json()).toMatchObject({ basePot: 2000 });
+  });
+
+  it("rejects changing only the base pot when the saved amounts no longer sum to it", async () => {
+    mocks.selectResults.push([session]);
+
+    const response = await request(
+      "/api/sessions/1",
+      { method: "PATCH", body: JSON.stringify({ basePot: 2000 }) },
+      adminUserId,
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: "Ending amounts are $1600 short of the $2000 base pot",
+    });
+    expect(mocks.db.update).not.toHaveBeenCalled();
+  });
+
+  it("accepts a new base pot together with amounts rebalanced to it", async () => {
+    const rebalanced = withAmounts([800, 500, 400, 300]);
+    mocks.selectResults.push([session], writablePlayers);
+    mocks.mutationResults.push([{ ...session, basePot: 2000, playerBalances: rebalanced }]);
+
+    const response = await request(
+      "/api/sessions/1",
+      {
+        method: "PATCH",
+        body: JSON.stringify({ basePot: 2000, playerBalances: rebalanced }),
+      },
+      adminUserId,
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ basePot: 2000 });
+  });
+
+  it("rejects rebalanced amounts that don't sum to the saved base pot", async () => {
+    mocks.selectResults.push([session]);
+
+    const response = await request(
+      "/api/sessions/1",
+      {
+        method: "PATCH",
+        body: JSON.stringify({ playerBalances: withAmounts([130, 100, 90, 81]) }),
+      },
+      adminUserId,
+    );
+
+    expect(response.status).toBe(400);
+    expect(mocks.db.update).not.toHaveBeenCalled();
   });
 });
 
