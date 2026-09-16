@@ -7,16 +7,15 @@
  */
 import type { MahjongSession } from './mahjongSession';
 import type { PlayerWinnings } from './playerWinnings';
-import type { WinnerCount } from './winnerCount';
+import type { ProfitNightCount } from './profitNightCount';
 import type { XieXieKaiXiangCount } from './xieXieKaiXiangCount';
 import type { ZhaHuCount } from './zhaHuCount';
 
 export interface SessionSummary {
   totalSessions: number;
   totalRounds: number;
-  totalAmount: number;
   latestSession: MahjongSession | null;
-  winnerCounts: WinnerCount[];
+  profitNightCounts: ProfitNightCount[];
   zhaHuCounts: ZhaHuCount[];
   xieXieKaiXiangCounts: XieXieKaiXiangCount[];
   playerWinnings: PlayerWinnings[];

@@ -96,13 +96,7 @@ function checkPlayerReferences(
     if (!Array.isArray(balances)) return [];
     return balances.filter((balance) => {
       if (typeof balance !== "object" || balance === null) return false;
-      const typedBalance = balance as {
-        name?: unknown;
-        playerId?: unknown;
-      };
-      if (typeof typedBalance.name !== "string" || !typedBalance.name.trim()) {
-        return false;
-      }
+      const typedBalance = balance as { playerId?: unknown };
       return (
         !Number.isInteger(typedBalance.playerId) ||
         !playerIds.has(typedBalance.playerId as number)
@@ -111,9 +105,9 @@ function checkPlayerReferences(
   });
 
   if (invalidReferences.length === 0) {
-    pass("Every non-empty session balance references a seeded player record");
+    pass("Every session balance references a seeded player record");
   } else {
-    fail(`${invalidReferences.length} non-empty session balance(s) have invalid player references`);
+    fail(`${invalidReferences.length} session balance(s) have invalid player references`);
   }
 }
 

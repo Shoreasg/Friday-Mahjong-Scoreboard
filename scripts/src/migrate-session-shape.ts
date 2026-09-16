@@ -1,11 +1,22 @@
-import { db } from "@workspace/db";
+import {
+  db,
+  mahjongSessionsTable,
+  playersTable,
+  type PlayerBalance,
+} from "@workspace/db";
 import { PLAYER_WRITE_LOCK_KEY, validateBasePot, validateEndingAmount } from "@workspace/session-rules";
-import { sql } from "drizzle-orm";
+import { asc, eq, sql } from "drizzle-orm";
+import { storedBalances } from "./legacy-balances";
 
-// Moves mahjong_sessions from the shape where the pot was a derived
-// `total_amount` (double precision) to a creator-supplied `base_pot` (integer).
+// Moves mahjong_sessions to its current shape in two phases around the
+// schema push:
 //
-// This must run BEFORE `drizzle-kit push --force`: push sees a dropped column
+// 1. Before push (default): rename the derived `total_amount` (double
+//    precision) to the creator-supplied `base_pot` (integer).
+// 2. After push and seed:players (`--after-push`): drop the copied player
+//    name from every balance, leaving only the playerId.
+//
+// Phase 1 must run BEFORE `drizzle-kit push --force`: push sees a dropped column
 // plus an added one and, with --force, would drop total_amount and create an
 // empty base_pot instead of renaming it — losing every session's stakes.
 // Renaming here first leaves push with nothing to do for this column.
@@ -112,6 +123,74 @@ export async function renameTotalAmountToBasePot(): Promise<void> {
   });
 }
 
+/**
+ * The contract step: once seed:players has linked every balance to a player,
+ * rewrite each balance to carry only its playerId (no copied name) so the
+ * player record is the single source of a player's name. Runs AFTER the
+ * schema push and backfill. Fails closed, changing nothing, if any balance
+ * still lacks a valid player reference.
+ */
+export async function stripNamesFromBalances(): Promise<void> {
+  const dryRun = process.env.DRY_RUN === "true";
+
+  await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(${PLAYER_WRITE_LOCK_KEY})`);
+
+    const sessions = await tx
+      .select({ id: mahjongSessionsTable.id, playerBalances: mahjongSessionsTable.playerBalances })
+      .from(mahjongSessionsTable)
+      .orderBy(asc(mahjongSessionsTable.id));
+    const playerIds = new Set(
+      (await tx.select({ id: playersTable.id }).from(playersTable)).map((player) => player.id),
+    );
+
+    const unlinked: string[] = [];
+    const rewrites: { id: number; playerBalances: PlayerBalance[] }[] = [];
+    for (const session of sessions) {
+      const balances = storedBalances(session.playerBalances);
+      const contracted = balances.map((balance) => ({
+        playerId: balance.playerId as number,
+        endingAmount: balance.endingAmount,
+        zhaHuCount: balance.zhaHuCount ?? 0,
+        xieXieKaiXiangCount: balance.xieXieKaiXiangCount ?? 0,
+      }));
+      balances.forEach((balance, index) => {
+        if (balance.playerId === undefined || !playerIds.has(balance.playerId)) {
+          unlinked.push(`session ${session.id} seat ${index + 1} (${balance.name ?? "no name"})`);
+        }
+      });
+      // Compare key sets rather than serialized JSON: jsonb reorders keys, so
+      // an already-contracted row would never stringify identically.
+      const contractedKeys = Object.keys(contracted[0] ?? {}).sort().join();
+      if (balances.some((balance) => Object.keys(balance).sort().join() !== contractedKeys)) {
+        rewrites.push({ id: session.id, playerBalances: contracted });
+      }
+    }
+
+    if (unlinked.length > 0) {
+      throw new Error(
+        `Refusing to remove names: ${unlinked.length} balance(s) have no valid player reference. ` +
+          `Run seed:players first.\n  ${unlinked.join("\n  ")}`,
+      );
+    }
+    if (dryRun) {
+      console.log(`[dry run] Would remove copied names from ${rewrites.length} session(s)`);
+      return;
+    }
+    for (const rewrite of rewrites) {
+      await tx
+        .update(mahjongSessionsTable)
+        .set({ playerBalances: rewrite.playerBalances })
+        .where(eq(mahjongSessionsTable.id, rewrite.id));
+    }
+    console.log(`Removed copied player names from ${rewrites.length} session(s)`);
+  });
+}
+
 if (process.argv[1] === new URL(import.meta.url).pathname) {
-  await renameTotalAmountToBasePot();
+  if (process.argv.includes("--after-push")) {
+    await stripNamesFromBalances();
+  } else {
+    await renameTotalAmountToBasePot();
+  }
 }

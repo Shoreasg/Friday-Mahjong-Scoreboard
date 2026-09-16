@@ -18,14 +18,15 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { type MahjongSessionInput } from "@workspace/api-client-react";
+import { useListPlayers, type MahjongSessionInput } from "@workspace/api-client-react";
 import {
   allocationAgainstBasePot,
   CUSTOMARY_BASE_POT,
   perPlayerShare,
   validateBasePot,
-  validateStakes,
+  validateSession,
 } from "@workspace/session-rules";
+import { PlayerPicker } from "./PlayerPicker";
 import { cn } from "@/lib/utils";
 
 const ChipStackScanner = lazy(() =>
@@ -42,24 +43,21 @@ const sessionSchema = z.object({
     if (error) ctx.addIssue({ code: z.ZodIssueCode.custom, message: error });
   }),
   playerBalances: z.array(z.object({
-    name: z.string().trim().min(1, "Player name is required").max(80),
+    playerId: z.number({ error: "Choose a player" }).int().positive("Choose a player"),
     endingAmount: z.coerce.number().int("Use whole dollars").min(0, "Amount cannot be negative"),
     zhaHuCount: z.coerce.number().int("Use a whole number").min(0, "Count cannot be negative"),
     xieXieKaiXiangCount: z.coerce.number().int("Use a whole number").min(0, "Count cannot be negative"),
   })).length(4, "Enter all four players"),
   notes: z.string().max(500).nullable().optional(),
 }).superRefine((session, ctx) => {
-  const error = validateStakes(
-    session.basePot,
-    session.playerBalances.map((player) => player.endingAmount),
-  );
+  const error = validateSession(session);
   if (error) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["playerBalances"], message: error });
   }
 });
 
 type SessionFormProps = {
-  defaultValues?: Partial<MahjongSessionInput> & { winnerName?: string };
+  defaultValues?: Partial<MahjongSessionInput>;
   onSubmit: (data: MahjongSessionInput) => void;
   isSubmitting?: boolean;
   compact?: boolean;
@@ -79,6 +77,7 @@ export function SessionForm({
   const isExistingSession = defaultValues?.basePot !== undefined;
   const [basePotUnlocked, setBasePotUnlocked] = useState(!isExistingSession);
   const [confirmUnlockOpen, setConfirmUnlockOpen] = useState(false);
+  const { data: roster = [] } = useListPlayers();
 
   const form = useForm<z.infer<typeof sessionSchema>>({
     resolver: zodResolver(sessionSchema),
@@ -95,7 +94,7 @@ export function SessionForm({
               xieXieKaiXiangCount: player.xieXieKaiXiangCount ?? 0,
             }
           : {
-              name: "",
+              playerId: undefined as unknown as number,
               endingAmount: perPlayerShare(CUSTOMARY_BASE_POT),
               zhaHuCount: 0,
               xieXieKaiXiangCount: 0,
@@ -111,7 +110,11 @@ export function SessionForm({
     .watch("playerBalances")
     .map((player) => Number(player.endingAmount) || 0);
   const allocation = allocationAgainstBasePot(basePotValid ? basePot : 0, endingAmounts);
-  const canSubmit = basePotValid && allocation.status === "balanced";
+  const seatPlayerIds = form.watch("playerBalances").map((player) => player.playerId);
+  const canSubmit =
+    basePotValid &&
+    allocation.status === "balanced" &&
+    seatPlayerIds.every((playerId) => Number.isInteger(playerId) && playerId > 0);
 
   return (
     <Form {...form}>
@@ -247,12 +250,21 @@ export function SessionForm({
                 </div>
                 <FormField
                   control={form.control}
-                  name={`playerBalances.${index}.name`}
+                  name={`playerBalances.${index}.playerId`}
                   render={({ field }) => (
                     <FormItem className={cn(compact && "col-span-3")}>
-                      <FormLabel className="font-black uppercase tracking-wide text-xs">Name</FormLabel>
+                      <FormLabel className="font-black uppercase tracking-wide text-xs">Player</FormLabel>
                       <FormControl>
-                        <Input placeholder="e.g. Alice" {...field} data-testid={`input-player-name-${index}`} className="border-2" />
+                        <PlayerPicker
+                          roster={roster}
+                          value={field.value}
+                          onChange={(playerId) => field.onChange(playerId)}
+                          otherSeatPlayerIds={
+                            new Set(seatPlayerIds.filter((_, seat) => seat !== index))
+                          }
+                          seatLabel={`Seat ${index + 1}`}
+                          data-testid={`input-player-${index}`}
+                        />
                       </FormControl>
                       <FormMessage className="font-bold text-destructive text-xs" />
                     </FormItem>
@@ -376,7 +388,11 @@ export function SessionForm({
             onOpenChange={(open) => {
               if (!open) setScannerOpenFor(null);
             }}
-            playerName={form.getValues(`playerBalances.${scannerOpenFor}.name`) || `Player ${scannerOpenFor + 1}`}
+            playerName={
+              roster.find(
+                (player) => player.id === form.getValues(`playerBalances.${scannerOpenFor}.playerId`),
+              )?.name ?? `Player ${scannerOpenFor + 1}`
+            }
             onApply={(amount) => {
               form.setValue(`playerBalances.${scannerOpenFor}.endingAmount`, Math.round(amount), { shouldValidate: true });
             }}

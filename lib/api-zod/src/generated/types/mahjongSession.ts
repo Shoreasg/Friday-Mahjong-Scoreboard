@@ -14,7 +14,6 @@ export interface MahjongSession {
   /** @minimum 1 */
   rounds: number;
   basePot: BasePot;
-  winnerName: string;
   playerBalances: PlayerBalance[];
   /** @nullable */
   notes: string | null;

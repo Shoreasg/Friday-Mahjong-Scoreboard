@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { db, mahjongSessionsTable, playersTable } from "@workspace/db";
 import { normalizePlayerName, PLAYER_WRITE_LOCK_KEY } from "@workspace/session-rules";
 import { asc, eq, inArray, sql } from "drizzle-orm";
+import { storedBalances } from "./legacy-balances";
 
 type PlayerRow = { id: number; name: string; active: boolean };
 
@@ -195,16 +196,22 @@ export async function reconcileDuplicatePlayers(): Promise<void> {
         })
         .from(mahjongSessionsTable);
       for (const session of sessions) {
-        const balances = session.playerBalances ?? [];
+        const balances = storedBalances(session.playerBalances);
         const remapped = balances.map((balance) =>
           balance.playerId !== undefined && loserIds.includes(balance.playerId)
-            ? { ...balance, playerId: canonical.id, name: canonical.name }
+            ? {
+                ...balance,
+                playerId: canonical.id,
+                // Balances that still carry a legacy name keep it in step;
+                // contracted balances stay name-free.
+                ...(balance.name !== undefined ? { name: canonical.name } : {}),
+              }
             : balance,
         );
         if (JSON.stringify(remapped) !== JSON.stringify(balances)) {
           await tx
             .update(mahjongSessionsTable)
-            .set({ playerBalances: remapped })
+            .set({ playerBalances: remapped as typeof session.playerBalances })
             .where(eq(mahjongSessionsTable.id, session.id));
         }
       }

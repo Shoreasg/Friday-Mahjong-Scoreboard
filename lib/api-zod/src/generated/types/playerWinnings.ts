@@ -7,6 +7,7 @@
  */
 
 export interface PlayerWinnings {
+  playerId: number;
   playerName: string;
   netAmount: number;
 }

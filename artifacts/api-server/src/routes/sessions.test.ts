@@ -26,9 +26,6 @@ const mocks = vi.hoisted(() => {
   }
 
   const db = {
-    selectResults,
-    mutationResults,
-    getUser: vi.fn(),
     execute: vi.fn(async () => ({ rows: [] })),
     select: vi.fn(() => query(selectResults.shift() ?? [])),
     insert: vi.fn(() => {
@@ -54,7 +51,7 @@ const mocks = vi.hoisted(() => {
   return {
     selectResults,
     mutationResults,
-    getUser: db.getUser,
+    getUser: vi.fn(),
     telegramSend: vi.fn(),
     db: {
       ...db,
@@ -87,7 +84,6 @@ vi.mock("@workspace/integrations-telegram", () => ({
 }));
 
 import app from "../app";
-import { mahjongSessionsTable } from "@workspace/db";
 
 const adminUserId = "admin-user";
 const secondAdminUserId = "second-admin-user";
@@ -95,17 +91,40 @@ const viewerUserId = "viewer-user";
 const adminEmail = "admin@example.com";
 const secondAdminEmail = "second.admin@example.com";
 
+const players = [
+  { id: 1, name: "Alice" },
+  { id: 2, name: "Bob" },
+  { id: 3, name: "Carol" },
+  { id: 4, name: "Dave" },
+];
+
+type Balance = {
+  playerId: number;
+  endingAmount: number;
+  zhaHuCount?: number;
+  xieXieKaiXiangCount?: number;
+};
+
+function seats(amounts: number[], playerIds = [1, 2, 3, 4]): Balance[] {
+  return amounts.map((endingAmount, index) => ({
+    playerId: playerIds[index],
+    endingAmount,
+    zhaHuCount: 0,
+    xieXieKaiXiangCount: 0,
+  }));
+}
+
+// A $400 base pot: a $100 share each.
 const session = {
   id: 1,
   playedOn: "2026-09-04",
   rounds: 4,
   basePot: 400,
-  winnerName: "Alice",
   playerBalances: [
-    { name: "Alice", endingAmount: 130, zhaHuCount: 1, xieXieKaiXiangCount: 1 },
-    { name: "Bob", endingAmount: 100, zhaHuCount: 0, xieXieKaiXiangCount: 2 },
-    { name: "Carol", endingAmount: 90, zhaHuCount: 2, xieXieKaiXiangCount: 0 },
-    { name: "Dave", endingAmount: 80, zhaHuCount: 0, xieXieKaiXiangCount: 0 },
+    { playerId: 1, endingAmount: 130, zhaHuCount: 1, xieXieKaiXiangCount: 1 },
+    { playerId: 2, endingAmount: 100, zhaHuCount: 0, xieXieKaiXiangCount: 2 },
+    { playerId: 3, endingAmount: 90, zhaHuCount: 2, xieXieKaiXiangCount: 0 },
+    { playerId: 4, endingAmount: 80, zhaHuCount: 0, xieXieKaiXiangCount: 0 },
   ],
   notes: null,
   createdByUserId: adminUserId,
@@ -118,12 +137,12 @@ const createBody = {
   basePot: 400,
   playerBalances: session.playerBalances,
 };
-const writablePlayers = [
-  { id: 1, name: "Alice" },
-  { id: 2, name: "Bob" },
-  { id: 3, name: "Carol" },
-  { id: 4, name: "Dave" },
-];
+
+function sessionWith(
+  overrides: { id?: number; basePot?: number; playerBalances: Balance[] },
+) {
+  return { ...session, ...overrides };
+}
 
 let server: Server;
 let baseUrl: string;
@@ -137,6 +156,21 @@ async function request(
   if (init.body) headers.set("content-type", "application/json");
   if (userId) headers.set("x-test-user", userId);
   return fetch(`${baseUrl}${path}`, { ...init, headers });
+}
+
+async function createSession(body: unknown) {
+  return request(
+    "/api/sessions",
+    { method: "POST", body: JSON.stringify(body) },
+    adminUserId,
+  );
+}
+
+async function getSummary(sessions: unknown[], roster: unknown[] = players) {
+  mocks.selectResults.push(sessions, roster);
+  const response = await request("/api/sessions/summary");
+  expect(response.status).toBe(200);
+  return response.json();
 }
 
 beforeAll(async () => {
@@ -180,174 +214,26 @@ beforeEach(() => {
 
 describe("session authorization", () => {
   it("allows public reads and defaults legacy incident counts to zero", async () => {
-    const legacySession = {
-      ...session,
-      playerBalances: session.playerBalances.map(
-        ({
-          zhaHuCount: _zhaHuCount,
-          xieXieKaiXiangCount: _xieXieKaiXiangCount,
-          ...player
-        }) => player,
-      ),
-    };
+    const legacySession = sessionWith({
+      playerBalances: session.playerBalances.map(({ playerId, endingAmount }) => ({
+        playerId,
+        endingAmount,
+      })),
+    });
     mocks.selectResults.push([legacySession]);
+
     const listResponse = await request("/api/sessions");
+
     expect(listResponse.status).toBe(200);
     expect(await listResponse.json()).toMatchObject([{
       playerBalances: [
-        { name: "Alice", zhaHuCount: 0, xieXieKaiXiangCount: 0 },
-        { name: "Bob", zhaHuCount: 0, xieXieKaiXiangCount: 0 },
-        { name: "Carol", zhaHuCount: 0, xieXieKaiXiangCount: 0 },
-        { name: "Dave", zhaHuCount: 0, xieXieKaiXiangCount: 0 },
+        { playerId: 1, zhaHuCount: 0, xieXieKaiXiangCount: 0 },
+        { playerId: 2, zhaHuCount: 0, xieXieKaiXiangCount: 0 },
+        { playerId: 3, zhaHuCount: 0, xieXieKaiXiangCount: 0 },
+        { playerId: 4, zhaHuCount: 0, xieXieKaiXiangCount: 0 },
       ],
     }]);
-
-    const secondSession = {
-      ...session,
-      id: 2,
-      playerBalances: [
-        { name: "alice", endingAmount: 120, zhaHuCount: 2, xieXieKaiXiangCount: 2 },
-        { name: "BOB", endingAmount: 110, zhaHuCount: 1, xieXieKaiXiangCount: 0 },
-        { name: "Eve", endingAmount: 90, zhaHuCount: 4, xieXieKaiXiangCount: 4 },
-        { name: "Frank", endingAmount: 80, zhaHuCount: 0, xieXieKaiXiangCount: 0 },
-      ],
-    };
-    mocks.selectResults.push(
-      [{ totalSessions: 2, totalRounds: 8, totalAmount: 800 }],
-      [session, secondSession],
-      [{ winnerName: "Alice", wins: 1 }],
-    );
-    const summaryResponse = await request("/api/sessions/summary");
-    expect(summaryResponse.status).toBe(200);
-    expect(await summaryResponse.json()).toMatchObject({
-      totalSessions: 2,
-      winnerCounts: [{ winnerName: "Alice", wins: 1 }],
-      zhaHuCounts: [
-        { playerName: "Eve", count: 4 },
-        { playerName: "Alice", count: 3 },
-        { playerName: "Carol", count: 2 },
-        { playerName: "Bob", count: 1 },
-        { playerName: "Dave", count: 0 },
-        { playerName: "Frank", count: 0 },
-      ],
-      xieXieKaiXiangCounts: [
-        { playerName: "Eve", count: 4 },
-        { playerName: "Alice", count: 3 },
-        { playerName: "Bob", count: 2 },
-        { playerName: "Carol", count: 0 },
-        { playerName: "Dave", count: 0 },
-        { playerName: "Frank", count: 0 },
-      ],
-    });
     expect(mocks.getUser).not.toHaveBeenCalled();
-  });
-
-  it("aggregates by playerId rather than name once balances are linked to players", async () => {
-    // Same playerId, different casing across sessions (e.g. a rename) should
-    // collapse into one aggregate row.
-    const renamedSession = {
-      ...session,
-      id: 2,
-      playerBalances: [
-        { name: "Alicia", playerId: 1, endingAmount: 120, zhaHuCount: 2, xieXieKaiXiangCount: 1 },
-        { name: "Bob", playerId: 2, endingAmount: 110, zhaHuCount: 0, xieXieKaiXiangCount: 0 },
-        { name: "Carol", playerId: 3, endingAmount: 90, zhaHuCount: 0, xieXieKaiXiangCount: 0 },
-        { name: "Dave", playerId: 4, endingAmount: 80, zhaHuCount: 0, xieXieKaiXiangCount: 0 },
-      ],
-    };
-    // Two different playerIds that happen to normalize to the same name
-    // string must NOT be merged.
-    const distinctPlayersSameNameSession = {
-      ...session,
-      id: 3,
-      playerBalances: [
-        { name: "Alex", playerId: 101, endingAmount: 100, zhaHuCount: 1, xieXieKaiXiangCount: 0 },
-        { name: "Alex", playerId: 102, endingAmount: 100, zhaHuCount: 1, xieXieKaiXiangCount: 0 },
-        { name: "Carol", playerId: 3, endingAmount: 100, zhaHuCount: 0, xieXieKaiXiangCount: 0 },
-        { name: "Dave", playerId: 4, endingAmount: 100, zhaHuCount: 0, xieXieKaiXiangCount: 0 },
-      ],
-    };
-    const linkedFirstSession = {
-      ...session,
-      playerBalances: session.playerBalances.map((player, index) => ({
-        ...player,
-        playerId: index + 1,
-      })),
-    };
-    mocks.selectResults.push(
-      [{ totalSessions: 3, totalRounds: 12, totalAmount: 1200 }],
-      [linkedFirstSession, renamedSession, distinctPlayersSameNameSession],
-      [{ winnerName: "Alice", wins: 1 }],
-    );
-
-    const summaryResponse = await request("/api/sessions/summary");
-
-    expect(summaryResponse.status).toBe(200);
-    const { zhaHuCounts } = (await summaryResponse.json()) as {
-      zhaHuCounts: { playerName: string; count: number }[];
-    };
-    // playerId 1 ("Alice" then renamed to "Alicia") merges to one entry.
-    const aliceEntries = zhaHuCounts.filter((entry: { playerName: string }) =>
-      ["Alice", "Alicia"].includes(entry.playerName),
-    );
-    expect(aliceEntries).toHaveLength(1);
-    expect(aliceEntries[0]).toMatchObject({ count: 3 });
-    // playerId 101 and 102 both normalize to "alex" but must stay distinct.
-    const alexEntries = zhaHuCounts.filter(
-      (entry: { playerName: string }) => entry.playerName === "Alex",
-    );
-    expect(alexEntries).toHaveLength(2);
-  });
-
-  it("calculates cumulative winnings from each session's own base pot", async () => {
-    // $2000 base: a $500 share each.
-    const firstSession = {
-      ...session,
-      basePot: 2000,
-      playerBalances: [
-        { name: "Tom", endingAmount: 565, zhaHuCount: 0 },
-        { name: "Dick", endingAmount: 510, zhaHuCount: 0 },
-        { name: "Harry", endingAmount: 525, zhaHuCount: 0 },
-        { name: "Ben", endingAmount: 400, zhaHuCount: 0 },
-      ],
-    };
-    // $800 base: a $200 share each, so Tom's 200 breaks even here rather
-    // than counting as a $300 loss against the customary stakes.
-    const secondSession = {
-      ...session,
-      id: 2,
-      basePot: 800,
-      playerBalances: [
-        { name: "tom", endingAmount: 200, zhaHuCount: 0 },
-        { name: "DICK", endingAmount: 190, zhaHuCount: 0 },
-        { name: "Ivy", endingAmount: 145, zhaHuCount: 0 },
-        { name: "Zoe", endingAmount: 265, zhaHuCount: 0 },
-      ],
-    };
-    const legacySession = {
-      ...session,
-      id: 3,
-      playerBalances: [],
-    };
-    mocks.selectResults.push(
-      [{ totalSessions: 3, totalRounds: 12, totalAmount: 3200 }],
-      [firstSession, secondSession, legacySession],
-      [],
-    );
-
-    const response = await request("/api/sessions/summary");
-
-    expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({
-      playerWinnings: [
-        { playerName: "Tom", netAmount: 65 },
-        { playerName: "Zoe", netAmount: 65 },
-        { playerName: "Harry", netAmount: 25 },
-        { playerName: "Dick", netAmount: 0 },
-        { playerName: "Ivy", netAmount: -55 },
-        { playerName: "Ben", netAmount: -100 },
-      ],
-    });
   });
 
   it.each([
@@ -380,15 +266,8 @@ describe("session authorization", () => {
     ["existing", adminUserId],
     ["second", secondAdminUserId],
   ])("allows the %s configured admin to create, update, and delete sessions", async (_label, userId) => {
-    mocks.selectResults.push(writablePlayers);
-    const linkedSession = {
-      ...session,
-      playerBalances: session.playerBalances.map((player, index) => ({
-        ...player,
-        playerId: index + 1,
-      })),
-    };
-    mocks.mutationResults.push([linkedSession]);
+    mocks.selectResults.push(players);
+    mocks.mutationResults.push([session]);
     const createResponse = await request(
       "/api/sessions",
       { method: "POST", body: JSON.stringify(createBody) },
@@ -396,16 +275,16 @@ describe("session authorization", () => {
     );
     expect(createResponse.status).toBe(201);
     expect(await createResponse.json()).toMatchObject({
+      basePot: 400,
       playerBalances: [
-        { name: "Alice", playerId: 1 },
-        { name: "Bob", playerId: 2 },
-        { name: "Carol", playerId: 3 },
-        { name: "Dave", playerId: 4 },
+        { playerId: 1 },
+        { playerId: 2 },
+        { playerId: 3 },
+        { playerId: 4 },
       ],
     });
 
-    const updatedSession = { ...session, rounds: 5 };
-    mocks.mutationResults.push([updatedSession]);
+    mocks.mutationResults.push([{ ...session, rounds: 5 }]);
     const updateResponse = await request(
       "/api/sessions/1",
       { method: "PATCH", body: JSON.stringify({ rounds: 5 }) },
@@ -425,191 +304,10 @@ describe("session authorization", () => {
     expect(mocks.telegramSend).toHaveBeenCalledTimes(1);
   });
 
-  it("creates and links a player for a first-time name-only write", async () => {
-    const guestBody = {
-      ...createBody,
-      playerBalances: createBody.playerBalances.map((player, index) =>
-        index === 0 ? { ...player, name: "Guest" } : player,
-      ),
-    };
-    const linkedSession = {
-      ...session,
-      playerBalances: guestBody.playerBalances.map((player, index) => ({
-        ...player,
-        playerId: index === 0 ? 5 : index + 1,
-      })),
-    };
-    mocks.selectResults.push(writablePlayers);
-    mocks.mutationResults.push(
-      [{ id: 5, name: "Guest" }],
-      [linkedSession],
-    );
-
-    const response = await request(
-      "/api/sessions",
-      { method: "POST", body: JSON.stringify(guestBody) },
-      adminUserId,
-    );
-
-    expect(response.status).toBe(201);
-    expect(await response.json()).toMatchObject({
-      playerBalances: [
-        { name: "Guest", playerId: 5 },
-        { name: "Bob", playerId: 2 },
-        { name: "Carol", playerId: 3 },
-        { name: "Dave", playerId: 4 },
-      ],
-    });
-  });
-
-  it("resolves name-only player balances during updates", async () => {
-    const linkedSession = {
-      ...session,
-      playerBalances: session.playerBalances.map((player, index) => ({
-        ...player,
-        playerId: index + 1,
-      })),
-    };
-    mocks.selectResults.push([session], writablePlayers);
-    mocks.mutationResults.push([linkedSession]);
-
-    const response = await request(
-      "/api/sessions/1",
-      {
-        method: "PATCH",
-        body: JSON.stringify({ playerBalances: createBody.playerBalances }),
-      },
-      adminUserId,
-    );
-
-    expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({
-      playerBalances: [
-        { name: "Alice", playerId: 1 },
-        { name: "Bob", playerId: 2 },
-        { name: "Carol", playerId: 3 },
-        { name: "Dave", playerId: 4 },
-      ],
-    });
-  });
-
-  it("resolves mixed explicit and name-only player balances", async () => {
-    const mixedBody = {
-      ...createBody,
-      playerBalances: createBody.playerBalances.map((player, index) =>
-        index === 0 ? { ...player, playerId: 1 } : player,
-      ),
-    };
-    const linkedSession = {
-      ...session,
-      playerBalances: session.playerBalances.map((player, index) => ({
-        ...player,
-        playerId: index + 1,
-      })),
-    };
-    mocks.selectResults.push(writablePlayers);
-    mocks.mutationResults.push([linkedSession]);
-
-    const response = await request(
-      "/api/sessions",
-      { method: "POST", body: JSON.stringify(mixedBody) },
-      adminUserId,
-    );
-
-    expect(response.status).toBe(201);
-    expect(await response.json()).toMatchObject({
-      playerBalances: [
-        { name: "Alice", playerId: 1 },
-        { name: "Bob", playerId: 2 },
-        { name: "Carol", playerId: 3 },
-        { name: "Dave", playerId: 4 },
-      ],
-    });
-  });
-
-  it("resolves a whitespace/case variant of an existing name to that player's canonical spelling", async () => {
-    const messyBody = {
-      ...createBody,
-      playerBalances: createBody.playerBalances.map((player, index) =>
-        index === 0 ? { ...player, name: "  ALICE  " } : player,
-      ),
-    };
-    const linkedSession = {
-      ...session,
-      playerBalances: session.playerBalances.map((player, index) => ({
-        ...player,
-        playerId: index + 1,
-      })),
-    };
-    mocks.selectResults.push(writablePlayers);
-    mocks.mutationResults.push([linkedSession]);
-
-    const response = await request(
-      "/api/sessions",
-      { method: "POST", body: JSON.stringify(messyBody) },
-      adminUserId,
-    );
-
-    expect(response.status).toBe(201);
-    expect(await response.json()).toMatchObject({
-      playerBalances: [
-        { name: "Alice", playerId: 1 },
-        { name: "Bob", playerId: 2 },
-        { name: "Carol", playerId: 3 },
-        { name: "Dave", playerId: 4 },
-      ],
-    });
-    // Linked to the existing player rather than creating a new one for the
-    // whitespace/case variant — the only insert is the session row itself.
-    expect(mocks.db.insert).toHaveBeenCalledTimes(1);
-    expect(mocks.db.insert).toHaveBeenCalledWith(mahjongSessionsTable);
-  });
-
-  it("does not create a session when a later balance fails validation after earlier names created new players", async () => {
-    const invalidBody = {
-      ...createBody,
-      playerBalances: [
-        { name: "New Player One", endingAmount: 130, zhaHuCount: 1, xieXieKaiXiangCount: 1 },
-        { name: "New Player Two", endingAmount: 100, zhaHuCount: 0, xieXieKaiXiangCount: 2 },
-        { name: "New Player Three", endingAmount: 90, zhaHuCount: 2, xieXieKaiXiangCount: 0 },
-        { name: "Dave", endingAmount: 80, zhaHuCount: 0, xieXieKaiXiangCount: 0, playerId: 999 },
-      ],
-    };
-    mocks.selectResults.push([]);
-    mocks.mutationResults.push(
-      [{ id: 10, name: "New Player One" }],
-      [{ id: 11, name: "New Player Two" }],
-      [{ id: 12, name: "New Player Three" }],
-    );
-
-    const response = await request(
-      "/api/sessions",
-      { method: "POST", body: JSON.stringify(invalidBody) },
-      adminUserId,
-    );
-
-    expect(response.status).toBe(400);
-    expect(await response.json()).toMatchObject({
-      error: "playerId 999 does not reference an existing player",
-    });
-    // The first three balances each created a new player before the fourth
-    // balance's invalid playerId aborted the request. Whether those three
-    // inserts are actually rolled back is a real-Postgres-transaction
-    // guarantee this mock cannot observe directly — what this proves is that
-    // the request is rejected end-to-end (never reaches the session insert
-    // or a 201 response) rather than silently succeeding with orphaned
-    // player rows.
-    expect(mocks.db.insert).toHaveBeenCalledTimes(3);
-  });
-
   it("returns 500 for signed-in writes when the admin list is missing", async () => {
     delete process.env.ADMIN_EMAILS;
 
-    const response = await request(
-      "/api/sessions",
-      { method: "POST", body: JSON.stringify(createBody) },
-      adminUserId,
-    );
+    const response = await createSession(createBody);
 
     expect(response.status).toBe(500);
     expect(await response.json()).toEqual({
@@ -621,99 +319,104 @@ describe("session authorization", () => {
   it("returns 500 for signed-in writes when the admin list contains only whitespace", async () => {
     process.env.ADMIN_EMAILS = " ,  , ";
 
-    const response = await request(
-      "/api/sessions",
-      { method: "POST", body: JSON.stringify(createBody) },
-      adminUserId,
-    );
+    const response = await createSession(createBody);
 
     expect(response.status).toBe(500);
     expect(mocks.getUser).not.toHaveBeenCalled();
   });
+});
 
-  it("announces a newly created session with escaped HTML and delivery metadata", async () => {
-    process.env.TELEGRAM_BOT_TOKEN = "test-token";
-    process.env.TELEGRAM_CHAT_ID = "-100123";
-    process.env.SCOREBOARD_URL = "https://scoreboard.example/app";
-    mocks.telegramSend.mockResolvedValue({ status: "sent", messageId: 42 });
-
-    const escapedSession = {
-      ...session,
-      winnerName: "A & <Ace>",
-      notes: "Bring snacks & <tea>",
-      playerBalances: [
-        { name: "A & <Ace>", endingAmount: 130, zhaHuCount: 1, xieXieKaiXiangCount: 1 },
-        { name: "Bob", endingAmount: 100, zhaHuCount: 0, xieXieKaiXiangCount: 2 },
-        { name: "Carol", endingAmount: 90, zhaHuCount: 2, xieXieKaiXiangCount: 0 },
-        { name: "Dave", endingAmount: 80, zhaHuCount: 0, xieXieKaiXiangCount: 0 },
-      ],
-    };
-    mocks.selectResults.push(writablePlayers);
-    mocks.mutationResults.push([escapedSession]);
-
-    const response = await request(
-      "/api/sessions",
-      { method: "POST", body: JSON.stringify(createBody) },
-      adminUserId,
-    );
-
-    expect(response.status).toBe(201);
-    expect(await response.json()).toMatchObject({
-      announcement: { status: "sent", messageId: 42 },
-    });
-    expect(mocks.telegramSend).toHaveBeenCalledWith({
-      parseMode: "HTML",
-      text: expect.stringContaining("A &amp; &lt;Ace&gt;"),
-    });
-    const [{ text }] = mocks.telegramSend.mock.calls[0] as [{ text: string }];
-    expect(text).toContain("https://scoreboard.example/app");
-    // Net positions are measured against this session's own $400 base,
-    // i.e. a $100 share each.
-    expect(text).toContain("Winner: <b>A &amp; &lt;Ace&gt;</b> (+$30.00)");
-    expect(text).toContain("$130.00 (+$30.00)");
-    expect(text).toContain("$100.00 (+$0.00)");
-    expect(text).toContain("$90.00 (-$10.00)");
-    expect(text).toContain("$80.00 (-$20.00)");
-    expect(text).toContain("<b>Rounds</b>: 4");
-    expect(text).toContain("<b>Base pot</b>: $400.00 ($100.00 per player)");
-    expect(text).toContain("诈胡 1");
-    expect(text).toContain("谢谢开相 1");
-    expect(text).toContain("Bring snacks &amp; &lt;tea&gt;");
-    expect(text).not.toContain("A & <Ace>");
-  });
-
-  it("persists a session and reports a failed announcement separately", async () => {
-    mocks.telegramSend.mockRejectedValue(new Error("Telegram is unavailable"));
-    mocks.selectResults.push(writablePlayers);
+describe("session balances reference players", () => {
+  it("stores only the player reference on each balance, never a copied name", async () => {
+    mocks.selectResults.push(players);
     mocks.mutationResults.push([session]);
 
+    const response = await createSession({
+      ...createBody,
+      playerBalances: createBody.playerBalances.map((balance, index) =>
+        index === 0 ? { ...balance, name: "Stale Name" } : balance,
+      ),
+    });
+
+    expect(response.status).toBe(201);
+    const [insertCall] = mocks.db.insert.mock.results;
+    const valuesMock = (insertCall?.value as { values: ReturnType<typeof vi.fn> }).values;
+    const stored = valuesMock.mock.calls[0]?.[0] as { playerBalances: object[] };
+    expect(stored.playerBalances).toEqual(session.playerBalances);
+    for (const balance of stored.playerBalances) {
+      expect(balance).not.toHaveProperty("name");
+    }
+    expect(await response.json()).not.toHaveProperty("winnerName");
+  });
+
+  it("rejects a player reference that does not exist", async () => {
+    mocks.selectResults.push(players.slice(1));
+
+    const response = await createSession({
+      ...createBody,
+      playerBalances: seats([130, 100, 90, 80], [999, 2, 3, 4]),
+    });
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: "playerId 999 does not reference an existing player",
+    });
+    expect(mocks.db.insert).not.toHaveBeenCalled();
+  });
+
+  it("rejects the same player in two seats before touching the database", async () => {
+    const response = await createSession({
+      ...createBody,
+      playerBalances: seats([130, 100, 90, 80], [1, 1, 3, 4]),
+    });
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: "A player cannot be recorded twice in one session",
+    });
+    expect(mocks.db.transaction).not.toHaveBeenCalled();
+  });
+
+  it("rejects a seat with no player reference", async () => {
+    const response = await createSession({
+      ...createBody,
+      playerBalances: createBody.playerBalances.map((balance, index) =>
+        index === 0 ? { name: "Alice", endingAmount: balance.endingAmount, zhaHuCount: 0, xieXieKaiXiangCount: 0 } : balance,
+      ),
+    });
+
+    expect(response.status).toBe(400);
+    expect(mocks.db.insert).not.toHaveBeenCalled();
+  });
+
+  it("validates replaced balances on update, including their player references", async () => {
+    mocks.selectResults.push([session], players.slice(0, 3));
+
     const response = await request(
-      "/api/sessions",
-      { method: "POST", body: JSON.stringify(createBody) },
+      "/api/sessions/1",
+      {
+        method: "PATCH",
+        body: JSON.stringify({ playerBalances: seats([130, 100, 90, 80], [1, 2, 3, 77]) }),
+      },
       adminUserId,
     );
 
-    expect(response.status).toBe(201);
-    expect(await response.json()).toMatchObject({
-      id: session.id,
-      announcement: { status: "failed", reason: "delivery_failed" },
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: "playerId 77 does not reference an existing player",
     });
+    expect(mocks.db.update).not.toHaveBeenCalled();
   });
 
   it.each([-1, 1.5])(
     "rejects an invalid Zha Hu count of %s",
     async (zhaHuCount) => {
-      const invalidBody = {
+      const response = await createSession({
         ...createBody,
         playerBalances: createBody.playerBalances.map((player, index) =>
           index === 0 ? { ...player, zhaHuCount } : player,
         ),
-      };
-      const response = await request(
-        "/api/sessions",
-        { method: "POST", body: JSON.stringify(invalidBody) },
-        adminUserId,
-      );
+      });
       expect(response.status).toBe(400);
       expect(mocks.db.insert).not.toHaveBeenCalled();
     },
@@ -722,128 +425,26 @@ describe("session authorization", () => {
   it.each([-1, 1.5])(
     "rejects an invalid 谢谢 Kai Xiang count of %s",
     async (xieXieKaiXiangCount) => {
-      const invalidBody = {
+      const response = await createSession({
         ...createBody,
         playerBalances: createBody.playerBalances.map((player, index) =>
           index === 0 ? { ...player, xieXieKaiXiangCount } : player,
         ),
-      };
-      const response = await request(
-        "/api/sessions",
-        { method: "POST", body: JSON.stringify(invalidBody) },
-        adminUserId,
-      );
+      });
       expect(response.status).toBe(400);
       expect(mocks.db.insert).not.toHaveBeenCalled();
     },
   );
-
-  it("rejects a player reference that does not exist", async () => {
-    const invalidBody = {
-      ...createBody,
-      playerBalances: createBody.playerBalances.map((player, index) =>
-        index === 0 ? { ...player, playerId: 999 } : player,
-      ),
-    };
-    mocks.selectResults.push([]);
-
-    const response = await request(
-      "/api/sessions",
-      { method: "POST", body: JSON.stringify(invalidBody) },
-      adminUserId,
-    );
-
-    expect(response.status).toBe(400);
-    expect(await response.json()).toMatchObject({
-      error: "playerId 999 does not reference an existing player",
-    });
-    expect(mocks.db.insert).not.toHaveBeenCalled();
-  });
-
-  it("rejects duplicate player references within a session", async () => {
-    const invalidBody = {
-      ...createBody,
-      playerBalances: createBody.playerBalances.map((player, index) =>
-        index < 2 ? { ...player, playerId: 1 } : player,
-      ),
-    };
-
-    const response = await request(
-      "/api/sessions",
-      { method: "POST", body: JSON.stringify(invalidBody) },
-      adminUserId,
-    );
-
-    expect(response.status).toBe(400);
-    expect(await response.json()).toMatchObject({
-      error: "playerId values must be unique within a session",
-    });
-    expect(mocks.db.select).not.toHaveBeenCalled();
-    expect(mocks.db.insert).not.toHaveBeenCalled();
-  });
-
-  it("treats a valid playerId as authoritative over a stale or mismatched submitted name", async () => {
-    const staleNameBody = {
-      ...createBody,
-      playerBalances: createBody.playerBalances.map((player, index) =>
-        index === 0 ? { ...player, playerId: 1, name: "Not Alice" } : player,
-      ),
-    };
-    const linkedSession = {
-      ...session,
-      playerBalances: session.playerBalances.map((player, index) => ({
-        ...player,
-        playerId: index + 1,
-      })),
-    };
-    mocks.selectResults.push(writablePlayers);
-    mocks.mutationResults.push([linkedSession]);
-
-    const response = await request(
-      "/api/sessions",
-      { method: "POST", body: JSON.stringify(staleNameBody) },
-      adminUserId,
-    );
-
-    expect(response.status).toBe(201);
-    expect(await response.json()).toMatchObject({
-      playerBalances: [
-        { name: "Alice", playerId: 1 },
-        { name: "Bob", playerId: 2 },
-        { name: "Carol", playerId: 3 },
-        { name: "Dave", playerId: 4 },
-      ],
-    });
-    // No new player is created for the mismatched name — the ID wins and
-    // the only insert is the session row itself.
-    expect(mocks.db.insert).toHaveBeenCalledTimes(1);
-    expect(mocks.db.insert).toHaveBeenCalledWith(mahjongSessionsTable);
-  });
 });
 
 describe("session stakes", () => {
-  function withAmounts(amounts: number[]) {
-    return createBody.playerBalances.map((player, index) => ({
-      ...player,
-      endingAmount: amounts[index],
-    }));
-  }
-
-  async function createWith(body: unknown) {
-    return request(
-      "/api/sessions",
-      { method: "POST", body: JSON.stringify(body) },
-      adminUserId,
-    );
-  }
-
   it.each([0, -400, 400.5, 402])(
     "rejects a base pot of %s that is not a positive whole number divisible by four",
     async (basePot) => {
-      const response = await createWith({
+      const response = await createSession({
         ...createBody,
         basePot,
-        playerBalances: withAmounts([basePot, 0, 0, 0]),
+        playerBalances: seats([basePot, 0, 0, 0]),
       });
 
       expect(response.status).toBe(400);
@@ -856,9 +457,9 @@ describe("session stakes", () => {
     ["short of", [130, 100, 90, 79], "Ending amounts are $1 short of the $400 base pot"],
     ["over", [130, 100, 90, 90], "Ending amounts exceed the $400 base pot by $10"],
   ])("rejects ending amounts that fall %s the base pot", async (_label, amounts, error) => {
-    const response = await createWith({
+    const response = await createSession({
       ...createBody,
-      playerBalances: withAmounts(amounts as number[]),
+      playerBalances: seats(amounts as number[]),
     });
 
     expect(response.status).toBe(400);
@@ -870,9 +471,9 @@ describe("session stakes", () => {
     ["a non-integer", 129.5],
     ["a negative", -30],
   ])("rejects %s ending amount", async (_label, amount) => {
-    const response = await createWith({
+    const response = await createSession({
       ...createBody,
-      playerBalances: withAmounts([amount, 100, 90, 210 - amount]),
+      playerBalances: seats([amount, 100, 90, 210 - amount]),
     });
 
     expect(response.status).toBe(400);
@@ -880,11 +481,11 @@ describe("session stakes", () => {
   });
 
   it("accepts a player who busted out at zero", async () => {
-    const bustedBalances = withAmounts([220, 100, 80, 0]);
-    mocks.selectResults.push(writablePlayers);
-    mocks.mutationResults.push([{ ...session, playerBalances: bustedBalances }]);
+    const bustedBalances = seats([220, 100, 80, 0]);
+    mocks.selectResults.push(players);
+    mocks.mutationResults.push([sessionWith({ playerBalances: bustedBalances })]);
 
-    const response = await createWith({ ...createBody, playerBalances: bustedBalances });
+    const response = await createSession({ ...createBody, playerBalances: bustedBalances });
 
     expect(response.status).toBe(201);
     expect(await response.json()).toMatchObject({
@@ -899,11 +500,11 @@ describe("session stakes", () => {
   });
 
   it("stores the base pot the creator supplied", async () => {
-    const balances = withAmounts([700, 500, 450, 350]);
-    mocks.selectResults.push(writablePlayers);
-    mocks.mutationResults.push([{ ...session, basePot: 2000, playerBalances: balances }]);
+    const balances = seats([700, 500, 450, 350]);
+    mocks.selectResults.push(players);
+    mocks.mutationResults.push([sessionWith({ basePot: 2000, playerBalances: balances })]);
 
-    const response = await createWith({ ...createBody, basePot: 2000, playerBalances: balances });
+    const response = await createSession({ ...createBody, basePot: 2000, playerBalances: balances });
 
     expect(response.status).toBe(201);
     expect(await response.json()).toMatchObject({ basePot: 2000 });
@@ -926,9 +527,9 @@ describe("session stakes", () => {
   });
 
   it("accepts a new base pot together with amounts rebalanced to it", async () => {
-    const rebalanced = withAmounts([800, 500, 400, 300]);
-    mocks.selectResults.push([session], writablePlayers);
-    mocks.mutationResults.push([{ ...session, basePot: 2000, playerBalances: rebalanced }]);
+    const rebalanced = seats([800, 500, 400, 300]);
+    mocks.selectResults.push([session], players);
+    mocks.mutationResults.push([sessionWith({ basePot: 2000, playerBalances: rebalanced })]);
 
     const response = await request(
       "/api/sessions/1",
@@ -950,7 +551,7 @@ describe("session stakes", () => {
       "/api/sessions/1",
       {
         method: "PATCH",
-        body: JSON.stringify({ playerBalances: withAmounts([130, 100, 90, 81]) }),
+        body: JSON.stringify({ playerBalances: seats([130, 100, 90, 81]) }),
       },
       adminUserId,
     );
@@ -958,99 +559,209 @@ describe("session stakes", () => {
     expect(response.status).toBe(400);
     expect(mocks.db.update).not.toHaveBeenCalled();
   });
+
+  it("returns 404 when changing the stakes of a session that doesn't exist", async () => {
+    mocks.selectResults.push([]);
+
+    const response = await request(
+      "/api/sessions/99",
+      { method: "PATCH", body: JSON.stringify({ basePot: 400 }) },
+      adminUserId,
+    );
+
+    expect(response.status).toBe(404);
+  });
 });
 
-describe("player listing", () => {
-  const players = [
-    {
-      id: 1,
-      name: "Alex",
-      active: true,
-      createdByUserId: null,
-      createdAt: new Date("2026-09-01T12:00:00Z"),
-    },
-    {
+describe("session summary", () => {
+  it("aggregates every statistic by player identity across sessions, named from the player record", async () => {
+    const secondSession = sessionWith({
       id: 2,
-      name: "Bea",
-      active: false,
-      createdByUserId: null,
-      createdAt: new Date("2026-09-01T12:00:00Z"),
-    },
-    {
-      id: 3,
-      name: "Chen",
-      active: true,
-      createdByUserId: null,
-      createdAt: new Date("2026-09-01T12:00:00Z"),
-    },
-  ];
-
-  const sessions = [
-    {
       playerBalances: [
-        {
-          playerId: 1,
-          name: "Alex",
-          endingAmount: 500,
-          zhaHuCount: 0,
-          xieXieKaiXiangCount: 0,
-        },
-        {
-          playerId: 2,
-          name: "Bea",
-          endingAmount: 500,
-          zhaHuCount: 0,
-          xieXieKaiXiangCount: 0,
-        },
+        { playerId: 1, endingAmount: 120, zhaHuCount: 2, xieXieKaiXiangCount: 2 },
+        { playerId: 2, endingAmount: 110, zhaHuCount: 1, xieXieKaiXiangCount: 0 },
+        { playerId: 5, endingAmount: 90, zhaHuCount: 4, xieXieKaiXiangCount: 4 },
+        { playerId: 6, endingAmount: 80, zhaHuCount: 0, xieXieKaiXiangCount: 0 },
       ],
-    },
-    {
-      playerBalances: [
-        {
-          name: "Alex",
-          endingAmount: 500,
-          zhaHuCount: 0,
-          xieXieKaiXiangCount: 0,
-        },
-        {
-          playerId: 3,
-          name: "Chen",
-          endingAmount: 500,
-          zhaHuCount: 0,
-          xieXieKaiXiangCount: 0,
-        },
+    });
+    // Player 1 has since been renamed; 5 and 6 share a display name but are
+    // different people, so they must stay separate rows.
+    const roster = [
+      { id: 1, name: "Alicia" },
+      { id: 2, name: "Bob" },
+      { id: 3, name: "Carol" },
+      { id: 4, name: "Dave" },
+      { id: 5, name: "Alex" },
+      { id: 6, name: "Alex" },
+    ];
+
+    const summary = await getSummary([session, secondSession], roster);
+
+    expect(summary).toMatchObject({
+      totalSessions: 2,
+      totalRounds: 8,
+      zhaHuCounts: [
+        { playerId: 5, playerName: "Alex", count: 4 },
+        { playerId: 1, playerName: "Alicia", count: 3 },
+        { playerId: 3, playerName: "Carol", count: 2 },
+        { playerId: 2, playerName: "Bob", count: 1 },
+        { playerId: 6, playerName: "Alex", count: 0 },
+        { playerId: 4, playerName: "Dave", count: 0 },
       ],
-    },
-  ];
-
-  it("lists public players with session counts", async () => {
-    mocks.selectResults.push(players, sessions);
-
-    const response = await request("/api/players");
-
-    expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject([
-      { id: 1, name: "Alex", active: true, sessionCount: 2 },
-      { id: 2, name: "Bea", active: false, sessionCount: 1 },
-      { id: 3, name: "Chen", active: true, sessionCount: 1 },
-    ]);
-    expect(mocks.getUser).not.toHaveBeenCalled();
+      xieXieKaiXiangCounts: [
+        { playerId: 5, count: 4 },
+        { playerId: 1, count: 3 },
+        { playerId: 2, count: 2 },
+        { playerId: 6, count: 0 },
+        { playerId: 3, count: 0 },
+        { playerId: 4, count: 0 },
+      ],
+    });
+    expect(summary).not.toHaveProperty("totalAmount");
+    expect(summary).not.toHaveProperty("winnerCounts");
+    const names = (summary as { playerWinnings: { playerName: string }[] }).playerWinnings.map(
+      (row) => row.playerName,
+    );
+    expect(names).not.toContain("Alice");
+    expect(names.filter((name) => name === "Alicia")).toHaveLength(1);
   });
 
-  it.each([
-    ["true", [players[0], players[2]]],
-    ["false", [players[1]]],
-  ])("filters players by active=%s", async (active, expectedPlayers) => {
-    mocks.selectResults.push(expectedPlayers, sessions);
+  it("calculates cumulative winnings from each session's own base pot", async () => {
+    // $2000 base: a $500 share each.
+    const firstSession = sessionWith({
+      basePot: 2000,
+      playerBalances: seats([565, 510, 525, 400], [1, 2, 3, 4]),
+    });
+    // $800 base: a $200 share each, so Alice's 200 breaks even here rather
+    // than counting as a $300 loss against the customary stakes.
+    const secondSession = sessionWith({
+      id: 2,
+      basePot: 800,
+      playerBalances: seats([200, 190, 145, 265], [1, 2, 5, 6]),
+    });
+    const legacySession = sessionWith({ id: 3, playerBalances: [] });
+    const roster = [
+      { id: 1, name: "Tom" },
+      { id: 2, name: "Dick" },
+      { id: 3, name: "Harry" },
+      { id: 4, name: "Ben" },
+      { id: 5, name: "Ivy" },
+      { id: 6, name: "Zoe" },
+    ];
 
-    const response = await request(`/api/players?active=${active}`);
+    const summary = await getSummary([firstSession, secondSession, legacySession], roster);
 
-    expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject(
-      expectedPlayers.map((player) => ({
-        id: player.id,
-        active: player.active,
-      })),
-    );
+    expect(summary).toMatchObject({
+      totalSessions: 3,
+      playerWinnings: [
+        { playerName: "Tom", netAmount: 65 },
+        { playerName: "Zoe", netAmount: 65 },
+        { playerName: "Harry", netAmount: 25 },
+        { playerName: "Dick", netAmount: 0 },
+        { playerName: "Ivy", netAmount: -55 },
+        { playerName: "Ben", netAmount: -100 },
+      ],
+    });
+  });
+
+  it("credits every player who finished above their share, and nobody on a night with no winners", async () => {
+    // $400 base, $100 share. Two players in profit.
+    const twoWinners = sessionWith({ playerBalances: seats([150, 110, 100, 40]) });
+    // One player in profit.
+    const oneWinner = sessionWith({ id: 2, playerBalances: seats([100, 100, 99, 101]) });
+    // Everyone broke even: finishing exactly on the share is not a win.
+    const noWinners = sessionWith({ id: 3, playerBalances: seats([100, 100, 100, 100]) });
+
+    const summary = await getSummary([twoWinners, oneWinner, noWinners]);
+
+    expect(summary).toMatchObject({
+      profitNightCounts: [
+        { playerId: 1, playerName: "Alice", nights: 1 },
+        { playerId: 2, playerName: "Bob", nights: 1 },
+        { playerId: 4, playerName: "Dave", nights: 1 },
+      ],
+    });
+    expect(
+      (summary as { profitNightCounts: unknown[] }).profitNightCounts,
+    ).toHaveLength(3);
+  });
+
+  it("counts the same player's profitable nights together", async () => {
+    const summary = await getSummary([
+      sessionWith({ playerBalances: seats([130, 100, 90, 80]) }),
+      sessionWith({ id: 2, playerBalances: seats([101, 99, 100, 100]) }),
+      sessionWith({ id: 3, playerBalances: seats([90, 110, 100, 100]) }),
+    ]);
+
+    expect(summary).toMatchObject({
+      profitNightCounts: [
+        { playerId: 1, nights: 2 },
+        { playerId: 2, nights: 1 },
+      ],
+    });
+  });
+});
+
+describe("session announcements", () => {
+  it("announces a newly created session with escaped HTML and delivery metadata", async () => {
+    process.env.TELEGRAM_BOT_TOKEN = "test-token";
+    process.env.TELEGRAM_CHAT_ID = "-100123";
+    process.env.SCOREBOARD_URL = "https://scoreboard.example/app";
+    mocks.telegramSend.mockResolvedValue({ status: "sent", messageId: 42 });
+    mocks.selectResults.push([{ id: 1, name: "A & <Ace>" }, ...players.slice(1)]);
+    mocks.mutationResults.push([{ ...session, notes: "Bring snacks & <tea>" }]);
+
+    const response = await createSession(createBody);
+
+    expect(response.status).toBe(201);
+    expect(await response.json()).toMatchObject({
+      announcement: { status: "sent", messageId: 42 },
+    });
+    expect(mocks.telegramSend).toHaveBeenCalledWith({
+      parseMode: "HTML",
+      text: expect.stringContaining("A &amp; &lt;Ace&gt;"),
+    });
+    const [{ text }] = mocks.telegramSend.mock.calls[0] as [{ text: string }];
+    expect(text).toContain("https://scoreboard.example/app");
+    // Net positions are measured against this session's own $400 base,
+    // i.e. a $100 share each. Bob's even finish is not "in profit".
+    expect(text).toContain("In profit: <b>A &amp; &lt;Ace&gt;</b> (+$30.00)");
+    expect(text).toContain("Largest stack: A &amp; &lt;Ace&gt;");
+    expect(text).toContain("$130.00 (+$30.00)");
+    expect(text).toContain("<b>Bob</b> · $100.00 (+$0.00)");
+    expect(text).toContain("$90.00 (-$10.00)");
+    expect(text).toContain("$80.00 (-$20.00)");
+    expect(text).toContain("<b>Rounds</b>: 4");
+    expect(text).toContain("<b>Base pot</b>: $400.00 ($100.00 per player)");
+    expect(text).toContain("诈胡 1");
+    expect(text).toContain("谢谢开相 1");
+    expect(text).toContain("Bring snacks &amp; &lt;tea&gt;");
+    expect(text).not.toContain("A & <Ace>");
+  });
+
+  it("says so when nobody finished in profit", async () => {
+    const evenNight = seats([100, 100, 100, 100]);
+    mocks.selectResults.push(players);
+    mocks.mutationResults.push([sessionWith({ playerBalances: evenNight })]);
+
+    await createSession({ ...createBody, playerBalances: evenNight });
+
+    const [{ text }] = mocks.telegramSend.mock.calls[0] as [{ text: string }];
+    expect(text).toContain("Nobody finished in profit");
+    expect(text).toContain("Largest stack: Alice, Bob, Carol, Dave");
+  });
+
+  it("persists a session and reports a failed announcement separately", async () => {
+    mocks.telegramSend.mockRejectedValue(new Error("Telegram is unavailable"));
+    mocks.selectResults.push(players);
+    mocks.mutationResults.push([session]);
+
+    const response = await createSession(createBody);
+
+    expect(response.status).toBe(201);
+    expect(await response.json()).toMatchObject({
+      id: session.id,
+      announcement: { status: "failed", reason: "delivery_failed" },
+    });
   });
 });

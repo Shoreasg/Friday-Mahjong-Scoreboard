@@ -118,18 +118,20 @@ function AnalyticsTooltip({
 
 export function PerformanceAnalytics({
   sessions,
+  playerNames,
 }: {
   sessions: MahjongSession[];
+  playerNames: ReadonlyMap<number, string>;
 }) {
-  const players = getPlayerIdentities(sessions);
+  const players = getPlayerIdentities(sessions, playerNames);
   const winningsData = buildWinningsData(sessions, players);
   const winRates = buildWinRates(sessions, players);
   const incidentData = buildIncidentData(sessions);
-  const [focusedPlayers, setFocusedPlayers] = useState<Set<string>>(
+  const [focusedPlayers, setFocusedPlayers] = useState<Set<number>>(
     () => new Set(),
   );
   const { resolvedTheme } = useTheme();
-  const playerNames = new Map(
+  const seriesNames = new Map(
     players.map((player) => [player.seriesKey, player.name]),
   );
 
@@ -164,7 +166,7 @@ export function PerformanceAnalytics({
     },
   } satisfies ChartConfig;
 
-  function togglePlayer(key: string) {
+  function togglePlayer(key: number) {
     setFocusedPlayers((current) => {
       const next = new Set(current);
       if (next.has(key)) next.delete(key);
@@ -271,7 +273,7 @@ export function PerformanceAnalytics({
                     <Tooltip
                       cursor={{ strokeWidth: 2, strokeDasharray: "4 4" }}
                       content={
-                        <AnalyticsTooltip playerNames={playerNames} />
+                        <AnalyticsTooltip playerNames={seriesNames} />
                       }
                     />
                     {players.map((player) => {
@@ -310,7 +312,7 @@ export function PerformanceAnalytics({
               Win Rate
             </h3>
             <p className="mb-4 text-sm font-bold text-muted-foreground">
-              Wins divided by sessions personally played.
+              Nights finished in profit divided by sessions personally played.
             </p>
             {winRates.length > 0 ? (
               <>

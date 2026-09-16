@@ -27,5 +27,8 @@ pnpm --filter @workspace/db run seed
 echo "==> Expanding session balances with player records..."
 pnpm --filter @workspace/scripts run seed:players
 
+echo "==> Removing copied player names from session balances..."
+pnpm --filter @workspace/scripts run migrate:sessions:after-push
+
 echo "==> Starting the API server in watch mode..."
 exec pnpm --filter @workspace/api-server run watch

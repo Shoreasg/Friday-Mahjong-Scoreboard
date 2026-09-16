@@ -275,7 +275,7 @@
         },
         {
           "path": "lib/db/src/schema/mahjong-sessions.ts",
-          "label": "integer base_pot; jsonb player_balances with player references"
+          "label": "integer base_pot; jsonb player_balances referencing players by id only"
         }
       ]
     },

@@ -1,4 +1,5 @@
-import { useGetSessionSummary, useListSessions, useCreateSession, useDeleteSession, useUpdateSession, getGetSessionSummaryQueryKey, getListSessionsQueryKey } from "@workspace/api-client-react";
+import { useGetSessionSummary, useListPlayers, useListSessions, useCreateSession, useDeleteSession, useUpdateSession, getGetSessionSummaryQueryKey, getListPlayersQueryKey, getListSessionsQueryKey } from "@workspace/api-client-react";
+import { isInProfit, largestStackPlayerIds } from "@workspace/session-rules";
 import { queryClient } from "@/lib/queryClient";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -78,6 +79,17 @@ export default function Dashboard() {
   
   const { data: summary, isLoading: isLoadingSummary } = useGetSessionSummary();
   const { data: sessions, isLoading: isLoadingSessions } = useListSessions();
+  const { data: players, isLoading: isLoadingPlayers } = useListPlayers();
+  // Balances reference players by id; names always come from the player
+  // record so a rename shows up on every past session.
+  const playerNames = new Map(players?.map((player) => [player.id, player.name]));
+  const nameOf = (playerId: number) => playerNames.get(playerId) ?? `Player #${playerId}`;
+
+  function invalidateScoreboard() {
+    queryClient.invalidateQueries({ queryKey: getListSessionsQueryKey() });
+    queryClient.invalidateQueries({ queryKey: getGetSessionSummaryQueryKey() });
+    queryClient.invalidateQueries({ queryKey: getListPlayersQueryKey() });
+  }
 
   const [createOpen, setCreateOpen] = useState(false);
   const [editSession, setEditSession] = useState<MahjongSession | null>(null);
@@ -85,8 +97,7 @@ export default function Dashboard() {
   const createMutation = useCreateSession({
     mutation: {
       onSuccess: (data) => {
-        queryClient.invalidateQueries({ queryKey: getListSessionsQueryKey() });
-        queryClient.invalidateQueries({ queryKey: getGetSessionSummaryQueryKey() });
+        invalidateScoreboard();
         setCreateOpen(false);
         const notification = getSessionCreationNotification(data.announcement);
         if (notification.variant === "warning") {
@@ -102,8 +113,7 @@ export default function Dashboard() {
   const updateMutation = useUpdateSession({
     mutation: {
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: getListSessionsQueryKey() });
-        queryClient.invalidateQueries({ queryKey: getGetSessionSummaryQueryKey() });
+        invalidateScoreboard();
         setEditSession(null);
         toast.success("Session updated successfully");
       },
@@ -114,15 +124,14 @@ export default function Dashboard() {
   const deleteMutation = useDeleteSession({
     mutation: {
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: getListSessionsQueryKey() });
-        queryClient.invalidateQueries({ queryKey: getGetSessionSummaryQueryKey() });
+        invalidateScoreboard();
         toast.success("Session deleted");
       },
       onError: () => toast.error("Failed to delete session")
     }
   });
 
-  if (isLoadingSummary || isLoadingSessions) {
+  if (isLoadingSummary || isLoadingSessions || isLoadingPlayers) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4 bg-background">
         <div className="flex flex-col items-center space-y-6">
@@ -135,9 +144,9 @@ export default function Dashboard() {
     );
   }
 
-  const sortedWinners = summary?.winnerCounts 
-    ? [...summary.winnerCounts].sort(
-        (a, b) => b.wins - a.wins || a.winnerName.localeCompare(b.winnerName),
+  const sortedProfitNights = summary?.profitNightCounts
+    ? [...summary.profitNightCounts].sort(
+        (a, b) => b.nights - a.nights || a.playerName.localeCompare(b.playerName),
       )
     : [];
   const sortedWinnings = summary?.playerWinnings
@@ -217,7 +226,7 @@ export default function Dashboard() {
                 <div className="grid grid-cols-2 gap-x-6 gap-y-3">
                   {summary.playerWinnings.map((player) => (
                     <div
-                      key={player.playerName.toLocaleLowerCase()}
+                      key={player.playerId}
                       className="flex min-w-0 items-center justify-between gap-2 border-2 border-ink bg-muted px-3 py-2 brutal-shadow-sm"
                     >
                       <span className="truncate font-black text-foreground uppercase">{player.playerName}</span>
@@ -229,7 +238,7 @@ export default function Dashboard() {
                               ? "text-destructive border-b-2 border-destructive"
                               : "text-foreground"
                         }`}
-                        data-testid={`text-player-winnings-${player.playerName.toLocaleLowerCase()}`}
+                        data-testid={`text-player-winnings-${player.playerId}`}
                       >
                         {formatSignedCurrency(player.netAmount)}
                       </span>
@@ -246,7 +255,7 @@ export default function Dashboard() {
         </section>
 
         <Suspense fallback={<PerformanceAnalyticsPlaceholder />}>
-          <PerformanceAnalytics sessions={sessions ?? []} />
+          <PerformanceAnalytics sessions={sessions ?? []} playerNames={playerNames} />
         </Suspense>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
@@ -255,18 +264,18 @@ export default function Dashboard() {
             <div>
               <h2 className="font-sans font-black text-2xl text-foreground flex items-center gap-2 uppercase mb-4">
                 <Trophy className="w-6 h-6 text-foreground" strokeWidth={3} />
-                Wins Leaderboard
+                Nights in Profit
               </h2>
               <Card className="bg-card overflow-hidden">
                 <CardContent className="p-0">
-                  {sortedWinners.length === 0 ? (
+                  {sortedProfitNights.length === 0 ? (
                     <div className="p-8 text-center font-bold text-muted-foreground uppercase tracking-wide">
-                      NO GAMES RECORDED.
+                      NOBODY HAS FINISHED IN PROFIT YET.
                     </div>
                   ) : (
                     <ul className="divide-y-2 divide-ink">
-                      {sortedWinners.map((winner, index) => (
-                        <li key={winner.winnerName} className="flex items-center justify-between p-4" data-testid={`row-winner-${index}`}>
+                      {sortedProfitNights.map((winner, index) => (
+                        <li key={winner.playerId} className="flex items-center justify-between p-4" data-testid={`row-profit-nights-${index}`}>
                           <div className="flex items-center gap-4">
                             <div className={`w-10 h-10 border-2 border-ink brutal-shadow-sm flex items-center justify-center font-mono text-lg font-bold ${
                               index === 0 ? 'bg-secondary text-black' :
@@ -275,10 +284,10 @@ export default function Dashboard() {
                             }`}>
                               {index + 1}
                             </div>
-                            <span className="font-black text-lg text-foreground uppercase">{winner.winnerName}</span>
+                            <span className="font-black text-lg text-foreground uppercase">{winner.playerName}</span>
                           </div>
                           <div className="text-sm font-black px-3 py-1 bg-primary text-primary-foreground border-2 border-ink brutal-shadow-sm tracking-widest">
-                            {winner.wins} {winner.wins === 1 ? 'WIN' : 'WINS'}
+                            {winner.nights} {winner.nights === 1 ? 'NIGHT' : 'NIGHTS'}
                           </div>
                         </li>
                       ))}
@@ -303,7 +312,7 @@ export default function Dashboard() {
                     <ul className="divide-y-2 divide-ink">
                       {sortedWinnings.map((player, index) => (
                         <li
-                          key={player.playerName.toLocaleLowerCase()}
+                          key={player.playerId}
                           className="flex items-center justify-between p-4"
                           data-testid={`row-winnings-${index}`}
                         >
@@ -357,7 +366,7 @@ export default function Dashboard() {
                   ) : (
                     <ul className="divide-y-2 divide-ink">
                       {sortedZhaHu.map((player, index) => (
-                        <li key={player.playerName.toLocaleLowerCase()} className="flex items-center justify-between p-4" data-testid={`row-zha-hu-${index}`}>
+                        <li key={player.playerId} className="flex items-center justify-between p-4" data-testid={`row-zha-hu-${index}`}>
                           <div className="flex items-center gap-4">
                             <div className={`w-10 h-10 border-2 border-ink brutal-shadow-sm flex items-center justify-center font-mono text-lg font-bold ${
                               index === 0 ? "bg-destructive text-destructive-foreground" :
@@ -394,7 +403,7 @@ export default function Dashboard() {
                     <ul className="divide-y-2 divide-ink">
                       {sortedXieXieKaiXiang.map((player, index) => (
                         <li
-                          key={player.playerName.toLocaleLowerCase()}
+                          key={player.playerId}
                           className="flex items-center justify-between p-4"
                           data-testid={`row-xie-xie-kai-xiang-${index}`}
                         >
@@ -445,7 +454,9 @@ export default function Dashboard() {
                   </CardContent>
                 </Card>
               ) : (
-                sessions?.map((session) => (
+                sessions?.map((session) => {
+                  const largestStack = largestStackPlayerIds(session.playerBalances);
+                  return (
                   <Card key={session.id} className="bg-card hover:-translate-y-[4px] hover:-translate-x-[4px] hover:shadow-[12px_12px_0_hsl(var(--brutal-shadow))] transition-all" data-testid={`card-session-${session.id}`}>
                     <CardContent className="p-6">
                       <div className="flex items-start justify-between gap-4">
@@ -455,10 +466,13 @@ export default function Dashboard() {
                               {format(parseISO(session.playedOn), "MMM d, yyyy").toUpperCase()}
                             </span>
                             <span className="text-sm font-bold text-foreground border-2 border-ink px-2 py-1 tracking-wide bg-muted">{session.rounds} ROUNDS</span>
+                            <span className="text-sm font-bold text-foreground border-2 border-ink px-2 py-1 tracking-wide bg-muted" data-testid={`text-base-pot-${session.id}`}>${session.basePot} POT</span>
                           </div>
-                          <div className="mt-5 text-xl font-sans font-black uppercase tracking-wide">
-                            Winner: <span className="ml-2 bg-primary px-2 py-1 border-2 border-ink brutal-shadow-sm text-primary-foreground">{session.winnerName}</span>
-                          </div>
+                          {largestStack.length > 0 && (
+                            <div className="mt-5 text-xl font-sans font-black uppercase tracking-wide" data-testid={`text-largest-stack-${session.id}`}>
+                              Largest stack: <span className="ml-2 bg-secondary px-2 py-1 border-2 border-ink brutal-shadow-sm text-secondary-foreground">{largestStack.map(nameOf).join(" & ")}</span>
+                            </div>
+                          )}
                         </div>
                         {isAdmin && (
                           <div className="flex shrink-0 items-center gap-2">
@@ -494,14 +508,15 @@ export default function Dashboard() {
                         <div className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
                           {session.playerBalances.map((player) => (
                             <div
-                              key={player.name}
+                              key={player.playerId}
                               className={`flex min-w-0 items-center justify-between gap-2 border-2 border-ink px-3 py-2 sm:px-4 sm:py-3 shadow-[3px_3px_0_hsl(var(--brutal-shadow))] ${
-                                player.name === session.winnerName
+                                isInProfit(player.endingAmount, session.basePot)
                                   ? "bg-primary text-black"
                                   : "bg-tile text-foreground"
                               }`}
+                              data-in-profit={isInProfit(player.endingAmount, session.basePot)}
                             >
-                              <span className="truncate font-black uppercase text-sm sm:text-base tracking-wide">{player.name}</span>
+                              <span className="truncate font-black uppercase text-sm sm:text-base tracking-wide">{nameOf(player.playerId)}</span>
                               <span className="flex shrink-0 flex-wrap items-center justify-end gap-2">
                                 {player.zhaHuCount > 0 && (
                                   <span className="bg-destructive text-destructive-foreground border-2 border-ink px-1.5 py-0.5 font-black text-xs brutal-shadow-sm">
@@ -513,7 +528,7 @@ export default function Dashboard() {
                                     谢谢 {player.xieXieKaiXiangCount}
                                   </span>
                                 )}
-                                <span className="font-mono font-bold text-base sm:text-lg">${player.endingAmount.toFixed(2)}</span>
+                                <span className="font-mono font-bold text-base sm:text-lg">${player.endingAmount}</span>
                               </span>
                             </div>
                           ))}
@@ -539,7 +554,8 @@ export default function Dashboard() {
                       )}
                     </CardContent>
                   </Card>
-                ))
+                  );
+                })
               )}
             </div>
           </section>

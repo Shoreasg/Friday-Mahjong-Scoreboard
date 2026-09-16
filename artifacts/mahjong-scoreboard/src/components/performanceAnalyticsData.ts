@@ -1,12 +1,9 @@
 import type { MahjongSession } from "@workspace/api-client-react";
-import {
-  normalizePlayerName,
-  netWinnings,
-} from "@workspace/session-rules";
+import { isInProfit, netWinnings } from "@workspace/session-rules";
 import { format, parseISO } from "date-fns";
 
 export type PlayerIdentity = {
-  key: string;
+  key: number;
   name: string;
   seriesKey: string;
 };
@@ -18,7 +15,7 @@ export type WinningsPoint = {
 };
 
 export type WinRate = {
-  key: string;
+  key: number;
   playerName: string;
   wins: number;
   sessions: number;
@@ -31,27 +28,23 @@ export function chronologicalSessions(sessions: MahjongSession[]) {
   );
 }
 
+/**
+ * One identity per player id appearing in the sessions, named from the player
+ * record so a rename is reflected everywhere.
+ */
 export function getPlayerIdentities(
   sessions: MahjongSession[],
+  playerNames: ReadonlyMap<number, string>,
 ): PlayerIdentity[] {
-  const namesByKey = new Map<string, Set<string>>();
-  for (const session of sessions) {
-    for (const player of session.playerBalances) {
-      const name = player.name.trim();
-      const key = normalizePlayerName(name);
-      if (!key) continue;
-      const names = namesByKey.get(key) ?? new Set<string>();
-      names.add(name);
-      namesByKey.set(key, names);
-    }
-  }
+  const playerIds = new Set(
+    sessions.flatMap((session) =>
+      session.playerBalances.map((player) => player.playerId),
+    ),
+  );
 
-  return [...namesByKey.entries()]
-    .map(([key, names]) => ({
-      key,
-      name: [...names].sort((a, b) => a.localeCompare(b))[0],
-    }))
-    .sort((a, b) => a.name.localeCompare(b.name))
+  return [...playerIds]
+    .map((key) => ({ key, name: playerNames.get(key) ?? `Player #${key}` }))
+    .sort((a, b) => a.name.localeCompare(b.name) || a.key - b.key)
     .map((player, index) => ({
       ...player,
       seriesKey: `player${index}`,
@@ -62,8 +55,8 @@ export function buildWinningsData(
   sessions: MahjongSession[],
   players: PlayerIdentity[],
 ): WinningsPoint[] {
-  const running = new Map<string, number>();
-  const appeared = new Set<string>();
+  const running = new Map<number, number>();
+  const appeared = new Set<number>();
 
   return chronologicalSessions(sessions)
     .filter((session) => session.playerBalances.length > 0)
@@ -72,10 +65,10 @@ export function buildWinningsData(
         date: session.playedOn,
         dateLabel: format(parseISO(session.playedOn), "MMM d"),
       };
-      const changes = new Map<string, number>();
+      const changes = new Map<number, number>();
 
       for (const player of session.playerBalances) {
-        const key = normalizePlayerName(player.name);
+        const key = player.playerId;
         const change = netWinnings(player.endingAmount, session.basePot);
         changes.set(key, change);
         running.set(key, (running.get(key) ?? 0) + change);
@@ -110,15 +103,13 @@ export function buildWinRates(
 
   for (const session of sessions) {
     if (session.playerBalances.length === 0) continue;
-    const participants = new Set(
-      session.playerBalances.map((player) => normalizePlayerName(player.name)),
-    );
-    for (const key of participants) {
-      const player = rates.get(key);
-      if (player) player.sessions += 1;
+    for (const balance of session.playerBalances) {
+      const player = rates.get(balance.playerId);
+      if (!player) continue;
+      player.sessions += 1;
+      // A night counts as a win for everyone who finished above their share.
+      if (isInProfit(balance.endingAmount, session.basePot)) player.wins += 1;
     }
-    const winner = rates.get(normalizePlayerName(session.winnerName));
-    if (winner && participants.has(winner.key)) winner.wins += 1;
   }
 
   return [...rates.values()]

@@ -1,11 +1,14 @@
 import {
+  CreatePlayerBody,
+  CreatePlayerResponse,
   ListPlayersQueryParams,
   ListPlayersResponse,
 } from "@workspace/api-zod";
 import { db, mahjongSessionsTable, playersTable } from "@workspace/db";
-import { normalizePlayerName } from "@workspace/session-rules";
-import { eq } from "drizzle-orm";
+import { PLAYER_WRITE_LOCK_KEY } from "@workspace/session-rules";
+import { eq, sql } from "drizzle-orm";
 import { Router, type IRouter } from "express";
+import { requireAdmin } from "./requireAdmin";
 
 const router: IRouter = Router();
 
@@ -37,24 +40,12 @@ router.get("/players", async (req, res): Promise<void> => {
     .select({ playerBalances: mahjongSessionsTable.playerBalances })
     .from(mahjongSessionsTable);
 
-  const playerIdsByName = new Map(
-    players.map((player) => [normalizePlayerName(player.name), player.id]),
-  );
   const sessionCounts = new Map<number, number>();
   for (const session of sessions) {
-    const matchedPlayerIds = new Set<number>();
-    for (const balance of session.playerBalances ?? []) {
-      if (typeof balance.playerId === "number") {
-        if (players.some((player) => player.id === balance.playerId)) {
-          matchedPlayerIds.add(balance.playerId);
-        }
-        continue;
-      }
-
-      const playerId = playerIdsByName.get(normalizePlayerName(balance.name));
-      if (playerId !== undefined) matchedPlayerIds.add(playerId);
-    }
-    for (const playerId of matchedPlayerIds) {
+    const playerIds = new Set(
+      (session.playerBalances ?? []).map((balance) => balance.playerId),
+    );
+    for (const playerId of playerIds) {
       sessionCounts.set(playerId, (sessionCounts.get(playerId) ?? 0) + 1);
     }
   }
@@ -67,6 +58,38 @@ router.get("/players", async (req, res): Promise<void> => {
       })),
     ),
   );
+});
+
+router.post("/players", async (req, res): Promise<void> => {
+  const userId = await requireAdmin(req, res);
+  if (!userId) return;
+
+  const parsed = CreatePlayerBody.safeParse(req.body);
+  const name = parsed.success ? parsed.data.name.trim() : "";
+  if (!parsed.success || !name) {
+    res.status(400).json({
+      error: parsed.success ? "Player name is required" : parsed.error.message,
+    });
+    return;
+  }
+
+  const player = await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(${PLAYER_WRITE_LOCK_KEY})`);
+    const [created] = await tx
+      .insert(playersTable)
+      .values({ name, createdByUserId: userId })
+      // Names are unique ignoring case and surrounding whitespace.
+      .onConflictDoNothing()
+      .returning();
+    return created;
+  });
+
+  if (!player) {
+    res.status(409).json({ error: `A player named "${name}" already exists` });
+    return;
+  }
+
+  res.status(201).json(CreatePlayerResponse.parse({ ...player, sessionCount: 0 }));
 });
 
 export default router;
