@@ -15,6 +15,9 @@ fi
 echo "==> Reconciling duplicate player names before schema push..."
 pnpm --filter @workspace/scripts run reconcile:players
 
+echo "==> Migrating session columns that a forced schema push would otherwise drop..."
+pnpm --filter @workspace/scripts run migrate:sessions
+
 echo "==> Pushing the Drizzle schema to Postgres..."
 pnpm --filter @workspace/db run push-force
 
@@ -23,6 +26,9 @@ pnpm --filter @workspace/db run seed
 
 echo "==> Expanding session balances with player records..."
 pnpm --filter @workspace/scripts run seed:players
+
+echo "==> Removing copied player names from session balances..."
+pnpm --filter @workspace/scripts run migrate:sessions:after-push
 
 echo "==> Starting the API server in watch mode..."
 exec pnpm --filter @workspace/api-server run watch

@@ -60,8 +60,7 @@ try {
       id serial PRIMARY KEY,
       played_on date NOT NULL,
       rounds integer NOT NULL,
-      total_amount double precision NOT NULL,
-      winner_name text NOT NULL,
+      base_pot integer NOT NULL,
       player_balances jsonb NOT NULL DEFAULT '[]',
       notes text,
       created_by_user_id text,
@@ -84,6 +83,13 @@ const { db, mahjongSessionsTable, playersTable, pool } = await import("@workspac
 const { PLAYER_WRITE_LOCK_KEY } = await import("@workspace/session-rules");
 const { eq, inArray, sql } = await import("drizzle-orm");
 const { reconcileDuplicatePlayers } = await import("./reconcile-duplicate-players");
+type PlayerBalance = import("@workspace/db").PlayerBalance;
+
+// These suites exercise the backfill against rows in the pre-contract shape,
+// where balances still carried a name, which PlayerBalance no longer allows.
+function legacyBalances(balances: import("./legacy-balances").StoredPlayerBalance[]) {
+  return balances as PlayerBalance[];
+}
 const { seedPlayers } = await import("./seed-players");
 
 function uniqueName(label: string): string {
@@ -204,11 +210,10 @@ describe("reconcileDuplicatePlayers duplicate handling (real Postgres, isolated 
         .values({
           playedOn: "2026-01-01",
           rounds: 1,
-          totalAmount: 0,
-          winnerName: name,
-          playerBalances: [
+          basePot: 2000,
+          playerBalances: legacyBalances([
             { name: loser.name, playerId: loser.id, endingAmount: 500, zhaHuCount: 0, xieXieKaiXiangCount: 0 },
-          ],
+          ]),
         })
         .returning();
       if (!session) throw new Error("setup failed to insert session");
@@ -258,9 +263,8 @@ describe("seedPlayers backfill (real Postgres, isolated schema)", () => {
       .values({
         playedOn: "2026-01-02",
         rounds: 1,
-        totalAmount: 0,
-        winnerName: name,
-        playerBalances: [{ name, endingAmount: 500, zhaHuCount: 0, xieXieKaiXiangCount: 0 }],
+        basePot: 2000,
+        playerBalances: legacyBalances([{ name, endingAmount: 500, zhaHuCount: 0, xieXieKaiXiangCount: 0 }]),
       })
       .returning();
     if (!session) throw new Error("setup failed to insert session");
@@ -299,18 +303,16 @@ describe("seedPlayers backfill (real Postgres, isolated schema)", () => {
         {
           playedOn: "2026-01-03",
           rounds: 1,
-          totalAmount: 0,
-          winnerName: validName,
-          playerBalances: [{ name: validName, endingAmount: 500, zhaHuCount: 0, xieXieKaiXiangCount: 0 }],
+          basePot: 2000,
+          playerBalances: legacyBalances([{ name: validName, endingAmount: 500, zhaHuCount: 0, xieXieKaiXiangCount: 0 }]),
         },
         {
           playedOn: "2026-01-04",
           rounds: 1,
-          totalAmount: 0,
-          winnerName: "Dangling",
-          playerBalances: [
+          basePot: 2000,
+          playerBalances: legacyBalances([
             { name: "Dangling", playerId: 999_999, endingAmount: 500, zhaHuCount: 0, xieXieKaiXiangCount: 0 },
-          ],
+          ]),
         },
       ])
       .returning();
@@ -329,7 +331,9 @@ describe("seedPlayers backfill (real Postgres, isolated schema)", () => {
       .select()
       .from(mahjongSessionsTable)
       .where(eq(mahjongSessionsTable.id, validSession.id));
-    const unchangedBalance = unchangedSession?.playerBalances[0];
+    const unchangedBalance = legacyBalances(unchangedSession?.playerBalances ?? [])[0] as
+      | import("./legacy-balances").StoredPlayerBalance
+      | undefined;
     expect(unchangedBalance?.name).toBe(validName);
     expect(unchangedBalance?.playerId).toBeUndefined();
   });

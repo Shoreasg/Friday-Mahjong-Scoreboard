@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './basePot';
 export * from './chipDenomination';
 export * from './chipScanInput';
 export * from './chipScanInputMimeType';
@@ -18,10 +19,12 @@ export * from './mahjongSessionInput';
 export * from './mahjongSessionUpdate';
 export * from './player';
 export * from './playerBalance';
+export * from './playerInput';
+export * from './playerUpdate';
 export * from './playerWinnings';
+export * from './profitNightCount';
 export * from './sessionCreationResponse';
 export * from './sessionSummary';
 export * from './telegramAnnouncementOutcome';
-export * from './winnerCount';
 export * from './xieXieKaiXiangCount';
 export * from './zhaHuCount';

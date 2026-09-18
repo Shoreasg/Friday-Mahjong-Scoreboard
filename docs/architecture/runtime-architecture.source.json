@@ -11,7 +11,7 @@
     ],
     "repository": {
       "url": "https://github.com/Shoreasg/Friday-Mahjong-Scoreboard",
-      "revision": "6abfe65ad0aed7dbc222a13507e811e4c0498228"
+      "revision": "0ec3caa2ad13b23690675e2831569118b1080609"
     },
     "views": [
       {
@@ -72,7 +72,7 @@
         },
         {
           "path": "artifacts/mahjong-scoreboard/src/App.tsx",
-          "label": "ClerkProvider + wouter routes"
+          "label": "Clerk + wouter routes: scoreboard, roster"
         }
       ]
     },
@@ -275,7 +275,7 @@
         },
         {
           "path": "lib/db/src/schema/mahjong-sessions.ts",
-          "label": "jsonb player_balances with player references"
+          "label": "base_pot + player_balances keyed by player id"
         }
       ]
     },
@@ -404,7 +404,8 @@
       "id": "api-to-db",
       "from": "api",
       "to": "db",
-      "label": "player and session SQL over pg Pool"
+      "label": "player and session SQL over pg Pool",
+      "labelDy": -42
     },
     {
       "id": "api-to-gemini",
@@ -469,7 +470,7 @@
       "title": "Contract and data",
       "items": [
         "Orval builds api-client-react hooks and api-zod parsers",
-        "players and mahjong_sessions tables; drizzle-kit push, no migrations"
+        "players and mahjong_sessions tables; drizzle-kit push plus pre-push column migrations"
       ]
     }
   ]

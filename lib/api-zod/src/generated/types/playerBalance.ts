@@ -7,14 +7,15 @@
  */
 
 export interface PlayerBalance {
-  /** @minimum 1 */
-  playerId?: number;
   /**
-     * @minLength 1
-     * @maxLength 80
+     * The player in this seat. Resolve the name from the player record.
+     * @minimum 1
      */
-  name: string;
-  /** @minimum 0 */
+  playerId: number;
+  /**
+     * Whole dollars the player finished the session with.
+     * @minimum 0
+     */
   endingAmount: number;
   /** @minimum 0 */
   zhaHuCount: number;

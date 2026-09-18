@@ -1,4 +1,4 @@
-import { db, pool, mahjongSessionsTable } from "./index";
+import { db, pool, mahjongSessionsTable, playersTable } from "./index";
 import type { PlayerBalance } from "./schema/mahjong-sessions";
 
 /*
@@ -11,7 +11,7 @@ type SeedSession = {
   playedOn: string;
   rounds: number;
   notes: string | null;
-  playerBalances: PlayerBalance[];
+  playerBalances: (Omit<PlayerBalance, "playerId"> & { name: string })[];
 };
 
 const seedSessions: SeedSession[] = [
@@ -105,12 +105,6 @@ const seedSessions: SeedSession[] = [
   },
 ];
 
-function winnerOf(playerBalances: PlayerBalance[]): string {
-  return [...playerBalances].sort(
-    (a, b) => b.endingAmount - a.endingAmount || a.name.localeCompare(b.name),
-  )[0].name;
-}
-
 async function seed(): Promise<void> {
   const existing = await db
     .select({ id: mahjongSessionsTable.id })
@@ -124,16 +118,37 @@ async function seed(): Promise<void> {
     return;
   }
 
+  const names = [
+    ...new Set(
+      seedSessions.flatMap((session) =>
+        session.playerBalances.map((balance) => balance.name),
+      ),
+    ),
+  ];
+  const players = await db
+    .insert(playersTable)
+    .values(names.map((name) => ({ name })))
+    .onConflictDoNothing()
+    .returning();
+  const playerIds = new Map(players.map((player) => [player.name, player.id]));
+  const allPlayers = await db.select().from(playersTable);
+  for (const player of allPlayers) playerIds.set(player.name, player.id);
+
   await db.insert(mahjongSessionsTable).values(
     seedSessions.map((session) => ({
       playedOn: session.playedOn,
       rounds: session.rounds,
-      totalAmount: session.playerBalances.reduce(
+      // Every fictional night below was played for $500 each, and its four
+      // ending amounts already sum to that.
+      basePot: session.playerBalances.reduce(
         (total, balance) => total + balance.endingAmount,
         0,
       ),
-      winnerName: winnerOf(session.playerBalances),
-      playerBalances: session.playerBalances,
+      playerBalances: session.playerBalances.map(({ name, ...balance }) => {
+        const playerId = playerIds.get(name);
+        if (playerId === undefined) throw new Error(`Seed player ${name} was not created`);
+        return { ...balance, playerId };
+      }),
       notes: session.notes,
       createdByUserId: null,
     })),

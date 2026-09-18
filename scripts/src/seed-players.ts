@@ -1,14 +1,15 @@
-import {
-  db,
-  mahjongSessionsTable,
-  playersTable,
-  type PlayerBalance,
-} from "@workspace/db";
+import { db, mahjongSessionsTable, playersTable } from "@workspace/db";
 import { normalizePlayerName, PLAYER_WRITE_LOCK_KEY } from "@workspace/session-rules";
 import { asc, eq, sql } from "drizzle-orm";
+import { storedBalances, type StoredPlayerBalance } from "./legacy-balances";
 
-function nonEmptyBalances(value: PlayerBalance[] | null | undefined) {
-  return (value ?? []).filter((balance) => normalizePlayerName(balance.name));
+function nonEmptyBalances(value: unknown) {
+  // A balance with no name is either a blank legacy seat or one whose name
+  // has already been contracted away, leaving only its playerId.
+  return storedBalances(value).filter(
+    (balance): balance is StoredPlayerBalance & { name: string } =>
+      normalizePlayerName(balance.name ?? "") !== "",
+  );
 }
 
 async function planSeedPlayers(): Promise<void> {
@@ -155,12 +156,12 @@ export async function seedPlayers(): Promise<void> {
         .for("update");
       if (!lockedSession) continue;
 
-      const balances = lockedSession.playerBalances ?? [];
+      const balances = storedBalances(lockedSession.playerBalances);
       const expandedBalances = balances.map((balance) => {
-        if (!normalizePlayerName(balance.name) || balance.playerId !== undefined) {
+        if (!normalizePlayerName(balance.name ?? "") || balance.playerId !== undefined) {
           return balance;
         }
-        const player = playersByNormalizedName.get(normalizePlayerName(balance.name));
+        const player = playersByNormalizedName.get(normalizePlayerName(balance.name ?? ""));
         if (!player) {
           throw new Error(`No player found for balance name: ${balance.name}`);
         }
@@ -176,7 +177,7 @@ export async function seedPlayers(): Promise<void> {
       ) {
         await tx
           .update(mahjongSessionsTable)
-          .set({ playerBalances: expandedBalances })
+          .set({ playerBalances: expandedBalances as typeof lockedSession.playerBalances })
           .where(eq(mahjongSessionsTable.id, lockedSession.id));
       }
     }

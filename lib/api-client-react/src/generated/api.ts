@@ -28,6 +28,8 @@ import type {
   MahjongSessionInput,
   MahjongSessionUpdate,
   Player,
+  PlayerInput,
+  PlayerUpdate,
   SessionCreationResponse,
   SessionSummary
 } from './api.schemas';
@@ -372,6 +374,151 @@ export function useListPlayers<TData = Awaited<ReturnType<typeof listPlayers>>, 
 
 
 
+export const getCreatePlayerUrl = () => {
+
+
+
+
+  return `/api/players`
+}
+
+/**
+ * Creates an active player. Names are unique ignoring case and surrounding whitespace.
+ * @summary Add a player to the roster
+ */
+export const createPlayer = async (playerInput: PlayerInput, options?: Parameters<typeof customFetch>[1]): Promise<Player> => {
+
+  return customFetch<Player>(getCreatePlayerUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(playerInput)
+  }
+);}
+
+
+
+
+
+export const getCreatePlayerMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPlayer>>, TError,{data: BodyType<PlayerInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createPlayer>>, TError,{data: BodyType<PlayerInput>}, TContext> => {
+
+const mutationKey = ['createPlayer'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createPlayer>>, {data: BodyType<PlayerInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createPlayer(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreatePlayerMutationResult = NonNullable<Awaited<ReturnType<typeof createPlayer>>>
+    export type CreatePlayerMutationBody = BodyType<PlayerInput>
+    export type CreatePlayerMutationError = ErrorType<void>
+
+    /**
+ * @summary Add a player to the roster
+ */
+export const useCreatePlayer = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPlayer>>, TError,{data: BodyType<PlayerInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createPlayer>>,
+        TError,
+        {data: BodyType<PlayerInput>},
+        TContext
+      > => {
+      return useMutation(getCreatePlayerMutationOptions(options));
+    }
+
+export const getUpdatePlayerUrl = (id: number,) => {
+
+
+
+
+  return `/api/players/${id}`
+}
+
+/**
+ * A rename is reflected in every session, chart and leaderboard, since sessions reference players by id. Inactive players keep their full history but are not offered when recording a new session.
+ * @summary Rename a player or change whether they are active
+ */
+export const updatePlayer = async (id: number,
+    playerUpdate: PlayerUpdate, options?: Parameters<typeof customFetch>[1]): Promise<Player> => {
+
+  return customFetch<Player>(getUpdatePlayerUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(playerUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdatePlayerMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updatePlayer>>, TError,{id: number;data: BodyType<PlayerUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updatePlayer>>, TError,{id: number;data: BodyType<PlayerUpdate>}, TContext> => {
+
+const mutationKey = ['updatePlayer'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updatePlayer>>, {id: number;data: BodyType<PlayerUpdate>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updatePlayer(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdatePlayerMutationResult = NonNullable<Awaited<ReturnType<typeof updatePlayer>>>
+    export type UpdatePlayerMutationBody = BodyType<PlayerUpdate>
+    export type UpdatePlayerMutationError = ErrorType<void>
+
+    /**
+ * @summary Rename a player or change whether they are active
+ */
+export const useUpdatePlayer = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updatePlayer>>, TError,{id: number;data: BodyType<PlayerUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updatePlayer>>,
+        TError,
+        {id: number;data: BodyType<PlayerUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdatePlayerMutationOptions(options));
+    }
+
 export const getGetSessionSummaryUrl = () => {
 
 
@@ -381,7 +528,7 @@ export const getGetSessionSummaryUrl = () => {
 }
 
 /**
- * Returns lightweight totals, cumulative player winnings, winner counts, Zha Hu counts, and 谢谢 Kai Xiang counts for the dashboard.
+ * Returns lightweight totals, cumulative player winnings, nights each player finished in profit, Zha Hu counts, and 谢谢 Kai Xiang counts for the dashboard.
  * @summary Get Mahjong scoreboard summary
  */
 export const getSessionSummary = async ( options?: Parameters<typeof customFetch>[1]): Promise<SessionSummary> => {

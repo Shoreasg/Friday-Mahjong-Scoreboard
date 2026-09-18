@@ -1,6 +1,6 @@
 # Friday Mahjong Scoreboard
 
-A shared scoreboard for friends to record weekly Friday Mahjong sessions, settlement amounts, rounds played, and winners.
+A shared scoreboard for friends to record weekly Friday Mahjong sessions, base pots, rounds played, and who finished in profit.
 
 ## Running locally
 
@@ -50,11 +50,14 @@ only prerequisite.
 
 ## Product
 
-- Public introduction, scoreboard, cumulative totals, winner standings, and weekly history
+- Public introduction, scoreboard, cumulative totals, nights-in-profit standings, and weekly history
 - Admin-only creation, editing, and deletion of completed Mahjong sessions
-- Persistent tracking of date, rounds, settlement amount, winner, per-player Zha Hu and 谢谢 Kai Xiang counts, and optional notes
-- Cumulative leaderboards for net winnings, match wins, Zha Hu incidents, and 谢谢 Kai Xiang occurrences
-- Cumulative player winnings use each recorded ending balance minus the $500 starting balance; legacy sessions without balances are excluded
+- Players are first-class records; each seat of a session references a player by id, so renaming a player (from the admin-only roster at `/app/players`) is reflected on every past session and leaderboard. Inactive players keep their history but aren't offered when recording a session
+- Each session stores the base pot it was played for (prefilled at $2000, i.e. $500 each). The four whole-dollar ending amounts must sum exactly to it; the rules live in `lib/session-rules` and are enforced by both the form and the API
+- Winning a night means finishing strictly above the per-player share (base pot ÷ 4), so a night can have several winners or none; session cards also show who had the largest stack
+- Persistent tracking of date, rounds, base pot, per-player ending balances, Zha Hu and 谢谢 Kai Xiang counts, and optional notes
+- Cumulative leaderboards for net winnings, nights in profit, Zha Hu incidents, and 谢谢 Kai Xiang occurrences
+- Cumulative player winnings sum each ending balance minus that session's own per-player share; legacy sessions without balances are excluded
 - Public analytics compare cumulative winnings over time, per-player win rates, and session-level Zha Hu / 谢谢 Kai Xiang activity
 
 ## User preferences
@@ -64,6 +67,7 @@ _Populate as you build — explicit user instructions worth remembering across s
 ## Gotchas
 
 - Re-run API codegen after editing `lib/api-spec/openapi.yaml`.
+- Schema changes that `drizzle-kit push --force` can't express safely (renames, reshaping jsonb) go in `scripts/src/migrate-session-shape.ts`, which `scripts/post-merge.sh` runs before and after the push.
 - Keep the Clerk proxy middleware mounted before Express body parsers.
 - If you touch an architecture-relevant file (see the path list in `.claude/hooks/check-diagram-freshness.sh`), update `docs/architecture/runtime-architecture.source.json` and regenerate `runtime-architecture.html` (see `docs/architecture/README.md`) before committing — a pre-commit hook blocks the commit otherwise.
 

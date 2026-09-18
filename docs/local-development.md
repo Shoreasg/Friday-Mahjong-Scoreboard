@@ -51,7 +51,10 @@ cp .env.example .env
 Open `.env` and fill in the "you must supply" section: the three Clerk
 variables above, and `ADMIN_EMAILS` / `VITE_ADMIN_EMAILS` — set both to your
 own Google account's email address so you can sign in and exercise admin
-create/edit/delete locally. Everything else in the file already works.
+create/edit/delete locally. Everything else in the file already works,
+including an "optional" section at the bottom (Telegram announcements,
+`SCOREBOARD_URL`, `CORS_ALLOWED_ORIGINS`, `LOG_LEVEL`) that you can leave
+blank unless you're specifically exercising one of those integrations.
 
 `.env` is git-ignored — it will never end up in a commit.
 

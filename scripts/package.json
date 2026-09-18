@@ -8,6 +8,8 @@
     "smoke": "node --experimental-strip-types ./src/smoke-local-stack.ts",
     "seed:players": "tsx ./src/seed-players.ts",
     "reconcile:players": "tsx ./src/reconcile-duplicate-players.ts",
+    "migrate:sessions": "tsx ./src/migrate-session-shape.ts",
+    "migrate:sessions:after-push": "tsx ./src/migrate-session-shape.ts --after-push",
     "test": "vitest run",
     "test:integration": "vitest run -c vitest.integration.config.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"

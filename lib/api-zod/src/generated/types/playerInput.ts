@@ -6,9 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface XieXieKaiXiangCount {
-  playerId: number;
-  playerName: string;
-  /** @minimum 0 */
-  count: number;
+export interface PlayerInput {
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  name: string;
 }

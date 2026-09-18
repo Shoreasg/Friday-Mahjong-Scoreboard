@@ -6,9 +6,12 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface XieXieKaiXiangCount {
+/**
+ * How many nights a player finished strictly above their per-player share.
+ */
+export interface ProfitNightCount {
   playerId: number;
   playerName: string;
-  /** @minimum 0 */
-  count: number;
+  /** @minimum 1 */
+  nights: number;
 }

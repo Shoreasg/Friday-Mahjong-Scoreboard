@@ -7,6 +7,7 @@
  */
 
 export interface ZhaHuCount {
+  playerId: number;
   playerName: string;
   /** @minimum 0 */
   count: number;

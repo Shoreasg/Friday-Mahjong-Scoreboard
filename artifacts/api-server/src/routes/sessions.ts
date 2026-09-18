@@ -10,16 +10,26 @@ import {
   UpdateSessionParams,
   UpdateSessionResponse,
 } from "@workspace/api-zod";
-import { db, mahjongSessionsTable, playersTable } from "@workspace/db";
 import {
-  normalizePlayerName,
+  db,
+  mahjongSessionsTable,
+  playersTable,
+  type PlayerBalance,
+} from "@workspace/db";
+import {
+  isInProfit,
+  largestStackPlayerIds,
+  netWinnings,
+  perPlayerShare,
   PLAYER_WRITE_LOCK_KEY,
-  STARTING_BALANCE,
+  validateBasePot,
+  validateSession,
+  validateStakes,
 } from "@workspace/session-rules";
 import {
   sendTelegramMessage,
 } from "@workspace/integrations-telegram";
-import { desc, eq, sql } from "drizzle-orm";
+import { desc, eq, inArray, sql } from "drizzle-orm";
 import {
   Router,
   type IRouter,
@@ -29,18 +39,13 @@ import { requireAdmin } from "./requireAdmin";
 
 const router: IRouter = Router();
 
+type SessionRecord = typeof mahjongSessionsTable.$inferSelect;
+type PlayerNames = Map<number, string>;
+
 type AnnouncementOutcome =
   | { status: "sent"; messageId: number | null }
   | { status: "skipped"; reason: "not_configured" }
   | { status: "failed"; reason: "delivery_failed" };
-
-type SubmittedBalance = {
-  name: string;
-  playerId?: number;
-  endingAmount: number;
-  zhaHuCount: number;
-  xieXieKaiXiangCount?: number;
-};
 
 class SessionRequestError extends Error {
   constructor(public readonly body: { error: string }) {
@@ -48,180 +53,74 @@ class SessionRequestError extends Error {
   }
 }
 
-async function resolvePlayerReferences(
-  queryDb: Pick<typeof db, "select" | "insert" | "execute">,
-  createdByUserId: string,
-  playerBalances: SubmittedBalance[],
-): Promise<SubmittedBalance[]> {
-  // Serialize against the backfill/reconciliation scripts and other
-  // concurrent session writes so player creation/merging can't race.
+/**
+ * Confirms every seat references an existing player (active or not — an
+ * inactive guest must still be editable in the nights they played) and returns
+ * those players' current names.
+ */
+async function loadReferencedPlayers(
+  queryDb: Pick<typeof db, "select" | "execute">,
+  playerBalances: Pick<PlayerBalance, "playerId">[],
+): Promise<PlayerNames> {
+  // Serialize against player merges in the reconciliation script, so a
+  // referenced player can't be merged away between this check and the write.
   await queryDb.execute(sql`SELECT pg_advisory_xact_lock(${PLAYER_WRITE_LOCK_KEY})`);
 
-  const submittedPlayerIds = playerBalances
-    .map((balance) => balance.playerId)
-    .filter((playerId): playerId is number => playerId !== undefined);
-  const invalidPlayerId = submittedPlayerIds.find(
-    (playerId) => !Number.isInteger(playerId) || playerId <= 0,
-  );
-  if (invalidPlayerId !== undefined) {
-    throw new SessionRequestError({ error: "playerId must be a positive integer" });
-  }
-  if (new Set(submittedPlayerIds).size !== submittedPlayerIds.length) {
-    throw new SessionRequestError({
-      error: "playerId values must be unique within a session",
-    });
-  }
-
+  const playerIds = playerBalances.map((balance) => balance.playerId);
   const players = await queryDb
     .select({ id: playersTable.id, name: playersTable.name })
-    .from(playersTable);
-  const playersById = new Map(players.map((player) => [player.id, player]));
-  const playersByName = new Map(
-    players.map((player) => [normalizePlayerName(player.name), player]),
-  );
-  const seenPlayerIds = new Set<number>();
-  const resolvedBalances: SubmittedBalance[] = [];
+    .from(playersTable)
+    .where(inArray(playersTable.id, playerIds));
+  const names: PlayerNames = new Map(players.map((player) => [player.id, player.name]));
 
-  for (const balance of playerBalances) {
-    let player;
-    if (balance.playerId !== undefined) {
-      if (!Number.isInteger(balance.playerId) || balance.playerId <= 0) {
-        throw new SessionRequestError({ error: "playerId must be a positive integer" });
-      }
-      player = playersById.get(balance.playerId);
-      if (!player) {
-        throw new SessionRequestError({
-          error: `playerId ${balance.playerId} does not reference an existing player`,
-        });
-      }
-      // The playerId is authoritative: a submitted name that no longer
-      // matches (e.g. stale client cache after a rename) does not
-      // invalidate the request — it's replaced with the canonical name
-      // below instead.
-    } else {
-      player = playersByName.get(normalizePlayerName(balance.name));
-      if (!player) {
-        const trimmedName = balance.name.trim();
-        const [createdPlayer] = await queryDb
-          .insert(playersTable)
-          .values({
-            name: trimmedName,
-            createdByUserId,
-          })
-          .onConflictDoNothing()
-          .returning({ id: playersTable.id, name: playersTable.name });
-        if (createdPlayer) {
-          player = createdPlayer;
-        } else {
-          // Someone else concurrently created a player with the same
-          // trim+case-insensitive name; use theirs instead of erroring.
-          const [existingPlayer] = await queryDb
-            .select({ id: playersTable.id, name: playersTable.name })
-            .from(playersTable)
-            .where(
-              sql`lower(trim(${playersTable.name})) = ${normalizePlayerName(trimmedName)}`,
-            );
-          if (!existingPlayer) {
-            throw new SessionRequestError({
-              error: `Could not create player "${balance.name}"`,
-            });
-          }
-          player = existingPlayer;
-        }
-        playersById.set(player.id, player);
-        playersByName.set(normalizePlayerName(player.name), player);
-      }
-    }
-    if (seenPlayerIds.has(player.id)) {
-      throw new SessionRequestError({
-        error: "playerId values must be unique within a session",
-      });
-    }
-    seenPlayerIds.add(player.id);
-    resolvedBalances.push({ ...balance, name: player.name, playerId: player.id });
+  const missing = playerIds.find((playerId) => !names.has(playerId));
+  if (missing !== undefined) {
+    throw new SessionRequestError({
+      error: `playerId ${missing} does not reference an existing player`,
+    });
   }
-
-  return resolvedBalances;
+  return names;
 }
 
-function normalizePlayerBalances(playerBalances: SubmittedBalance[]) {
-  return playerBalances.map((balance) => {
-    const playerId = balance.playerId;
-    const xieXieKaiXiangCount = balance.xieXieKaiXiangCount;
-    return {
-      ...(typeof playerId === "number" &&
-      Number.isInteger(playerId) &&
-      playerId > 0
-        ? { playerId }
-        : {}),
-      name: balance.name,
+async function loadAllPlayerNames(): Promise<PlayerNames> {
+  const players = await db
+    .select({ id: playersTable.id, name: playersTable.name })
+    .from(playersTable);
+  return new Map(players.map((player) => [player.id, player.name]));
+}
+
+function playerName(names: PlayerNames, playerId: number): string {
+  return names.get(playerId) ?? `Player #${playerId}`;
+}
+
+function toStoredBalances(
+  playerBalances: PlayerBalance[],
+): PlayerBalance[] {
+  return playerBalances.map((balance) => ({
+    playerId: balance.playerId,
+    endingAmount: balance.endingAmount,
+    zhaHuCount: balance.zhaHuCount,
+    xieXieKaiXiangCount: balance.xieXieKaiXiangCount,
+  }));
+}
+
+/** Shapes a stored session for responses, defaulting legacy incident counts. */
+function normalizeSession(session: SessionRecord) {
+  return {
+    ...session,
+    playerBalances: (session.playerBalances ?? []).map((balance) => ({
+      playerId: balance.playerId,
       endingAmount: balance.endingAmount,
       zhaHuCount:
         Number.isInteger(balance.zhaHuCount) && balance.zhaHuCount >= 0
           ? balance.zhaHuCount
           : 0,
       xieXieKaiXiangCount:
-        Number.isInteger(xieXieKaiXiangCount) &&
-        xieXieKaiXiangCount !== undefined &&
-        xieXieKaiXiangCount >= 0
-          ? xieXieKaiXiangCount
+        Number.isInteger(balance.xieXieKaiXiangCount) &&
+        balance.xieXieKaiXiangCount >= 0
+          ? balance.xieXieKaiXiangCount
           : 0,
-    };
-  });
-}
-
-function normalizeSession(
-  session: typeof mahjongSessionsTable.$inferSelect,
-) {
-  return {
-    ...session,
-    playerBalances: normalizePlayerBalances(session.playerBalances),
-  };
-}
-
-function sessionResult(playerBalances: SubmittedBalance[]) {
-  if (playerBalances.length !== 4) {
-    return null;
-  }
-
-  const balances = playerBalances.map((balance) => {
-    const playerId = balance.playerId;
-    return {
-      ...(typeof playerId === "number" &&
-      Number.isInteger(playerId) &&
-      playerId > 0
-        ? { playerId }
-        : {}),
-      name: balance.name.trim(),
-      endingAmount: balance.endingAmount,
-      zhaHuCount: balance.zhaHuCount,
-      xieXieKaiXiangCount: balance.xieXieKaiXiangCount ?? 0,
-    };
-  });
-  const seenNames = new Set<string>();
-  for (const balance of balances) {
-    if (!balance.name) {
-      return null;
-    }
-    const normalizedName = normalizePlayerName(balance.name);
-    if (seenNames.has(normalizedName)) {
-      return null;
-    }
-    seenNames.add(normalizedName);
-  }
-
-  const [winner] = [...balances].sort(
-    (a, b) =>
-      b.endingAmount - a.endingAmount || a.name.localeCompare(b.name),
-  );
-
-  return {
-    playerBalances: balances,
-    winnerName: winner.name,
-    totalAmount: balances.reduce(
-      (total, balance) => total + balance.endingAmount,
-      0,
-    ),
+    })),
   };
 }
 
@@ -258,40 +157,43 @@ function scoreboardUrl(req: Request): string {
 
 function sessionAnnouncement(
   req: Request,
-  session: typeof mahjongSessionsTable.$inferSelect,
+  session: SessionRecord,
+  names: PlayerNames,
 ): string {
-  const players = normalizePlayerBalances(session.playerBalances);
+  const { basePot, playerBalances: players } = normalizeSession(session);
+  const nameOf = (playerId: number) => escapeTelegramHtml(playerName(names, playerId));
   const playerLines = players
-    .map((player) => {
-      const netPosition = player.endingAmount - STARTING_BALANCE;
-      return [
-        `• <b>${escapeTelegramHtml(player.name)}</b>`,
-        `${formatMoney(player.endingAmount)} (${formatNetPosition(netPosition)})`,
+    .map((player) =>
+      [
+        `• <b>${nameOf(player.playerId)}</b>`,
+        `${formatMoney(player.endingAmount)} (${formatNetPosition(netWinnings(player.endingAmount, basePot))})`,
         `诈胡 ${player.zhaHuCount}`,
         `谢谢开相 ${player.xieXieKaiXiangCount}`,
-      ].join(" · ");
-    })
+      ].join(" · "),
+    )
     .join("\n");
-  const winner = players.find(
-    (player) =>
-      normalizePlayerName(player.name) === normalizePlayerName(session.winnerName),
-  );
-  const winnerPosition = winner
-    ? ` (${formatNetPosition(winner.endingAmount - STARTING_BALANCE)})`
-    : "";
+  const winners = players
+    .filter((player) => isInProfit(player.endingAmount, basePot))
+    .map(
+      (player) =>
+        `<b>${nameOf(player.playerId)}</b> (${formatNetPosition(netWinnings(player.endingAmount, basePot))})`,
+    );
+  const largestStack = largestStackPlayerIds(players).map(nameOf).join(", ");
   const notes = session.notes
     ? `\n\n<b>Notes</b>\n${escapeTelegramHtml(session.notes)}`
     : "";
 
   return [
     `<b>Friday Mahjong · ${escapeTelegramHtml(session.playedOn)}</b>`,
-    `Winner: <b>${escapeTelegramHtml(session.winnerName)}</b>${winnerPosition}`,
+    winners.length > 0
+      ? `In profit: ${winners.join(", ")}`
+      : "Nobody finished in profit",
+    ...(largestStack ? [`Largest stack: ${largestStack}`] : []),
     "",
     `<b>Players</b>\n${playerLines}`,
     "",
     `<b>Rounds</b>: ${session.rounds}`,
-    `<b>Settlement total</b>: ${formatMoney(session.totalAmount)}`,
-    `<b>Starting balance</b>: ${formatMoney(STARTING_BALANCE)} per player`,
+    `<b>Base pot</b>: ${formatMoney(basePot)} (${formatMoney(perPlayerShare(basePot))} per player)`,
     notes,
     "",
     `<a href="${escapeTelegramHtml(scoreboardUrl(req))}">Open the scoreboard</a>`,
@@ -302,11 +204,12 @@ function sessionAnnouncement(
 
 async function announceSession(
   req: Request,
-  session: typeof mahjongSessionsTable.$inferSelect,
+  session: SessionRecord,
+  names: PlayerNames,
 ): Promise<AnnouncementOutcome> {
   try {
     const result = await sendTelegramMessage({
-      text: sessionAnnouncement(req, session),
+      text: sessionAnnouncement(req, session, names),
       parseMode: "HTML",
     });
     return result.status === "sent"
@@ -344,30 +247,24 @@ router.post("/sessions", async (req, res): Promise<void> => {
     return;
   }
 
-  let transactionResult: { session: typeof mahjongSessionsTable.$inferSelect };
-  try {
-    transactionResult = await db.transaction(async (tx) => {
-      const resolvedBalances = await resolvePlayerReferences(
-        tx,
-        userId,
-        parsed.data.playerBalances,
-      );
+  const sessionError = validateSession(parsed.data);
+  if (sessionError) {
+    res.status(400).json({ error: sessionError });
+    return;
+  }
 
-      const result = sessionResult(resolvedBalances);
-      if (!result) {
-        throw new SessionRequestError({
-          error: "Exactly four player names are required and must be unique",
-        });
-      }
+  let created: { session: SessionRecord; names: PlayerNames };
+  try {
+    created = await db.transaction(async (tx) => {
+      const names = await loadReferencedPlayers(tx, parsed.data.playerBalances);
 
       const [session] = await tx
         .insert(mahjongSessionsTable)
         .values({
           playedOn: dateOnly(parsed.data.playedOn),
           rounds: parsed.data.rounds,
-          totalAmount: result.totalAmount,
-          winnerName: result.winnerName,
-          playerBalances: result.playerBalances,
+          basePot: parsed.data.basePot,
+          playerBalances: toStoredBalances(parsed.data.playerBalances),
           notes: parsed.data.notes?.trim() || null,
           createdByUserId: userId,
         })
@@ -376,7 +273,7 @@ router.post("/sessions", async (req, res): Promise<void> => {
         throw new SessionRequestError({ error: "Session was not created" });
       }
 
-      return { session };
+      return { session, names };
     });
   } catch (err) {
     if (err instanceof SessionRequestError) {
@@ -386,120 +283,85 @@ router.post("/sessions", async (req, res): Promise<void> => {
     throw err;
   }
 
-  const announcement = await announceSession(req, transactionResult.session);
+  const announcement = await announceSession(req, created.session, created.names);
   res.status(201).json(
     CreateSessionResponse.parse({
-      ...normalizeSession(transactionResult.session),
+      ...normalizeSession(created.session),
       announcement,
     }),
   );
 });
 
 router.get("/sessions/summary", async (req, res): Promise<void> => {
-  const [totals] = await db
-    .select({
-      totalSessions: sql<number>`count(*)::int`,
-      totalRounds: sql<number>`coalesce(sum(${mahjongSessionsTable.rounds}), 0)::int`,
-      totalAmount: sql<number>`coalesce(sum(${mahjongSessionsTable.totalAmount}), 0)::float8`,
-    })
-    .from(mahjongSessionsTable);
+  const sessions = (
+    await db
+      .select()
+      .from(mahjongSessionsTable)
+      .orderBy(desc(mahjongSessionsTable.playedOn))
+  ).map(normalizeSession);
+  const names = await loadAllPlayerNames();
 
-  const sessions = await db
-    .select()
-    .from(mahjongSessionsTable)
-    .orderBy(desc(mahjongSessionsTable.playedOn));
-  const latestSession = sessions[0];
-
-  const winnerCounts = await db
-    .select({
-      winnerName: mahjongSessionsTable.winnerName,
-      wins: sql<number>`count(*)::int`,
-    })
-    .from(mahjongSessionsTable)
-    .groupBy(mahjongSessionsTable.winnerName)
-    .orderBy(desc(sql`count(*)`), mahjongSessionsTable.winnerName);
-
-  const zhaHuByPlayer = new Map<
-    string | number,
-    { playerName: string; count: number }
-  >();
-  const xieXieKaiXiangByPlayer = new Map<
-    string | number,
-    { playerName: string; count: number }
-  >();
-  const winningsByPlayer = new Map<
-    string | number,
-    { playerName: string; netCents: number }
-  >();
+  type PlayerTotals = {
+    profitNights: number;
+    zhaHu: number;
+    xieXieKaiXiang: number;
+    netAmount: number;
+  };
+  const totalsByPlayer = new Map<number, PlayerTotals>();
   for (const session of sessions) {
-    for (const player of normalizePlayerBalances(session.playerBalances)) {
-      const identityKey: string | number =
-        typeof player.playerId === "number"
-          ? player.playerId
-          : normalizePlayerName(player.name);
-      const existingZhaHu = zhaHuByPlayer.get(identityKey);
-      if (existingZhaHu) {
-        existingZhaHu.count += player.zhaHuCount;
-      } else {
-        zhaHuByPlayer.set(identityKey, {
-          playerName: player.name.trim(),
-          count: player.zhaHuCount,
-        });
+    for (const player of session.playerBalances) {
+      const totals = totalsByPlayer.get(player.playerId) ?? {
+        profitNights: 0,
+        zhaHu: 0,
+        xieXieKaiXiang: 0,
+        netAmount: 0,
+      };
+      if (isInProfit(player.endingAmount, session.basePot)) {
+        totals.profitNights += 1;
       }
-
-      const existingXieXieKaiXiang =
-        xieXieKaiXiangByPlayer.get(identityKey);
-      if (existingXieXieKaiXiang) {
-        existingXieXieKaiXiang.count += player.xieXieKaiXiangCount;
-      } else {
-        xieXieKaiXiangByPlayer.set(identityKey, {
-          playerName: player.name.trim(),
-          count: player.xieXieKaiXiangCount,
-        });
-      }
-
-      const netCents =
-        Math.round(player.endingAmount * 100) - STARTING_BALANCE * 100;
-      const existingWinnings = winningsByPlayer.get(identityKey);
-      if (existingWinnings) {
-        existingWinnings.netCents += netCents;
-      } else {
-        winningsByPlayer.set(identityKey, {
-          playerName: player.name.trim(),
-          netCents,
-        });
-      }
+      totals.zhaHu += player.zhaHuCount;
+      totals.xieXieKaiXiang += player.xieXieKaiXiangCount;
+      // Amounts are whole dollars and shares are too (bases divide by four),
+      // so this sum is exact.
+      totals.netAmount += netWinnings(player.endingAmount, session.basePot);
+      totalsByPlayer.set(player.playerId, totals);
     }
   }
-  const zhaHuCounts = [...zhaHuByPlayer.values()].sort(
-    (a, b) =>
-      b.count - a.count || a.playerName.localeCompare(b.playerName),
-  );
-  const xieXieKaiXiangCounts = [...xieXieKaiXiangByPlayer.values()].sort(
-    (a, b) =>
-      b.count - a.count || a.playerName.localeCompare(b.playerName),
-  );
-  const playerWinnings = [...winningsByPlayer.values()]
-    .map(({ playerName, netCents }) => ({
-      playerName,
-      netAmount: netCents / 100,
-    }))
-    .sort(
-      (a, b) =>
-        b.netAmount - a.netAmount ||
-        a.playerName.localeCompare(b.playerName),
-    );
+
+  const rows = [...totalsByPlayer.entries()].map(([playerId, totals]) => ({
+    playerId,
+    playerName: playerName(names, playerId),
+    ...totals,
+  }));
+  const byName = (a: { playerName: string }, b: { playerName: string }) =>
+    a.playerName.localeCompare(b.playerName);
 
   res.json(
     GetSessionSummaryResponse.parse({
-      totalSessions: totals?.totalSessions ?? 0,
-      totalRounds: totals?.totalRounds ?? 0,
-      totalAmount: totals?.totalAmount ?? 0,
-      latestSession: latestSession ? normalizeSession(latestSession) : null,
-      winnerCounts,
-      zhaHuCounts,
-      xieXieKaiXiangCounts,
-      playerWinnings,
+      totalSessions: sessions.length,
+      totalRounds: sessions.reduce((total, session) => total + session.rounds, 0),
+      latestSession: sessions[0] ?? null,
+      profitNightCounts: rows
+        .filter((row) => row.profitNights > 0)
+        .sort((a, b) => b.profitNights - a.profitNights || byName(a, b))
+        .map(({ playerId, playerName, profitNights }) => ({
+          playerId,
+          playerName,
+          nights: profitNights,
+        })),
+      zhaHuCounts: [...rows]
+        .sort((a, b) => b.zhaHu - a.zhaHu || byName(a, b))
+        .map(({ playerId, playerName, zhaHu }) => ({ playerId, playerName, count: zhaHu })),
+      xieXieKaiXiangCounts: [...rows]
+        .sort((a, b) => b.xieXieKaiXiang - a.xieXieKaiXiang || byName(a, b))
+        .map(({ playerId, playerName, xieXieKaiXiang }) => ({
+          playerId,
+          playerName,
+          count: xieXieKaiXiang,
+        })),
+      playerWinnings: [...rows]
+        .sort((a, b) => b.netAmount - a.netAmount || byName(a, b))
+        .map(({ playerId, playerName, netAmount }) => ({ playerId, playerName, netAmount })),
     }),
   );
 });
@@ -537,32 +399,49 @@ router.patch("/sessions/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  let transactionResult: { session: typeof mahjongSessionsTable.$inferSelect } | { notFound: true };
+  let transactionResult: { session: SessionRecord } | { notFound: true };
   try {
     transactionResult = await db.transaction(async (tx) => {
       const update: Partial<typeof mahjongSessionsTable.$inferInsert> = {};
+      if (body.data.basePot !== undefined || body.data.playerBalances !== undefined) {
+        // Either half of the money can change on its own, so the rules are
+        // checked against the session as it will be after this update.
+        const [existing] = await tx
+          .select({
+            basePot: mahjongSessionsTable.basePot,
+            playerBalances: mahjongSessionsTable.playerBalances,
+          })
+          .from(mahjongSessionsTable)
+          .where(eq(mahjongSessionsTable.id, params.data.id));
+        if (!existing) return { notFound: true };
+
+        const basePot = body.data.basePot ?? existing.basePot;
+        // A legacy session with no balances has nothing to sum, so its base
+        // pot can be corrected on its own; the sum-to-basePot rule only
+        // applies once a session actually has balances to check it against.
+        const sessionError = body.data.playerBalances
+          ? validateSession({ basePot, playerBalances: body.data.playerBalances })
+          : existing.playerBalances.length === 0
+            ? validateBasePot(basePot)
+            : validateStakes(
+                basePot,
+                existing.playerBalances.map((balance) => balance.endingAmount),
+              );
+        if (sessionError) {
+          throw new SessionRequestError({ error: sessionError });
+        }
+        update.basePot = basePot;
+
+        if (body.data.playerBalances) {
+          await loadReferencedPlayers(tx, body.data.playerBalances);
+          update.playerBalances = toStoredBalances(body.data.playerBalances);
+        }
+      }
       if (body.data.playedOn) {
         update.playedOn = dateOnly(body.data.playedOn);
       }
       if (body.data.rounds !== undefined) {
         update.rounds = body.data.rounds;
-      }
-      if (body.data.playerBalances !== undefined) {
-        const resolvedBalances = await resolvePlayerReferences(
-          tx,
-          userId,
-          body.data.playerBalances,
-        );
-
-        const result = sessionResult(resolvedBalances);
-        if (!result) {
-          throw new SessionRequestError({
-            error: "Exactly four player names are required and must be unique",
-          });
-        }
-        update.totalAmount = result.totalAmount;
-        update.winnerName = result.winnerName;
-        update.playerBalances = result.playerBalances;
       }
       if (body.data.notes !== undefined) {
         update.notes = body.data.notes?.trim() || null;

@@ -3,13 +3,30 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { format } from "date-fns";
-import { Camera } from "lucide-react";
+import { Camera, Lock, LockOpen } from "lucide-react";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { type MahjongSessionInput } from "@workspace/api-client-react";
-import { STARTING_BALANCE } from "@workspace/session-rules";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { useListPlayers, type MahjongSessionInput } from "@workspace/api-client-react";
+import {
+  allocationAgainstBasePot,
+  CUSTOMARY_BASE_POT,
+  perPlayerShare,
+  validateBasePot,
+  validateSession,
+} from "@workspace/session-rules";
+import { PlayerPicker } from "./PlayerPicker";
 import { cn } from "@/lib/utils";
 
 const ChipStackScanner = lazy(() =>
@@ -21,17 +38,33 @@ const ChipStackScanner = lazy(() =>
 const sessionSchema = z.object({
   playedOn: z.string().min(1, "Date is required"),
   rounds: z.coerce.number().min(1).max(99),
+  basePot: z.coerce.number().superRefine((basePot, ctx) => {
+    const error = validateBasePot(basePot);
+    if (error) ctx.addIssue({ code: z.ZodIssueCode.custom, message: error });
+  }),
   playerBalances: z.array(z.object({
-    name: z.string().trim().min(1, "Player name is required").max(80),
-    endingAmount: z.coerce.number().min(0, "Amount cannot be negative"),
+    playerId: z.number({ error: "Choose a player" }).int().positive("Choose a player"),
+    // An empty field is not the same as an explicitly typed 0 (a busted
+    // player): normalize only the empty/unset case to undefined so z.number
+    // rejects it with a "must be entered" message, rather than z.coerce
+    // silently turning "" into a valid 0.
+    endingAmount: z.preprocess(
+      (value) => (value === "" || value === undefined || value === null ? undefined : Number(value)),
+      z.number({ error: "Enter an ending amount" }).int("Use whole dollars").min(0, "Amount cannot be negative"),
+    ),
     zhaHuCount: z.coerce.number().int("Use a whole number").min(0, "Count cannot be negative"),
     xieXieKaiXiangCount: z.coerce.number().int("Use a whole number").min(0, "Count cannot be negative"),
   })).length(4, "Enter all four players"),
   notes: z.string().max(500).nullable().optional(),
+}).superRefine((session, ctx) => {
+  const error = validateSession(session);
+  if (error) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["playerBalances"], message: error });
+  }
 });
 
 type SessionFormProps = {
-  defaultValues?: Partial<MahjongSessionInput> & { winnerName?: string };
+  defaultValues?: Partial<MahjongSessionInput>;
   onSubmit: (data: MahjongSessionInput) => void;
   isSubmitting?: boolean;
   compact?: boolean;
@@ -46,12 +79,19 @@ export function SessionForm({
   onCancel,
 }: SessionFormProps) {
   const [scannerOpenFor, setScannerOpenFor] = useState<number | null>(null);
+  // Changing the base of a saved session rewrites every player's result for
+  // that night, so it stays read-only until deliberately unlocked.
+  const isExistingSession = defaultValues?.basePot !== undefined;
+  const [basePotUnlocked, setBasePotUnlocked] = useState(!isExistingSession);
+  const [confirmUnlockOpen, setConfirmUnlockOpen] = useState(false);
+  const { data: roster = [] } = useListPlayers();
 
   const form = useForm<z.infer<typeof sessionSchema>>({
     resolver: zodResolver(sessionSchema),
     defaultValues: {
       playedOn: defaultValues?.playedOn || format(new Date(), "yyyy-MM-dd"),
       rounds: defaultValues?.rounds || 4,
+      basePot: defaultValues?.basePot ?? CUSTOMARY_BASE_POT,
       playerBalances: Array.from({ length: 4 }, (_, index) => {
         const player = defaultValues?.playerBalances?.[index];
         return player
@@ -61,8 +101,10 @@ export function SessionForm({
               xieXieKaiXiangCount: player.xieXieKaiXiangCount ?? 0,
             }
           : {
-              name: "",
-              endingAmount: STARTING_BALANCE,
+              playerId: undefined as unknown as number,
+              // Left empty (not prefilled to a balanced share) so a
+              // forgotten seat can't slip through as already "Balanced".
+              endingAmount: undefined as unknown as number,
               zhaHuCount: 0,
               xieXieKaiXiangCount: 0,
             };
@@ -70,6 +112,24 @@ export function SessionForm({
       notes: defaultValues?.notes || "",
     },
   });
+
+  const basePot = Number(form.watch("basePot"));
+  const basePotValid = validateBasePot(basePot) === null;
+  const playerBalances = form.watch("playerBalances");
+  const endingAmounts = playerBalances.map((player) => Number(player.endingAmount) || 0);
+  const allocation = allocationAgainstBasePot(basePotValid ? basePot : 0, endingAmounts);
+  const seatPlayerIds = playerBalances.map((player) => player.playerId);
+  // An empty amount field is not a valid 0 (that's a busted player, entered
+  // explicitly), so the tally can only read "balanced" for real once every
+  // seat has an amount typed in.
+  const allAmountsEntered = playerBalances.every(
+    (player) => (player.endingAmount as unknown) !== undefined && (player.endingAmount as unknown) !== "",
+  );
+  const canSubmit =
+    basePotValid &&
+    allAmountsEntered &&
+    allocation.status === "balanced" &&
+    seatPlayerIds.every((playerId) => Number.isInteger(playerId) && playerId > 0);
 
   return (
     <Form {...form}>
@@ -107,14 +167,83 @@ export function SessionForm({
           />
         </div>
 
+        <FormField
+          control={form.control}
+          name="basePot"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="font-black uppercase tracking-wide">Base Pot ($)</FormLabel>
+              <div className="flex items-center gap-3">
+                <FormControl>
+                  <Input
+                    type="number"
+                    min="4"
+                    step="4"
+                    {...field}
+                    readOnly={!basePotUnlocked}
+                    aria-readonly={!basePotUnlocked}
+                    data-testid="input-base-pot"
+                    className={cn("font-mono", !basePotUnlocked && "bg-muted cursor-not-allowed")}
+                  />
+                </FormControl>
+                {!basePotUnlocked && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="shrink-0 gap-2 border-2 text-xs font-black uppercase"
+                    onClick={() => setConfirmUnlockOpen(true)}
+                    data-testid="button-unlock-base-pot"
+                  >
+                    <Lock className="size-4" />
+                    Unlock
+                  </Button>
+                )}
+                {isExistingSession && basePotUnlocked && (
+                  <LockOpen className="size-5 shrink-0 text-destructive" aria-label="Base pot unlocked" />
+                )}
+              </div>
+              <p className="text-sm font-bold text-muted-foreground" data-testid="text-per-player-share">
+                {basePotValid
+                  ? `$${perPlayerShare(basePot)} per player`
+                  : "Enter a whole-dollar base that divides evenly among four players"}
+              </p>
+              <FormMessage className="font-bold text-destructive" />
+            </FormItem>
+          )}
+        />
+
         <div className="space-y-4">
           <div className="flex items-center justify-between gap-4 bg-tile border-4 border-ink p-4 brutal-shadow">
             <div>
               <h3 className="font-black text-foreground uppercase tracking-widest text-lg">Player balances</h3>
               <p className="text-sm font-bold text-muted-foreground">
-                All four players start with ${STARTING_BALANCE}. Count each time “谢谢 Kai Xiang” is said.
+                {basePotValid
+                  ? `Each player starts with $${perPlayerShare(basePot)}.`
+                  : "Set the base pot first."}{" "}
+                Count each time “谢谢 Kai Xiang” is said.
               </p>
             </div>
+          </div>
+
+          <div
+            className={cn(
+              "flex flex-wrap items-center justify-between gap-2 border-4 border-ink p-3 font-mono font-black brutal-shadow-sm",
+              allocation.status === "balanced" && "bg-primary text-primary-foreground",
+              allocation.status === "under" && "bg-secondary text-secondary-foreground",
+              allocation.status === "over" && "bg-destructive text-destructive-foreground",
+            )}
+            role="status"
+            aria-live="polite"
+            data-testid="text-allocation-tally"
+          >
+            <span>Allocated ${allocation.allocated} of ${basePotValid ? basePot : "—"}</span>
+            <span className="uppercase">
+              {allocation.status === "balanced"
+                ? "Balanced"
+                : allocation.status === "under"
+                  ? `$${allocation.remaining} left to allocate`
+                  : `Over by $${-allocation.remaining}`}
+            </span>
           </div>
 
           <div className={cn("space-y-5 mt-4", compact && "grid grid-cols-1 gap-5 space-y-0 sm:grid-cols-2")}>
@@ -129,17 +258,28 @@ export function SessionForm({
                 <div className="flex items-center justify-between col-span-full mb-1">
                   <span className="text-sm font-black uppercase text-secondary-foreground bg-secondary border-2 border-ink px-2 py-1 brutal-shadow-sm tracking-widest">Player {index + 1}</span>
                   {!compact && (
-                    <span className="bg-tile border-2 border-ink px-2.5 py-1 text-xs font-black text-foreground brutal-shadow-sm">Starts at ${STARTING_BALANCE}</span>
+                    <span className="bg-tile border-2 border-ink px-2.5 py-1 text-xs font-black text-foreground brutal-shadow-sm">
+                      {basePotValid ? `Starts at $${perPlayerShare(basePot)}` : "Set base pot"}
+                    </span>
                   )}
                 </div>
                 <FormField
                   control={form.control}
-                  name={`playerBalances.${index}.name`}
+                  name={`playerBalances.${index}.playerId`}
                   render={({ field }) => (
                     <FormItem className={cn(compact && "col-span-3")}>
-                      <FormLabel className="font-black uppercase tracking-wide text-xs">Name</FormLabel>
+                      <FormLabel className="font-black uppercase tracking-wide text-xs">Player</FormLabel>
                       <FormControl>
-                        <Input placeholder="e.g. Alice" {...field} data-testid={`input-player-name-${index}`} className="border-2" />
+                        <PlayerPicker
+                          roster={roster}
+                          value={field.value}
+                          onChange={(playerId) => field.onChange(playerId)}
+                          otherSeatPlayerIds={
+                            new Set(seatPlayerIds.filter((_, seat) => seat !== index))
+                          }
+                          seatLabel={`Seat ${index + 1}`}
+                          data-testid={`input-player-${index}`}
+                        />
                       </FormControl>
                       <FormMessage className="font-bold text-destructive text-xs" />
                     </FormItem>
@@ -152,7 +292,7 @@ export function SessionForm({
                     <FormItem className="min-w-0">
                       <FormLabel className="font-black uppercase tracking-wide text-xs">Ending ($)</FormLabel>
                       <FormControl>
-                        <Input type="number" min="0" step="0.01" {...field} data-testid={`input-player-balance-${index}`} className="border-2 font-mono" />
+                        <Input type="number" min="0" step="1" {...field} data-testid={`input-player-balance-${index}`} className="border-2 font-mono" />
                       </FormControl>
                       <FormMessage className="font-bold text-destructive text-xs" />
                     </FormItem>
@@ -244,7 +384,7 @@ export function SessionForm({
               CANCEL
             </Button>
           )}
-          <Button type="submit" size="lg" disabled={isSubmitting} data-testid="button-submit-session" className="border-2 text-sm brutal-shadow">
+          <Button type="submit" size="lg" disabled={isSubmitting || !canSubmit} data-testid="button-submit-session" className="border-2 text-sm brutal-shadow">
             {isSubmitting ? "SAVING..." : compact ? "SAVE CHANGES" : "SAVE RECORD"}
           </Button>
         </div>
@@ -263,13 +403,39 @@ export function SessionForm({
             onOpenChange={(open) => {
               if (!open) setScannerOpenFor(null);
             }}
-            playerName={form.getValues(`playerBalances.${scannerOpenFor}.name`) || `Player ${scannerOpenFor + 1}`}
+            playerName={
+              roster.find(
+                (player) => player.id === form.getValues(`playerBalances.${scannerOpenFor}.playerId`),
+              )?.name ?? `Player ${scannerOpenFor + 1}`
+            }
             onApply={(amount) => {
-              form.setValue(`playerBalances.${scannerOpenFor}.endingAmount`, amount, { shouldValidate: true });
+              form.setValue(`playerBalances.${scannerOpenFor}.endingAmount`, Math.round(amount), { shouldValidate: true });
             }}
           />
         )}
       </Suspense>
+      <AlertDialog open={confirmUnlockOpen} onOpenChange={setConfirmUnlockOpen}>
+        <AlertDialogContent className="border-4 border-ink brutal-shadow-lg">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-black uppercase">Change the base pot?</AlertDialogTitle>
+            <AlertDialogDescription className="font-bold">
+              The base pot sets what every player started with. Changing it rewrites the
+              net winnings for all four players in this session, and the ending amounts
+              will need to add up to the new base before you can save.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="border-2 font-black uppercase">Keep locked</AlertDialogCancel>
+            <AlertDialogAction
+              className="border-2 border-ink bg-destructive font-black uppercase text-destructive-foreground"
+              onClick={() => setBasePotUnlocked(true)}
+              data-testid="button-confirm-unlock-base-pot"
+            >
+              Unlock base pot
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Form>
   );
 }

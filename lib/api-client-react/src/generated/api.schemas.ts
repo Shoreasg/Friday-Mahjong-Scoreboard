@@ -9,15 +9,22 @@ export interface HealthStatus {
   status: string;
 }
 
+/**
+ * Whole dollars the session was played for across all four players. Must divide evenly by four, and the four ending amounts must sum to it exactly (enforced by the server beyond this schema).
+ * @minimum 1
+ */
+export type BasePot = number;
+
 export interface PlayerBalance {
-  /** @minimum 1 */
-  playerId?: number;
   /**
-     * @minLength 1
-     * @maxLength 80
+     * The player in this seat. Resolve the name from the player record.
+     * @minimum 1
      */
-  name: string;
-  /** @minimum 0 */
+  playerId: number;
+  /**
+     * Whole dollars the player finished the session with.
+     * @minimum 0
+     */
   endingAmount: number;
   /** @minimum 0 */
   zhaHuCount: number;
@@ -30,8 +37,7 @@ export interface MahjongSession {
   playedOn: string;
   /** @minimum 1 */
   rounds: number;
-  totalAmount: number;
-  winnerName: string;
+  basePot: BasePot;
   playerBalances: PlayerBalance[];
   /** @nullable */
   notes: string | null;
@@ -63,6 +69,7 @@ export interface MahjongSessionInput {
      * @maximum 99
      */
   rounds: number;
+  basePot: BasePot;
   /**
      * @minItems 4
      * @maxItems 4
@@ -82,6 +89,7 @@ export interface MahjongSessionUpdate {
      * @maximum 99
      */
   rounds?: number;
+  basePot?: BasePot;
   /**
      * @minItems 4
      * @maxItems 4
@@ -92,6 +100,23 @@ export interface MahjongSessionUpdate {
      * @nullable
      */
   notes?: string | null;
+}
+
+export interface PlayerInput {
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  name: string;
+}
+
+export interface PlayerUpdate {
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  name?: string;
+  active?: boolean;
 }
 
 export interface Player {
@@ -177,24 +202,32 @@ export interface ChipScanResult {
   guidance: string | null;
 }
 
-export interface WinnerCount {
-  winnerName: string;
-  wins: number;
+/**
+ * How many nights a player finished strictly above their per-player share.
+ */
+export interface ProfitNightCount {
+  playerId: number;
+  playerName: string;
+  /** @minimum 1 */
+  nights: number;
 }
 
 export interface ZhaHuCount {
+  playerId: number;
   playerName: string;
   /** @minimum 0 */
   count: number;
 }
 
 export interface XieXieKaiXiangCount {
+  playerId: number;
   playerName: string;
   /** @minimum 0 */
   count: number;
 }
 
 export interface PlayerWinnings {
+  playerId: number;
   playerName: string;
   netAmount: number;
 }
@@ -202,9 +235,8 @@ export interface PlayerWinnings {
 export interface SessionSummary {
   totalSessions: number;
   totalRounds: number;
-  totalAmount: number;
   latestSession: MahjongSession | null;
-  winnerCounts: WinnerCount[];
+  profitNightCounts: ProfitNightCount[];
   zhaHuCounts: ZhaHuCount[];
   xieXieKaiXiangCounts: XieXieKaiXiangCount[];
   playerWinnings: PlayerWinnings[];

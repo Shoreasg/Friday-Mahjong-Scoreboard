@@ -91,12 +91,72 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Player"
+    post:
+      operationId: createPlayer
+      tags: [players]
+      summary: Add a player to the roster
+      description: Creates an active player. Names are unique ignoring case and surrounding whitespace.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlayerInput"
+      responses:
+        "201":
+          description: Created player
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Player"
+        "400":
+          description: Invalid player
+        "401":
+          description: Unauthorized
+        "403":
+          description: Admin access required
+        "409":
+          description: A player with that name already exists
+  /players/{id}:
+    patch:
+      operationId: updatePlayer
+      tags: [players]
+      summary: Rename a player or change whether they are active
+      description: >-
+        A rename is reflected in every session, chart and leaderboard, since
+        sessions reference players by id. Inactive players keep their full
+        history but are not offered when recording a new session.
+      parameters:
+        - $ref: "#/components/parameters/PlayerId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlayerUpdate"
+      responses:
+        "200":
+          description: Updated player
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Player"
+        "400":
+          description: Invalid player update
+        "401":
+          description: Unauthorized
+        "403":
+          description: Admin access required
+        "404":
+          description: Player not found
+        "409":
+          description: Another player already has that name
   /sessions/summary:
     get:
       operationId: getSessionSummary
       tags: [sessions]
       summary: Get Mahjong scoreboard summary
-      description: Returns lightweight totals, cumulative player winnings, winner counts, Zha Hu counts, and 谢谢 Kai Xiang counts for the dashboard.
+      description: Returns lightweight totals, cumulative player winnings, nights each player finished in profit, Zha Hu counts, and 谢谢 Kai Xiang counts for the dashboard.
       responses:
         "200":
           description: Scoreboard summary
@@ -195,6 +255,15 @@ paths:
           description: Image analysis service failed
 components:
   parameters:
+    PlayerId:
+      name: id
+      in: path
+      required: true
+      description: Player identifier
+      schema:
+        type: integer
+        format: int32
+        minimum: 1
     SessionId:
       name: id
       in: path
@@ -225,11 +294,8 @@ components:
           type: integer
           format: int32
           minimum: 1
-        totalAmount:
-          type: number
-          format: double
-        winnerName:
-          type: string
+        basePot:
+          $ref: "#/components/schemas/BasePot"
         playerBalances:
           type: array
           items:
@@ -245,8 +311,7 @@ components:
         - id
         - playedOn
         - rounds
-        - totalAmount
-        - winnerName
+        - basePot
         - playerBalances
         - notes
         - createdByUserId
@@ -305,6 +370,8 @@ components:
           format: int32
           minimum: 1
           maximum: 99
+        basePot:
+          $ref: "#/components/schemas/BasePot"
         playerBalances:
           type: array
           minItems: 4
@@ -317,6 +384,7 @@ components:
       required:
         - playedOn
         - rounds
+        - basePot
         - playerBalances
     MahjongSessionUpdate:
       type: object
@@ -329,6 +397,8 @@ components:
           format: int32
           minimum: 1
           maximum: 99
+        basePot:
+          $ref: "#/components/schemas/BasePot"
         playerBalances:
           type: array
           minItems: 4
@@ -338,6 +408,14 @@ components:
         notes:
           type: ["string", "null"]
           maxLength: 500
+    BasePot:
+      type: integer
+      format: int32
+      minimum: 1
+      description: >-
+        Whole dollars the session was played for across all four players.
+        Must divide evenly by four, and the four ending amounts must sum to it
+        exactly (enforced by the server beyond this schema).
     PlayerBalance:
       type: object
       properties:
@@ -345,14 +423,12 @@ components:
           type: integer
           format: int32
           minimum: 1
-        name:
-          type: string
-          minLength: 1
-          maxLength: 80
+          description: The player in this seat. Resolve the name from the player record.
         endingAmount:
-          type: number
-          format: double
+          type: integer
+          format: int32
           minimum: 0
+          description: Whole dollars the player finished the session with.
         zhaHuCount:
           type: integer
           format: int32
@@ -362,10 +438,28 @@ components:
           format: int32
           minimum: 0
       required:
-        - name
+        - playerId
         - endingAmount
         - zhaHuCount
         - xieXieKaiXiangCount
+    PlayerInput:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+      required:
+        - name
+    PlayerUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+        active:
+          type: boolean
     Player:
       type: object
       properties:
@@ -464,20 +558,29 @@ components:
         - stacks
         - overallConfidence
         - guidance
-    WinnerCount:
+    ProfitNightCount:
       type: object
+      description: How many nights a player finished strictly above their per-player share.
       properties:
-        winnerName:
-          type: string
-        wins:
+        playerId:
           type: integer
           format: int32
+        playerName:
+          type: string
+        nights:
+          type: integer
+          format: int32
+          minimum: 1
       required:
-        - winnerName
-        - wins
+        - playerId
+        - playerName
+        - nights
     ZhaHuCount:
       type: object
       properties:
+        playerId:
+          type: integer
+          format: int32
         playerName:
           type: string
         count:
@@ -485,11 +588,15 @@ components:
           format: int32
           minimum: 0
       required:
+        - playerId
         - playerName
         - count
     XieXieKaiXiangCount:
       type: object
       properties:
+        playerId:
+          type: integer
+          format: int32
         playerName:
           type: string
         count:
@@ -497,17 +604,22 @@ components:
           format: int32
           minimum: 0
       required:
+        - playerId
         - playerName
         - count
     PlayerWinnings:
       type: object
       properties:
+        playerId:
+          type: integer
+          format: int32
         playerName:
           type: string
         netAmount:
           type: number
           format: double
       required:
+        - playerId
         - playerName
         - netAmount
     SessionSummary:
@@ -519,17 +631,14 @@ components:
         totalRounds:
           type: integer
           format: int32
-        totalAmount:
-          type: number
-          format: double
         latestSession:
           anyOf:
             - $ref: "#/components/schemas/MahjongSession"
             - type: "null"
-        winnerCounts:
+        profitNightCounts:
           type: array
           items:
-            $ref: "#/components/schemas/WinnerCount"
+            $ref: "#/components/schemas/ProfitNightCount"
         zhaHuCounts:
           type: array
           items:
@@ -545,9 +654,8 @@ components:
       required:
         - totalSessions
         - totalRounds
-        - totalAmount
         - latestSession
-        - winnerCounts
+        - profitNightCounts
         - zhaHuCounts
         - xieXieKaiXiangCounts
         - playerWinnings

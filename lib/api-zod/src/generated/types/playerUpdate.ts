@@ -6,7 +6,11 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface WinnerCount {
-  winnerName: string;
-  wins: number;
+export interface PlayerUpdate {
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  name?: string;
+  active?: boolean;
 }
