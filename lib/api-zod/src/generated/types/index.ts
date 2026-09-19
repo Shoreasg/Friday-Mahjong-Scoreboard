@@ -26,5 +26,8 @@ export * from './profitNightCount';
 export * from './sessionCreationResponse';
 export * from './sessionSummary';
 export * from './telegramAnnouncementOutcome';
+export * from './telegramBroadcastInput';
+export * from './telegramBroadcastResult';
+export * from './telegramBroadcastResultStatus';
 export * from './xieXieKaiXiangCount';
 export * from './zhaHuCount';

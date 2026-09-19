@@ -62,6 +62,28 @@ export type SessionCreationResponse = MahjongSession & {
   announcement: TelegramAnnouncementOutcome;
 };
 
+export interface TelegramBroadcastInput {
+  /**
+     * Sent verbatim to the group chat with no parse mode, so brackets, asterisks, and emoji are never treated as formatting.
+     * @minLength 1
+     * @maxLength 4096
+     */
+  message: string;
+}
+
+export type TelegramBroadcastResultStatus = typeof TelegramBroadcastResultStatus[keyof typeof TelegramBroadcastResultStatus];
+
+
+export const TelegramBroadcastResultStatus = {
+  sent: 'sent',
+} as const;
+
+export interface TelegramBroadcastResult {
+  status: TelegramBroadcastResultStatus;
+  /** @nullable */
+  messageId: number | null;
+}
+
 export interface MahjongSessionInput {
   playedOn: string;
   /**

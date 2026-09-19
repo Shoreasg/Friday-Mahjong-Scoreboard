@@ -16,6 +16,8 @@ tags:
     description: Mahjong player roster
   - name: chip-scans
     description: Assisted Mahjong chip stack counting
+  - name: telegram
+    description: Telegram group chat integration
 paths:
   /healthz:
     get:
@@ -253,6 +255,39 @@ paths:
           description: Image does not show countable separated stacks
         "502":
           description: Image analysis service failed
+  /telegram/broadcast:
+    post:
+      operationId: sendTelegramBroadcast
+      tags: [telegram]
+      summary: Broadcast an ad-hoc message to the group chat
+      description: >-
+        Posts arbitrary admin-composed text to the configured Telegram group
+        chat, with no parse mode, so any characters send literally. This is
+        also the manual retry path for a session announcement that failed to
+        send.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TelegramBroadcastInput"
+      responses:
+        "200":
+          description: Message sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TelegramBroadcastResult"
+        "400":
+          description: Invalid or over-length message
+        "401":
+          description: Unauthorized
+        "403":
+          description: Admin access required
+        "502":
+          description: Telegram rejected or failed to deliver the message
+        "503":
+          description: Telegram is not configured
 components:
   parameters:
     PlayerId:
@@ -359,6 +394,29 @@ components:
           required:
             - status
             - reason
+    TelegramBroadcastInput:
+      type: object
+      properties:
+        message:
+          type: string
+          minLength: 1
+          maxLength: 4096
+          description: >-
+            Sent verbatim to the group chat with no parse mode, so brackets,
+            asterisks, and emoji are never treated as formatting.
+      required:
+        - message
+    TelegramBroadcastResult:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [sent]
+        messageId:
+          type: ["integer", "null"]
+      required:
+        - status
+        - messageId
     MahjongSessionInput:
       type: object
       properties:

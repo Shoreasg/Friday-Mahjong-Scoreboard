@@ -31,7 +31,9 @@ import type {
   PlayerInput,
   PlayerUpdate,
   SessionCreationResponse,
-  SessionSummary
+  SessionSummary,
+  TelegramBroadcastInput,
+  TelegramBroadcastResult
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -887,5 +889,77 @@ export const useAnalyzeChipStacks = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getAnalyzeChipStacksMutationOptions(options));
+    }
+
+export const getSendTelegramBroadcastUrl = () => {
+
+
+
+
+  return `/api/telegram/broadcast`
+}
+
+/**
+ * Posts arbitrary admin-composed text to the configured Telegram group chat, with no parse mode, so any characters send literally. This is also the manual retry path for a session announcement that failed to send.
+ * @summary Broadcast an ad-hoc message to the group chat
+ */
+export const sendTelegramBroadcast = async (telegramBroadcastInput: TelegramBroadcastInput, options?: Parameters<typeof customFetch>[1]): Promise<TelegramBroadcastResult> => {
+
+  return customFetch<TelegramBroadcastResult>(getSendTelegramBroadcastUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(telegramBroadcastInput)
+  }
+);}
+
+
+
+
+
+export const getSendTelegramBroadcastMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendTelegramBroadcast>>, TError,{data: BodyType<TelegramBroadcastInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof sendTelegramBroadcast>>, TError,{data: BodyType<TelegramBroadcastInput>}, TContext> => {
+
+const mutationKey = ['sendTelegramBroadcast'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof sendTelegramBroadcast>>, {data: BodyType<TelegramBroadcastInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  sendTelegramBroadcast(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SendTelegramBroadcastMutationResult = NonNullable<Awaited<ReturnType<typeof sendTelegramBroadcast>>>
+    export type SendTelegramBroadcastMutationBody = BodyType<TelegramBroadcastInput>
+    export type SendTelegramBroadcastMutationError = ErrorType<void>
+
+    /**
+ * @summary Broadcast an ad-hoc message to the group chat
+ */
+export const useSendTelegramBroadcast = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendTelegramBroadcast>>, TError,{data: BodyType<TelegramBroadcastInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof sendTelegramBroadcast>>,
+        TError,
+        {data: BodyType<TelegramBroadcastInput>},
+        TContext
+      > => {
+      return useMutation(getSendTelegramBroadcastMutationOptions(options));
     }
 
