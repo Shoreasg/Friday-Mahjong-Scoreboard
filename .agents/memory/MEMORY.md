@@ -1,2 +1,3 @@
 - [CLI upgrades](cli-upgrades.md) — Nix package precedence can hide a newer workspace-local CLI.
 - [Architecture rendering](architecture-rendering.md) — Archify needs an origin remote and a full 40-character evidence revision.
+- [Production data reshaping](production-data-reshaping.md) — stage live data in development before Publish when schema changes also transform row contents.
