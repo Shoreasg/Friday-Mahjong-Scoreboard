@@ -36,11 +36,16 @@ import {
   type Request,
 } from "express";
 import { requireAdmin } from "./requireAdmin";
+import {
+  getSessionSummary,
+  loadAllPlayerNames,
+  normalizeSession,
+  playerName,
+  type PlayerNames,
+  type SessionRecord,
+} from "../lib/session-summary";
 
 const router: IRouter = Router();
-
-type SessionRecord = typeof mahjongSessionsTable.$inferSelect;
-type PlayerNames = Map<number, string>;
 
 type AnnouncementOutcome =
   | { status: "sent"; messageId: number | null }
@@ -82,17 +87,6 @@ async function loadReferencedPlayers(
   return names;
 }
 
-async function loadAllPlayerNames(): Promise<PlayerNames> {
-  const players = await db
-    .select({ id: playersTable.id, name: playersTable.name })
-    .from(playersTable);
-  return new Map(players.map((player) => [player.id, player.name]));
-}
-
-function playerName(names: PlayerNames, playerId: number): string {
-  return names.get(playerId) ?? `Player #${playerId}`;
-}
-
 function toStoredBalances(
   playerBalances: PlayerBalance[],
 ): PlayerBalance[] {
@@ -102,26 +96,6 @@ function toStoredBalances(
     zhaHuCount: balance.zhaHuCount,
     xieXieKaiXiangCount: balance.xieXieKaiXiangCount,
   }));
-}
-
-/** Shapes a stored session for responses, defaulting legacy incident counts. */
-function normalizeSession(session: SessionRecord) {
-  return {
-    ...session,
-    playerBalances: (session.playerBalances ?? []).map((balance) => ({
-      playerId: balance.playerId,
-      endingAmount: balance.endingAmount,
-      zhaHuCount:
-        Number.isInteger(balance.zhaHuCount) && balance.zhaHuCount >= 0
-          ? balance.zhaHuCount
-          : 0,
-      xieXieKaiXiangCount:
-        Number.isInteger(balance.xieXieKaiXiangCount) &&
-        balance.xieXieKaiXiangCount >= 0
-          ? balance.xieXieKaiXiangCount
-          : 0,
-    })),
-  };
 }
 
 function dateOnly(value: Date): string {
@@ -293,77 +267,7 @@ router.post("/sessions", async (req, res): Promise<void> => {
 });
 
 router.get("/sessions/summary", async (req, res): Promise<void> => {
-  const sessions = (
-    await db
-      .select()
-      .from(mahjongSessionsTable)
-      .orderBy(desc(mahjongSessionsTable.playedOn))
-  ).map(normalizeSession);
-  const names = await loadAllPlayerNames();
-
-  type PlayerTotals = {
-    profitNights: number;
-    zhaHu: number;
-    xieXieKaiXiang: number;
-    netAmount: number;
-  };
-  const totalsByPlayer = new Map<number, PlayerTotals>();
-  for (const session of sessions) {
-    for (const player of session.playerBalances) {
-      const totals = totalsByPlayer.get(player.playerId) ?? {
-        profitNights: 0,
-        zhaHu: 0,
-        xieXieKaiXiang: 0,
-        netAmount: 0,
-      };
-      if (isInProfit(player.endingAmount, session.basePot)) {
-        totals.profitNights += 1;
-      }
-      totals.zhaHu += player.zhaHuCount;
-      totals.xieXieKaiXiang += player.xieXieKaiXiangCount;
-      // Amounts are whole dollars and shares are too (bases divide by four),
-      // so this sum is exact.
-      totals.netAmount += netWinnings(player.endingAmount, session.basePot);
-      totalsByPlayer.set(player.playerId, totals);
-    }
-  }
-
-  const rows = [...totalsByPlayer.entries()].map(([playerId, totals]) => ({
-    playerId,
-    playerName: playerName(names, playerId),
-    ...totals,
-  }));
-  const byName = (a: { playerName: string }, b: { playerName: string }) =>
-    a.playerName.localeCompare(b.playerName);
-
-  res.json(
-    GetSessionSummaryResponse.parse({
-      totalSessions: sessions.length,
-      totalRounds: sessions.reduce((total, session) => total + session.rounds, 0),
-      latestSession: sessions[0] ?? null,
-      profitNightCounts: rows
-        .filter((row) => row.profitNights > 0)
-        .sort((a, b) => b.profitNights - a.profitNights || byName(a, b))
-        .map(({ playerId, playerName, profitNights }) => ({
-          playerId,
-          playerName,
-          nights: profitNights,
-        })),
-      zhaHuCounts: [...rows]
-        .sort((a, b) => b.zhaHu - a.zhaHu || byName(a, b))
-        .map(({ playerId, playerName, zhaHu }) => ({ playerId, playerName, count: zhaHu })),
-      xieXieKaiXiangCounts: [...rows]
-        .sort((a, b) => b.xieXieKaiXiang - a.xieXieKaiXiang || byName(a, b))
-        .map(({ playerId, playerName, xieXieKaiXiang }) => ({
-          playerId,
-          playerName,
-          count: xieXieKaiXiang,
-        })),
-      playerWinnings: [...rows]
-        .sort((a, b) => b.netAmount - a.netAmount || byName(a, b))
-        .map(({ playerId, playerName, netAmount }) => ({ playerId, playerName, netAmount })),
-    }),
-  );
+  res.json(GetSessionSummaryResponse.parse(await getSessionSummary()));
 });
 
 router.get("/sessions/:id", async (req, res): Promise<void> => {
