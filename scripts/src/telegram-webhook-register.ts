@@ -1,7 +1,10 @@
 import { setTelegramWebhook } from "@workspace/integrations-telegram";
 
 async function registerWebhook(): Promise<void> {
-  const url = process.argv[2] ?? process.env.TELEGRAM_WEBHOOK_URL;
+  // `pnpm run <script> -- <url>` passes the "--" through as a literal argv
+  // entry rather than stripping it, so skip it if present.
+  const args = process.argv.slice(2).filter((arg) => arg !== "--");
+  const url = args[0] ?? process.env.TELEGRAM_WEBHOOK_URL;
   const secret = process.env.TELEGRAM_WEBHOOK_SECRET;
 
   if (!url) {
@@ -16,6 +19,12 @@ async function registerWebhook(): Promise<void> {
 
   if (!secret) {
     console.error("TELEGRAM_WEBHOOK_SECRET must be set before registering the webhook.");
+    process.exitCode = 1;
+    return;
+  }
+
+  if (!URL.canParse(url) || !url.startsWith("https://")) {
+    console.error(`"${url}" is not a valid https:// URL.`);
     process.exitCode = 1;
     return;
   }
