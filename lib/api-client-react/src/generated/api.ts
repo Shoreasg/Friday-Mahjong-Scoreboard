@@ -33,7 +33,9 @@ import type {
   SessionCreationResponse,
   SessionSummary,
   TelegramBroadcastInput,
-  TelegramBroadcastResult
+  TelegramBroadcastResult,
+  TelegramPollInput,
+  TelegramPollResult
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -961,5 +963,77 @@ export const useSendTelegramBroadcast = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getSendTelegramBroadcastMutationOptions(options));
+    }
+
+export const getStartTelegramPollUrl = () => {
+
+
+
+
+  return `/api/telegram/poll`
+}
+
+/**
+ * Posts a native, non-anonymous Telegram poll with a preset question and Yes / No / Maybe options. Telegram shows the running tally and voter names directly in the chat, so poll results are never read back or stored by this application.
+ * @summary Start a Yes / No / Maybe attendance poll in the group chat
+ */
+export const startTelegramPoll = async (telegramPollInput: TelegramPollInput, options?: Parameters<typeof customFetch>[1]): Promise<TelegramPollResult> => {
+
+  return customFetch<TelegramPollResult>(getStartTelegramPollUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(telegramPollInput)
+  }
+);}
+
+
+
+
+
+export const getStartTelegramPollMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof startTelegramPoll>>, TError,{data: BodyType<TelegramPollInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof startTelegramPoll>>, TError,{data: BodyType<TelegramPollInput>}, TContext> => {
+
+const mutationKey = ['startTelegramPoll'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof startTelegramPoll>>, {data: BodyType<TelegramPollInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  startTelegramPoll(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type StartTelegramPollMutationResult = NonNullable<Awaited<ReturnType<typeof startTelegramPoll>>>
+    export type StartTelegramPollMutationBody = BodyType<TelegramPollInput>
+    export type StartTelegramPollMutationError = ErrorType<void>
+
+    /**
+ * @summary Start a Yes / No / Maybe attendance poll in the group chat
+ */
+export const useStartTelegramPoll = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof startTelegramPoll>>, TError,{data: BodyType<TelegramPollInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof startTelegramPoll>>,
+        TError,
+        {data: BodyType<TelegramPollInput>},
+        TContext
+      > => {
+      return useMutation(getStartTelegramPollMutationOptions(options));
     }
 

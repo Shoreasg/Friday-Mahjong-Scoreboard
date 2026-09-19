@@ -4,6 +4,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 const mocks = vi.hoisted(() => ({
   getUser: vi.fn(),
   telegramSend: vi.fn(),
+  telegramPoll: vi.fn(),
 }));
 
 vi.mock("@clerk/express", () => ({
@@ -20,6 +21,7 @@ vi.mock("@clerk/express", () => ({
 
 vi.mock("@workspace/integrations-telegram", () => ({
   sendTelegramMessage: mocks.telegramSend,
+  startTelegramPoll: mocks.telegramPoll,
 }));
 
 import app from "../app";
@@ -46,6 +48,14 @@ async function broadcast(message: unknown, userId?: string) {
   return request(
     "/api/telegram/broadcast",
     { method: "POST", body: JSON.stringify({ message }) },
+    userId,
+  );
+}
+
+async function startPoll(preset: unknown, userId?: string) {
+  return request(
+    "/api/telegram/poll",
+    { method: "POST", body: JSON.stringify({ preset }) },
     userId,
   );
 }
@@ -131,6 +141,68 @@ describe("POST /telegram/broadcast", () => {
     mocks.telegramSend.mockRejectedValue(new Error("Telegram is unavailable"));
 
     const response = await broadcast("Mahjong tonight?", adminUserId);
+
+    expect(response.status).toBe(502);
+  });
+});
+
+describe("POST /telegram/poll", () => {
+  it("rejects signed-out callers", async () => {
+    const response = await startPoll("tonight");
+
+    expect(response.status).toBe(401);
+    expect(mocks.telegramPoll).not.toHaveBeenCalled();
+  });
+
+  it("rejects non-admin callers", async () => {
+    const response = await startPoll("tonight", viewerUserId);
+
+    expect(response.status).toBe(403);
+    expect(mocks.telegramPoll).not.toHaveBeenCalled();
+  });
+
+  it("starts the 'tonight' preset poll", async () => {
+    mocks.telegramPoll.mockResolvedValue({ status: "sent", messageId: 11 });
+
+    const response = await startPoll("tonight", adminUserId);
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ status: "sent", messageId: 11 });
+    expect(mocks.telegramPoll).toHaveBeenCalledWith("Mahjong tonight?");
+  });
+
+  it("starts the 'this_friday' preset poll", async () => {
+    mocks.telegramPoll.mockResolvedValue({ status: "sent", messageId: 12 });
+
+    const response = await startPoll("this_friday", adminUserId);
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ status: "sent", messageId: 12 });
+    expect(mocks.telegramPoll).toHaveBeenCalledWith("Mahjong this Friday?");
+  });
+
+  it("rejects an unknown preset", async () => {
+    const response = await startPoll("next_week", adminUserId);
+
+    expect(response.status).toBe(400);
+    expect(mocks.telegramPoll).not.toHaveBeenCalled();
+  });
+
+  it("reports unavailability when Telegram is not configured", async () => {
+    mocks.telegramPoll.mockResolvedValue({
+      status: "skipped",
+      reason: "not_configured",
+    });
+
+    const response = await startPoll("tonight", adminUserId);
+
+    expect(response.status).toBe(503);
+  });
+
+  it("surfaces a failure to start the poll instead of swallowing it", async () => {
+    mocks.telegramPoll.mockRejectedValue(new Error("Telegram is unavailable"));
+
+    const response = await startPoll("tonight", adminUserId);
 
     expect(response.status).toBe(502);
   });

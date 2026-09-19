@@ -288,6 +288,39 @@ paths:
           description: Telegram rejected or failed to deliver the message
         "503":
           description: Telegram is not configured
+  /telegram/poll:
+    post:
+      operationId: startTelegramPoll
+      tags: [telegram]
+      summary: Start a Yes / No / Maybe attendance poll in the group chat
+      description: >-
+        Posts a native, non-anonymous Telegram poll with a preset question and
+        Yes / No / Maybe options. Telegram shows the running tally and voter
+        names directly in the chat, so poll results are never read back or
+        stored by this application.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TelegramPollInput"
+      responses:
+        "200":
+          description: Poll started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TelegramPollResult"
+        "400":
+          description: Invalid preset
+        "401":
+          description: Unauthorized
+        "403":
+          description: Admin access required
+        "502":
+          description: Telegram rejected or failed to start the poll
+        "503":
+          description: Telegram is not configured
 components:
   parameters:
     PlayerId:
@@ -407,6 +440,29 @@ components:
       required:
         - message
     TelegramBroadcastResult:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [sent]
+        messageId:
+          type: ["integer", "null"]
+      required:
+        - status
+        - messageId
+    TelegramPollInput:
+      type: object
+      properties:
+        preset:
+          type: string
+          enum: [tonight, this_friday]
+          description: >-
+            Which preset question to post. The question text itself is
+            composed server-side so the group always sees a consistent
+            phrasing.
+      required:
+        - preset
+    TelegramPollResult:
       type: object
       properties:
         status:

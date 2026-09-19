@@ -20,6 +20,10 @@ project outside Replit.
 - **Windows and Linux hosts aren't covered here.** This guide targets macOS.
   Nothing about the design should prevent other hosts from working, but it
   hasn't been verified on them.
+- **Testing inbound Telegram commands (e.g. `/help`) locally requires a
+  tunnel.** Telegram delivers webhook updates by POSTing to a public HTTPS
+  URL — it cannot reach `localhost`. See
+  [Telegram webhook](#telegram-webhook) below.
 
 ## Prerequisites
 
@@ -143,6 +147,35 @@ credentials), so confirm this by hand once:
    delete it.
 4. Sign in with a different Google account (not in `ADMIN_EMAILS`) and
    confirm admin actions are refused.
+
+## Telegram webhook
+
+Outbound Telegram features (session announcements, ad-hoc broadcasts, the
+attendance poll) only need `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`, and
+work locally with no further setup.
+
+The inbound half — the bot answering `/help` in the group chat — needs
+Telegram to deliver updates to a webhook URL it can reach over the public
+internet, which `localhost` never is. To exercise it locally:
+
+1. Set `TELEGRAM_WEBHOOK_SECRET` in `.env` to any random string.
+2. Start a tunnel to the API server, e.g. `ngrok http 5000`, and copy the
+   HTTPS URL it gives you.
+3. Register the webhook:
+   ```sh
+   docker compose exec api pnpm --filter @workspace/scripts run \
+     telegram:webhook:register -- https://<your-tunnel>.ngrok.app/api/telegram/webhook
+   ```
+4. Message the bot's group chat with `/help` and confirm it replies.
+5. Check the webhook's registration state (including the last delivery
+   error, if any) any time:
+   ```sh
+   docker compose exec api pnpm --filter @workspace/scripts run telegram:webhook:info
+   ```
+
+A stale or unregistered webhook has no error anywhere in the server logs —
+commands just silently do nothing — so `telegram:webhook:info` is the first
+thing to check if `/help` stops responding.
 
 ## Resetting and stopping
 

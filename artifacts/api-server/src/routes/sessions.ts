@@ -36,6 +36,7 @@ import {
   type Request,
 } from "express";
 import { requireAdmin } from "./requireAdmin";
+import { scoreboardUrl } from "./scoreboardUrl";
 import {
   getSessionSummary,
   loadAllPlayerNames,
@@ -116,17 +117,6 @@ function formatMoney(value: number): string {
 
 function formatNetPosition(value: number): string {
   return `${value >= 0 ? "+" : "-"}${formatMoney(Math.abs(value))}`;
-}
-
-function scoreboardUrl(req: Request): string {
-  const configuredUrl = process.env.SCOREBOARD_URL?.trim();
-  if (configuredUrl) {
-    return configuredUrl.replace(/\/+$/, "");
-  }
-
-  const forwardedProto = req.get("x-forwarded-proto")?.split(",")[0]?.trim();
-  const protocol = forwardedProto || req.protocol;
-  return `${protocol}://${req.get("host")}`;
 }
 
 function sessionAnnouncement(

@@ -455,3 +455,17 @@ export const SendTelegramBroadcastResponse = zod.object({
 })
 
 
+/**
+ * Posts a native, non-anonymous Telegram poll with a preset question and Yes / No / Maybe options. Telegram shows the running tally and voter names directly in the chat, so poll results are never read back or stored by this application.
+ * @summary Start a Yes / No / Maybe attendance poll in the group chat
+ */
+export const StartTelegramPollBody = zod.object({
+  "preset": zod.enum(['tonight', 'this_friday']).describe('Which preset question to post. The question text itself is composed server-side so the group always sees a consistent phrasing.')
+})
+
+export const StartTelegramPollResponse = zod.object({
+  "status": zod.enum(['sent']),
+  "messageId": zod.int().nullable()
+})
+
+
