@@ -437,3 +437,21 @@ export const AnalyzeChipStacksResponse = zod.object({
 })
 
 
+/**
+ * Posts arbitrary admin-composed text to the configured Telegram group chat, with no parse mode, so any characters send literally. This is also the manual retry path for a session announcement that failed to send.
+ * @summary Broadcast an ad-hoc message to the group chat
+ */
+export const sendTelegramBroadcastBodyMessageMax = 4096;
+
+
+
+export const SendTelegramBroadcastBody = zod.object({
+  "message": zod.string().min(1).max(sendTelegramBroadcastBodyMessageMax).describe('Sent verbatim to the group chat with no parse mode, so brackets, asterisks, and emoji are never treated as formatting.')
+})
+
+export const SendTelegramBroadcastResponse = zod.object({
+  "status": zod.enum(['sent']),
+  "messageId": zod.int().nullable()
+})
+
+

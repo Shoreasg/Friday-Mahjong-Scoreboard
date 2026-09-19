@@ -207,7 +207,7 @@
         },
         {
           "path": "artifacts/api-server/src/routes/index.ts",
-          "label": "health, players, sessions, chip scans"
+          "label": "health, players, sessions, chip scans, telegram"
         },
         {
           "path": "artifacts/api-server/.replit-artifact/artifact.toml",
@@ -419,7 +419,7 @@
       "id": "api-to-telegram",
       "from": "api",
       "to": "telegram",
-      "label": "optional session result announcement",
+      "label": "session announcements & admin broadcasts",
       "fromSide": "bottom",
       "toSide": "left"
     },

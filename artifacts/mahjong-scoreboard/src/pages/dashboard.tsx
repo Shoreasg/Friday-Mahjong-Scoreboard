@@ -16,6 +16,7 @@ import { Link } from "wouter";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useIsAdmin } from "@/hooks/use-is-admin";
 import { getSessionCreationNotification } from "@/lib/session-announcement";
+import { TelegramBroadcastCard } from "@/components/TelegramBroadcastCard";
 
 const PerformanceAnalytics = lazy(() =>
   import("@/components/PerformanceAnalytics").then((module) => ({
@@ -249,6 +250,8 @@ export default function Dashboard() {
             </CardContent>
           </Card>
         </section>
+
+        {isAdmin && <TelegramBroadcastCard />}
 
         <Suspense fallback={<PerformanceAnalyticsPlaceholder />}>
           <PerformanceAnalytics sessions={sessions ?? []} playerNames={playerNames} />
