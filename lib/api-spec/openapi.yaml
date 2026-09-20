@@ -18,7 +18,123 @@ tags:
     description: Assisted Mahjong chip stack counting
   - name: telegram
     description: Telegram group chat integration
+  - name: admin
+    description: Admin roles and the signed-in user's own admin status
 paths:
+  /me:
+    get:
+      operationId: getCurrentUser
+      tags: [admin]
+      summary: Report the signed-in user's own admin status
+      description: >-
+        Signed-in users only, never gated by admin access itself. Reports
+        isAdmin (ADMIN_EMAILS or the admins table) and isSuperAdmin
+        (ADMIN_EMAILS only) for the caller.
+      responses:
+        "200":
+          description: Admin status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MeStatus"
+        "401":
+          description: Unauthorized
+  /admin/admins:
+    get:
+      operationId: listAdmins
+      tags: [admin]
+      summary: List granted admins
+      description: >-
+        Every admin in the admins table, plus every ADMIN_EMAILS entry shown
+        read-only and flagged as coming from the environment. Any admin can
+        view this list; only a super admin can grant or revoke.
+      responses:
+        "200":
+          description: Admin list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminEntry"
+        "401":
+          description: Unauthorized
+        "403":
+          description: Admin access required
+        "500":
+          description: Admin access is not configured
+    post:
+      operationId: grantAdmin
+      tags: [admin]
+      summary: Grant admin access to a signed-up user
+      description: Super-admin only.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GrantAdminInput"
+      responses:
+        "201":
+          description: Admin granted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEntry"
+        "400":
+          description: Invalid email
+        "401":
+          description: Unauthorized
+        "403":
+          description: Admin access required (super admin only)
+        "500":
+          description: Admin access is not configured
+  /admin/admins/{email}:
+    delete:
+      operationId: revokeAdmin
+      tags: [admin]
+      summary: Revoke a granted admin
+      description: >-
+        Super-admin only. Rejects attempts to revoke an ADMIN_EMAILS entry --
+        those are env-only and can't be edited from the UI.
+      parameters:
+        - $ref: "#/components/parameters/AdminEmail"
+      responses:
+        "204":
+          description: Admin revoked
+        "400":
+          description: That email is an ADMIN_EMAILS entry and can't be revoked from the UI
+        "401":
+          description: Unauthorized
+        "403":
+          description: Admin access required (super admin only)
+        "404":
+          description: No such granted admin
+        "500":
+          description: Admin access is not configured
+  /admin/clerk-users:
+    get:
+      operationId: listClerkUsers
+      tags: [admin]
+      summary: List signed-up users for the admin grant picker
+      description: >-
+        Super-admin only. Lets the grant picker show real names instead of a
+        typed email, so typos are impossible.
+      responses:
+        "200":
+          description: Signed-up users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ClerkUserSummary"
+        "401":
+          description: Unauthorized
+        "403":
+          description: Admin access required (super admin only)
+        "500":
+          description: Admin access is not configured
   /healthz:
     get:
       operationId: healthCheck
@@ -394,6 +510,13 @@ components:
         type: integer
         format: int32
         minimum: 1
+    AdminEmail:
+      name: email
+      in: path
+      required: true
+      description: Granted admin's email address (lowercased, trimmed)
+      schema:
+        type: string
   schemas:
     HealthStatus:
       type: object
@@ -568,6 +691,64 @@ components:
             setup (custom domain, tunnel) still has an escape hatch.
       required:
         - url
+    MeStatus:
+      type: object
+      properties:
+        isAdmin:
+          type: boolean
+        isSuperAdmin:
+          type: boolean
+      required:
+        - isAdmin
+        - isSuperAdmin
+    AdminEntry:
+      type: object
+      properties:
+        email:
+          type: string
+        source:
+          type: string
+          enum: [env, table]
+          description: >-
+            "env" entries come from ADMIN_EMAILS and are read-only in the UI;
+            "table" entries were granted through the admin list card.
+        grantedBy:
+          type: ["string", "null"]
+          description: Email of the super admin who granted this. Null for "env" entries.
+        grantedAt:
+          type: ["string", "null"]
+          format: date-time
+          description: Null for "env" entries.
+      required:
+        - email
+        - source
+        - grantedBy
+        - grantedAt
+    GrantAdminInput:
+      type: object
+      properties:
+        email:
+          type: string
+          minLength: 1
+          description: Primary email of a signed-up user, from the Clerk user picker.
+      required:
+        - email
+    ClerkUserSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Clerk user ID.
+        email:
+          type: string
+          description: Primary email address.
+        name:
+          type: ["string", "null"]
+          description: Full name, if the user has set one.
+      required:
+        - id
+        - email
+        - name
     MahjongSessionInput:
       type: object
       properties:

@@ -28,6 +28,25 @@ vi.mock("@workspace/integrations-telegram", () => ({
   setTelegramWebhook: mocks.setTelegramWebhook,
 }));
 
+// requireAdmin() falls back to an admins-table lookup for any caller not on
+// ADMIN_EMAILS. No test here exercises a table-granted admin, so every
+// lookup resolves to "not found" (empty rows).
+vi.mock("@workspace/db", async (importOriginal) => {
+  const original = await importOriginal<typeof import("@workspace/db")>();
+  const chain: {
+    from: ReturnType<typeof vi.fn>;
+    where: ReturnType<typeof vi.fn>;
+    then: (resolve: (value: unknown) => unknown) => unknown;
+  } = {
+    from: vi.fn(),
+    where: vi.fn(),
+    then: (resolve) => Promise.resolve([]).then(resolve),
+  };
+  chain.from.mockReturnValue(chain);
+  chain.where.mockReturnValue(chain);
+  return { ...original, db: { select: vi.fn(() => chain) } };
+});
+
 import app from "../app";
 
 const adminUserId = "admin-user";
@@ -283,7 +302,11 @@ describe("GET /telegram/webhook/info", () => {
     const response = await getWebhookInfo(adminUserId);
 
     expect(response.status).toBe(200);
-    const body = await response.json();
+    const body = (await response.json()) as {
+      status: string;
+      pendingUpdateCount: number;
+      lastErrorMessage: string | null;
+    };
     expect(body.status).toBe("mismatch");
     expect(body.pendingUpdateCount).toBe(2);
     expect(body.lastErrorMessage).toBe("Wrong response from the webhook: 500");
@@ -298,7 +321,7 @@ describe("GET /telegram/webhook/info", () => {
 
     const response = await getWebhookInfo(adminUserId);
 
-    expect((await response.json()).status).toBe("unregistered");
+    expect(((await response.json()) as { status: string }).status).toBe("unregistered");
   });
 
   it("reports unavailability when Telegram is not configured", async () => {
@@ -354,7 +377,7 @@ describe("POST /telegram/webhook/register", () => {
       "https://mahjong.example.com/api/telegram/webhook",
       "test-webhook-secret",
     );
-    expect((await response.json()).status).toBe("ok");
+    expect(((await response.json()) as { status: string }).status).toBe("ok");
   });
 
   it("rejects a non-https URL", async () => {

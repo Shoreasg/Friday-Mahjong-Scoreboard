@@ -9,6 +9,71 @@ import * as zod from 'zod';
 
 
 /**
+ * Signed-in users only, never gated by admin access itself. Reports isAdmin (ADMIN_EMAILS or the admins table) and isSuperAdmin (ADMIN_EMAILS only) for the caller.
+ * @summary Report the signed-in user's own admin status
+ */
+export const GetCurrentUserResponse = zod.object({
+  "isAdmin": zod.boolean(),
+  "isSuperAdmin": zod.boolean()
+})
+
+
+/**
+ * Every admin in the admins table, plus every ADMIN_EMAILS entry shown read-only and flagged as coming from the environment. Any admin can view this list; only a super admin can grant or revoke.
+ * @summary List granted admins
+ */
+export const ListAdminsResponseItem = zod.object({
+  "email": zod.string(),
+  "source": zod.enum(['env', 'table']).describe('\"env\" entries come from ADMIN_EMAILS and are read-only in the UI; \"table\" entries were granted through the admin list card.'),
+  "grantedBy": zod.string().nullable().describe('Email of the super admin who granted this. Null for \"env\" entries.'),
+  "grantedAt": zod.coerce.date().nullable().describe('Null for \"env\" entries.')
+})
+export const ListAdminsResponse = zod.array(ListAdminsResponseItem)
+
+
+/**
+ * Super-admin only.
+ * @summary Grant admin access to a signed-up user
+ */
+
+
+
+export const GrantAdminBody = zod.object({
+  "email": zod.string().min(1).describe('Primary email of a signed-up user, from the Clerk user picker.')
+})
+
+export const GrantAdminResponse = zod.object({
+  "email": zod.string(),
+  "source": zod.enum(['env', 'table']).describe('\"env\" entries come from ADMIN_EMAILS and are read-only in the UI; \"table\" entries were granted through the admin list card.'),
+  "grantedBy": zod.string().nullable().describe('Email of the super admin who granted this. Null for \"env\" entries.'),
+  "grantedAt": zod.coerce.date().nullable().describe('Null for \"env\" entries.')
+})
+
+
+/**
+ * Super-admin only. Rejects attempts to revoke an ADMIN_EMAILS entry -- those are env-only and can't be edited from the UI.
+ * @summary Revoke a granted admin
+ */
+export const RevokeAdminParams = zod.object({
+  "email": zod.coerce.string().describe('Granted admin\'s email address (lowercased, trimmed)')
+})
+
+export const RevokeAdminResponse = zod.void()
+
+
+/**
+ * Super-admin only. Lets the grant picker show real names instead of a typed email, so typos are impossible.
+ * @summary List signed-up users for the admin grant picker
+ */
+export const ListClerkUsersResponseItem = zod.object({
+  "id": zod.string().describe('Clerk user ID.'),
+  "email": zod.string().describe('Primary email address.'),
+  "name": zod.string().nullable().describe('Full name, if the user has set one.')
+})
+export const ListClerkUsersResponse = zod.array(ListClerkUsersResponseItem)
+
+
+/**
  * Returns server health status
  * @summary Health check
  */

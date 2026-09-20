@@ -20,13 +20,17 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AdminEntry,
   ChipScanInput,
   ChipScanResult,
+  ClerkUserSummary,
+  GrantAdminInput,
   HealthStatus,
   ListPlayersParams,
   MahjongSession,
   MahjongSessionInput,
   MahjongSessionUpdate,
+  MeStatus,
   Player,
   PlayerInput,
   PlayerUpdate,
@@ -66,6 +70,384 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
+
+export const getGetCurrentUserUrl = () => {
+
+
+
+
+  return `/api/me`
+}
+
+/**
+ * Signed-in users only, never gated by admin access itself. Reports isAdmin (ADMIN_EMAILS or the admins table) and isSuperAdmin (ADMIN_EMAILS only) for the caller.
+ * @summary Report the signed-in user's own admin status
+ */
+export const getCurrentUser = async ( options?: Parameters<typeof customFetch>[1]): Promise<MeStatus> => {
+
+  return customFetch<MeStatus>(getGetCurrentUserUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCurrentUserQueryKey = () => {
+    return [
+    `/api/me`
+    ] as const;
+    }
+
+
+export const getGetCurrentUserQueryOptions = <TData = Awaited<ReturnType<typeof getCurrentUser>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCurrentUser>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCurrentUserQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCurrentUser>>> = ({ signal }) => getCurrentUser({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCurrentUser>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCurrentUserQueryResult = NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>
+export type GetCurrentUserQueryError = ErrorType<void>
+
+
+/**
+ * @summary Report the signed-in user's own admin status
+ */
+
+export function useGetCurrentUser<TData = Awaited<ReturnType<typeof getCurrentUser>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCurrentUser>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCurrentUserQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListAdminsUrl = () => {
+
+
+
+
+  return `/api/admin/admins`
+}
+
+/**
+ * Every admin in the admins table, plus every ADMIN_EMAILS entry shown read-only and flagged as coming from the environment. Any admin can view this list; only a super admin can grant or revoke.
+ * @summary List granted admins
+ */
+export const listAdmins = async ( options?: Parameters<typeof customFetch>[1]): Promise<AdminEntry[]> => {
+
+  return customFetch<AdminEntry[]>(getListAdminsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAdminsQueryKey = () => {
+    return [
+    `/api/admin/admins`
+    ] as const;
+    }
+
+
+export const getListAdminsQueryOptions = <TData = Awaited<ReturnType<typeof listAdmins>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAdmins>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAdminsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAdmins>>> = ({ signal }) => listAdmins({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAdmins>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListAdminsQueryResult = NonNullable<Awaited<ReturnType<typeof listAdmins>>>
+export type ListAdminsQueryError = ErrorType<void>
+
+
+/**
+ * @summary List granted admins
+ */
+
+export function useListAdmins<TData = Awaited<ReturnType<typeof listAdmins>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAdmins>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListAdminsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGrantAdminUrl = () => {
+
+
+
+
+  return `/api/admin/admins`
+}
+
+/**
+ * Super-admin only.
+ * @summary Grant admin access to a signed-up user
+ */
+export const grantAdmin = async (grantAdminInput: GrantAdminInput, options?: Parameters<typeof customFetch>[1]): Promise<AdminEntry> => {
+
+  return customFetch<AdminEntry>(getGrantAdminUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(grantAdminInput)
+  }
+);}
+
+
+
+
+
+export const getGrantAdminMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof grantAdmin>>, TError,{data: BodyType<GrantAdminInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof grantAdmin>>, TError,{data: BodyType<GrantAdminInput>}, TContext> => {
+
+const mutationKey = ['grantAdmin'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof grantAdmin>>, {data: BodyType<GrantAdminInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  grantAdmin(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type GrantAdminMutationResult = NonNullable<Awaited<ReturnType<typeof grantAdmin>>>
+    export type GrantAdminMutationBody = BodyType<GrantAdminInput>
+    export type GrantAdminMutationError = ErrorType<void>
+
+    /**
+ * @summary Grant admin access to a signed-up user
+ */
+export const useGrantAdmin = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof grantAdmin>>, TError,{data: BodyType<GrantAdminInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof grantAdmin>>,
+        TError,
+        {data: BodyType<GrantAdminInput>},
+        TContext
+      > => {
+      return useMutation(getGrantAdminMutationOptions(options));
+    }
+
+export const getRevokeAdminUrl = (email: string,) => {
+
+
+
+
+  return `/api/admin/admins/${email}`
+}
+
+/**
+ * Super-admin only. Rejects attempts to revoke an ADMIN_EMAILS entry -- those are env-only and can't be edited from the UI.
+ * @summary Revoke a granted admin
+ */
+export const revokeAdmin = async (email: string, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getRevokeAdminUrl(email),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getRevokeAdminMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revokeAdmin>>, TError,{email: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof revokeAdmin>>, TError,{email: string}, TContext> => {
+
+const mutationKey = ['revokeAdmin'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof revokeAdmin>>, {email: string}> = (props) => {
+          const {email} = props ?? {};
+
+          return  revokeAdmin(email,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RevokeAdminMutationResult = NonNullable<Awaited<ReturnType<typeof revokeAdmin>>>
+
+    export type RevokeAdminMutationError = ErrorType<void>
+
+    /**
+ * @summary Revoke a granted admin
+ */
+export const useRevokeAdmin = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revokeAdmin>>, TError,{email: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof revokeAdmin>>,
+        TError,
+        {email: string},
+        TContext
+      > => {
+      return useMutation(getRevokeAdminMutationOptions(options));
+    }
+
+export const getListClerkUsersUrl = () => {
+
+
+
+
+  return `/api/admin/clerk-users`
+}
+
+/**
+ * Super-admin only. Lets the grant picker show real names instead of a typed email, so typos are impossible.
+ * @summary List signed-up users for the admin grant picker
+ */
+export const listClerkUsers = async ( options?: Parameters<typeof customFetch>[1]): Promise<ClerkUserSummary[]> => {
+
+  return customFetch<ClerkUserSummary[]>(getListClerkUsersUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListClerkUsersQueryKey = () => {
+    return [
+    `/api/admin/clerk-users`
+    ] as const;
+    }
+
+
+export const getListClerkUsersQueryOptions = <TData = Awaited<ReturnType<typeof listClerkUsers>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listClerkUsers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListClerkUsersQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listClerkUsers>>> = ({ signal }) => listClerkUsers({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listClerkUsers>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListClerkUsersQueryResult = NonNullable<Awaited<ReturnType<typeof listClerkUsers>>>
+export type ListClerkUsersQueryError = ErrorType<void>
+
+
+/**
+ * @summary List signed-up users for the admin grant picker
+ */
+
+export function useListClerkUsers<TData = Awaited<ReturnType<typeof listClerkUsers>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listClerkUsers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListClerkUsersQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getHealthCheckUrl = () => {
 

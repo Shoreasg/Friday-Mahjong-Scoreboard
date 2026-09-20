@@ -11,7 +11,7 @@
     ],
     "repository": {
       "url": "https://github.com/Shoreasg/Friday-Mahjong-Scoreboard",
-      "revision": "abf739f56f5cb46775e7b2f6b70b4781a97c26f7"
+      "revision": "0552264fdf293ce38070f282c21b5e5c408849c0"
     },
     "views": [
       {
@@ -207,7 +207,7 @@
         },
         {
           "path": "artifacts/api-server/src/routes/index.ts",
-          "label": "health, players, sessions, chip scans, telegram"
+          "label": "health, admin, players, sessions, telegram, etc."
         },
         {
           "path": "artifacts/api-server/.replit-artifact/artifact.toml",
@@ -219,7 +219,7 @@
       "id": "adminGuard",
       "type": "security",
       "label": "requireAdmin",
-      "sublabel": "ADMIN_EMAILS allowlist",
+      "sublabel": "ADMIN_EMAILS or admins table",
       "pos": [
         870,
         130
@@ -231,7 +231,11 @@
       "sources": [
         {
           "path": "artifacts/api-server/src/routes/requireAdmin.ts",
-          "label": "email allowlist check"
+          "label": "env super admins OR admins table"
+        },
+        {
+          "path": "artifacts/api-server/src/routes/admin.ts",
+          "label": "/me, admin roster grant/revoke"
         }
       ]
     },

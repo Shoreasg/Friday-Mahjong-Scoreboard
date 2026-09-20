@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useUser } from "@clerk/react";
 import { Link } from "wouter";
 import { toast } from "sonner";
 import { ArrowLeft, Check, Pencil, Users, X } from "lucide-react";
@@ -16,7 +15,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { useIsAdmin } from "@/hooks/use-is-admin";
+import { useAdminStatus } from "@/hooks/use-is-admin";
 import { queryClient } from "@/lib/queryClient";
 
 function RosterRow({ player }: { player: Player }) {
@@ -133,8 +132,7 @@ function RosterRow({ player }: { player: Player }) {
 }
 
 export default function Roster() {
-  const { isLoaded } = useUser();
-  const isAdmin = useIsAdmin();
+  const { isAdmin, isLoading: isAdminLoading } = useAdminStatus();
   const { data: players, isLoading } = useListPlayers();
 
   const sortedPlayers = [...(players ?? [])].sort(
@@ -167,7 +165,7 @@ export default function Roster() {
           </p>
         </div>
 
-        {!isLoaded || isLoading ? (
+        {isAdminLoading || isLoading ? (
           <p className="font-black uppercase tracking-widest text-muted-foreground">Loading roster...</p>
         ) : !isAdmin ? (
           <Card className="bg-card">

@@ -1,17 +1,16 @@
-import { useUser } from "@clerk/react";
 import { Link, Redirect } from "wouter";
 import { ArrowLeft, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { AdminListCard } from "@/components/AdminListCard";
 import { TelegramBroadcastCard } from "@/components/TelegramBroadcastCard";
 import { TelegramWebhookCard } from "@/components/TelegramWebhookCard";
-import { useIsAdmin } from "@/hooks/use-is-admin";
+import { useAdminStatus } from "@/hooks/use-is-admin";
 
 export default function Admin() {
-  const { isLoaded } = useUser();
-  const isAdmin = useIsAdmin();
+  const { isAdmin, isLoading } = useAdminStatus();
 
-  if (!isLoaded) {
+  if (isLoading) {
     return (
       <div className="flex min-h-[100dvh] items-center justify-center bg-background">
         <p className="font-black uppercase tracking-widest text-muted-foreground">Loading...</p>
@@ -50,6 +49,7 @@ export default function Admin() {
 
         <TelegramBroadcastCard />
         <TelegramWebhookCard />
+        <AdminListCard />
       </main>
     </div>
   );

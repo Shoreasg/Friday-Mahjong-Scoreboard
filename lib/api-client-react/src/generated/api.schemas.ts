@@ -144,6 +144,58 @@ export interface TelegramWebhookRegisterInput {
   url: string;
 }
 
+export interface MeStatus {
+  isAdmin: boolean;
+  isSuperAdmin: boolean;
+}
+
+/**
+ * "env" entries come from ADMIN_EMAILS and are read-only in the UI; "table" entries were granted through the admin list card.
+ */
+export type AdminEntrySource = typeof AdminEntrySource[keyof typeof AdminEntrySource];
+
+
+export const AdminEntrySource = {
+  env: 'env',
+  table: 'table',
+} as const;
+
+export interface AdminEntry {
+  email: string;
+  /** "env" entries come from ADMIN_EMAILS and are read-only in the UI; "table" entries were granted through the admin list card. */
+  source: AdminEntrySource;
+  /**
+     * Email of the super admin who granted this. Null for "env" entries.
+     * @nullable
+     */
+  grantedBy: string | null;
+  /**
+     * Null for "env" entries.
+     * @nullable
+     */
+  grantedAt: string | null;
+}
+
+export interface GrantAdminInput {
+  /**
+     * Primary email of a signed-up user, from the Clerk user picker.
+     * @minLength 1
+     */
+  email: string;
+}
+
+export interface ClerkUserSummary {
+  /** Clerk user ID. */
+  id: string;
+  /** Primary email address. */
+  email: string;
+  /**
+     * Full name, if the user has set one.
+     * @nullable
+     */
+  name: string | null;
+}
+
 export interface MahjongSessionInput {
   playedOn: string;
   /**
