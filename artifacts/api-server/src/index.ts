@@ -1,6 +1,18 @@
 import app from "./app";
 import { logger } from "./lib/logger";
-import { isTelegramConfigured } from "@workspace/integrations-telegram";
+import {
+  isTelegramConfigured,
+  setTelegramCommands,
+} from "@workspace/integrations-telegram";
+
+const TELEGRAM_COMMANDS = [
+  { command: "help", description: "Show the available commands" },
+  { command: "last", description: "The most recent session's result" },
+  {
+    command: "standings",
+    description: "The cumulative net winnings leaderboard",
+  },
+];
 
 const rawPort = process.env["PORT"];
 
@@ -26,4 +38,10 @@ app.listen(port, (err) => {
     { port, telegramConfigured: isTelegramConfigured() },
     "Server listening",
   );
+
+  // Fire-and-forget: registering the command menu is a convenience for the
+  // Telegram client UI, not something the server's readiness depends on.
+  setTelegramCommands(TELEGRAM_COMMANDS).catch((error) => {
+    logger.warn({ err: error }, "Failed to register Telegram command menu");
+  });
 });

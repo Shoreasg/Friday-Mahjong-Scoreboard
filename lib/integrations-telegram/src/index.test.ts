@@ -3,6 +3,7 @@ import {
   getTelegramChatId,
   getTelegramWebhookInfo,
   sendTelegramMessage,
+  setTelegramCommands,
   setTelegramWebhook,
   startTelegramPoll,
 } from "./index";
@@ -45,10 +46,13 @@ describe("Telegram transport", () => {
     process.env.TELEGRAM_BOT_TOKEN = "test-token";
     process.env.TELEGRAM_CHAT_ID = "-100123";
     vi.mocked(fetch).mockResolvedValue(
-      new Response(JSON.stringify({
-        ok: true,
-        result: { message_id: 42 },
-      }), { status: 200 }),
+      new Response(
+        JSON.stringify({
+          ok: true,
+          result: { message_id: 42 },
+        }),
+        { status: 200 },
+      ),
     );
 
     const result = await sendTelegramMessage({
@@ -74,15 +78,18 @@ describe("Telegram transport", () => {
     process.env.TELEGRAM_BOT_TOKEN = "test-token";
     process.env.TELEGRAM_CHAT_ID = "-100123";
     vi.mocked(fetch).mockResolvedValue(
-      new Response(JSON.stringify({
-        ok: false,
-        description: "Bad Request: can't parse entities",
-      }), { status: 400 }),
+      new Response(
+        JSON.stringify({
+          ok: false,
+          description: "Bad Request: can't parse entities",
+        }),
+        { status: 400 },
+      ),
     );
 
-    await expect(
-      sendTelegramMessage({ text: "invalid" }),
-    ).rejects.toThrow("Telegram rejected the message (400)");
+    await expect(sendTelegramMessage({ text: "invalid" })).rejects.toThrow(
+      "Telegram rejected the message (400)",
+    );
   });
 
   it("aborts requests after the bounded timeout", async () => {
@@ -118,10 +125,13 @@ describe("Telegram transport", () => {
     process.env.TELEGRAM_BOT_TOKEN = "test-token";
     process.env.TELEGRAM_CHAT_ID = "-100123";
     vi.mocked(fetch).mockResolvedValue(
-      new Response(JSON.stringify({
-        ok: true,
-        result: { message_id: 9 },
-      }), { status: 200 }),
+      new Response(
+        JSON.stringify({
+          ok: true,
+          result: { message_id: 9 },
+        }),
+        { status: 200 },
+      ),
     );
 
     const result = await startTelegramPoll("Mahjong tonight?");
@@ -184,15 +194,18 @@ describe("Telegram transport", () => {
     process.env.TELEGRAM_BOT_TOKEN = "test-token";
     process.env.TELEGRAM_CHAT_ID = "-100123";
     vi.mocked(fetch).mockResolvedValue(
-      new Response(JSON.stringify({
-        ok: true,
-        result: {
-          url: "https://example.com/api/telegram/webhook",
-          pending_update_count: 2,
-          last_error_date: 1700000000,
-          last_error_message: "Wrong response from the webhook: 500",
-        },
-      }), { status: 200 }),
+      new Response(
+        JSON.stringify({
+          ok: true,
+          result: {
+            url: "https://example.com/api/telegram/webhook",
+            pending_update_count: 2,
+            last_error_date: 1700000000,
+            last_error_message: "Wrong response from the webhook: 500",
+          },
+        }),
+        { status: 200 },
+      ),
     );
 
     const result = await getTelegramWebhookInfo();
@@ -210,6 +223,40 @@ describe("Telegram transport", () => {
 
   it("skips fetching webhook info without credentials", async () => {
     const result = await getTelegramWebhookInfo();
+
+    expect(result).toEqual({ status: "skipped", reason: "not_configured" });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("registers the bot's command menu", async () => {
+    process.env.TELEGRAM_BOT_TOKEN = "test-token";
+    process.env.TELEGRAM_CHAT_ID = "-100123";
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(JSON.stringify({ ok: true, result: true }), { status: 200 }),
+    );
+
+    const result = await setTelegramCommands([
+      { command: "help", description: "Show the available commands" },
+    ]);
+
+    expect(result).toEqual({ status: "set" });
+    expect(fetch).toHaveBeenCalledWith(
+      "https://api.telegram.org/bottest-token/setMyCommands",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          commands: [
+            { command: "help", description: "Show the available commands" },
+          ],
+        }),
+      }),
+    );
+  });
+
+  it("skips registering the command menu without credentials", async () => {
+    const result = await setTelegramCommands([
+      { command: "help", description: "Show the available commands" },
+    ]);
 
     expect(result).toEqual({ status: "skipped", reason: "not_configured" });
     expect(fetch).not.toHaveBeenCalled();
