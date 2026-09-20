@@ -25,7 +25,7 @@ the web app together.
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL`, `CLERK_SECRET_KEY`, `CLERK_PUBLISHABLE_KEY`, `VITE_CLERK_PUBLISHABLE_KEY`, `ADMIN_EMAILS`, `VITE_ADMIN_EMAILS`
+- Required env: `DATABASE_URL`, `CLERK_SECRET_KEY`, `CLERK_PUBLISHABLE_KEY`, `VITE_CLERK_PUBLISHABLE_KEY`, `ADMIN_EMAILS`
 
 ## Stack
 
@@ -47,7 +47,7 @@ the web app together.
 ## Architecture decisions
 
 - Clerk owns the admin Google sign-in; browser API requests use Clerk's same-origin session cookie.
-- The scoreboard and session history are public. Create, update, and delete requests require an email in the comma-separated `ADMIN_EMAILS` / `VITE_ADMIN_EMAILS` lists on both the API and client.
+- The scoreboard and session history are public. Create, update, and delete requests require admin access: either a super admin (env-only `ADMIN_EMAILS` allowlist) or a regular admin granted through the `admins` table via `/app/admin`. The client learns its own admin status from `GET /api/me` rather than a build-time env var.
 - Calendar game dates are stored as date-only values to avoid timezone shifts.
 - The web app uses a Mahjong-inspired neo-brutalist visual system built from local Tailwind component styles: bold borders, offset shadows, saturated accents, and accessible reduced-motion behavior.
 - Light and dark appearance follows the device by default, can be toggled from public screens, and persists locally across visits.

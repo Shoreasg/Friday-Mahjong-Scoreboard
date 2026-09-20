@@ -19,3 +19,4 @@
 
 export * from "./mahjong-sessions";
 export * from "./players";
+export * from "./admins";

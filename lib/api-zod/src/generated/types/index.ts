@@ -6,17 +6,22 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './adminEntry';
+export * from './adminEntrySource';
 export * from './basePot';
 export * from './chipDenomination';
 export * from './chipScanInput';
 export * from './chipScanInputMimeType';
 export * from './chipScanResult';
 export * from './chipStackEstimate';
+export * from './clerkUserSummary';
+export * from './grantAdminInput';
 export * from './healthStatus';
 export * from './listPlayersParams';
 export * from './mahjongSession';
 export * from './mahjongSessionInput';
 export * from './mahjongSessionUpdate';
+export * from './meStatus';
 export * from './player';
 export * from './playerBalance';
 export * from './playerInput';
@@ -33,5 +38,8 @@ export * from './telegramPollInput';
 export * from './telegramPollInputPreset';
 export * from './telegramPollResult';
 export * from './telegramPollResultStatus';
+export * from './telegramWebhookInfo';
+export * from './telegramWebhookInfoStatus';
+export * from './telegramWebhookRegisterInput';
 export * from './xieXieKaiXiangCount';
 export * from './zhaHuCount';

@@ -53,9 +53,10 @@ cp .env.example .env
 ```
 
 Open `.env` and fill in the "you must supply" section: the three Clerk
-variables above, and `ADMIN_EMAILS` / `VITE_ADMIN_EMAILS` — set both to your
-own Google account's email address so you can sign in and exercise admin
-create/edit/delete locally. Everything else in the file already works,
+variables above, and `ADMIN_EMAILS` — set it to your own Google account's
+email address so you can sign in and exercise admin create/edit/delete
+locally, and grant other admins from `/app/admin` once signed in. Everything
+else in the file already works,
 including an "optional" section at the bottom (Telegram announcements,
 `SCOREBOARD_URL`, `CORS_ALLOWED_ORIGINS`, `LOG_LEVEL`) that you can leave
 blank unless you're specifically exercising one of those integrations.
@@ -199,8 +200,7 @@ docker compose down -v
   a value, or the web container needs a restart to pick up a change:
   `docker compose up -d web`.
 - **Admin sign-in works but writes return 403.** Your signed-in email isn't
-  in `ADMIN_EMAILS` / `VITE_ADMIN_EMAILS`, or they're out of sync with each
-  other — both must list the same address.
+  in `ADMIN_EMAILS` and hasn't been granted through `/app/admin` either.
 - **Chip scanning fails with an authentication error.** Expected — see
   Known limitations above.
 - **A branch you pulled won't build / a package seems missing.**
