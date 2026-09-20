@@ -10,6 +10,7 @@ import { Toaster } from "@/components/ui/toaster";
 import Home from "./pages/home";
 import Dashboard from "./pages/dashboard";
 import Roster from "./pages/roster";
+import Admin from "./pages/admin";
 import SignInPage from "./pages/sign-in";
 import SignUpPage from "./pages/sign-up";
 import { Button } from "@/components/ui/button";
@@ -153,6 +154,7 @@ function ClerkProviderWithRoutes() {
           <Route path="/" component={HomeRedirect} />
           <Route path="/app" component={Dashboard} />
           <Route path="/app/players" component={Roster} />
+          <Route path="/app/admin" component={Admin} />
           <Route path="/sign-in/*?" component={SignInPage} />
           <Route path="/sign-up/*?" component={SignUpPage} />
           <Route>

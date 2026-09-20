@@ -18,7 +18,123 @@ tags:
     description: Assisted Mahjong chip stack counting
   - name: telegram
     description: Telegram group chat integration
+  - name: admin
+    description: Admin roles and the signed-in user's own admin status
 paths:
+  /me:
+    get:
+      operationId: getCurrentUser
+      tags: [admin]
+      summary: Report the signed-in user's own admin status
+      description: >-
+        Signed-in users only, never gated by admin access itself. Reports
+        isAdmin (ADMIN_EMAILS or the admins table) and isSuperAdmin
+        (ADMIN_EMAILS only) for the caller.
+      responses:
+        "200":
+          description: Admin status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MeStatus"
+        "401":
+          description: Unauthorized
+  /admin/admins:
+    get:
+      operationId: listAdmins
+      tags: [admin]
+      summary: List granted admins
+      description: >-
+        Every admin in the admins table, plus every ADMIN_EMAILS entry shown
+        read-only and flagged as coming from the environment. Any admin can
+        view this list; only a super admin can grant or revoke.
+      responses:
+        "200":
+          description: Admin list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminEntry"
+        "401":
+          description: Unauthorized
+        "403":
+          description: Admin access required
+        "500":
+          description: Admin access is not configured
+    post:
+      operationId: grantAdmin
+      tags: [admin]
+      summary: Grant admin access to a signed-up user
+      description: Super-admin only.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GrantAdminInput"
+      responses:
+        "201":
+          description: Admin granted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEntry"
+        "400":
+          description: Invalid email
+        "401":
+          description: Unauthorized
+        "403":
+          description: Admin access required (super admin only)
+        "500":
+          description: Admin access is not configured
+  /admin/admins/{email}:
+    delete:
+      operationId: revokeAdmin
+      tags: [admin]
+      summary: Revoke a granted admin
+      description: >-
+        Super-admin only. Rejects attempts to revoke an ADMIN_EMAILS entry --
+        those are env-only and can't be edited from the UI.
+      parameters:
+        - $ref: "#/components/parameters/AdminEmail"
+      responses:
+        "204":
+          description: Admin revoked
+        "400":
+          description: That email is an ADMIN_EMAILS entry and can't be revoked from the UI
+        "401":
+          description: Unauthorized
+        "403":
+          description: Admin access required (super admin only)
+        "404":
+          description: No such granted admin
+        "500":
+          description: Admin access is not configured
+  /admin/clerk-users:
+    get:
+      operationId: listClerkUsers
+      tags: [admin]
+      summary: List signed-up users for the admin grant picker
+      description: >-
+        Super-admin only. Lets the grant picker show real names instead of a
+        typed email, so typos are impossible.
+      responses:
+        "200":
+          description: Signed-up users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ClerkUserSummary"
+        "401":
+          description: Unauthorized
+        "403":
+          description: Admin access required (super admin only)
+        "500":
+          description: Admin access is not configured
   /healthz:
     get:
       operationId: healthCheck
@@ -288,6 +404,92 @@ paths:
           description: Telegram rejected or failed to deliver the message
         "503":
           description: Telegram is not configured
+  /telegram/poll:
+    post:
+      operationId: startTelegramPoll
+      tags: [telegram]
+      summary: Start a Yes / No / Maybe attendance poll in the group chat
+      description: >-
+        Posts a native, non-anonymous Telegram poll with a preset question and
+        Yes / No / Maybe options. Telegram shows the running tally and voter
+        names directly in the chat, so poll results are never read back or
+        stored by this application.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TelegramPollInput"
+      responses:
+        "200":
+          description: Poll started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TelegramPollResult"
+        "400":
+          description: Invalid preset
+        "401":
+          description: Unauthorized
+        "403":
+          description: Admin access required
+        "502":
+          description: Telegram rejected or failed to start the poll
+        "503":
+          description: Telegram is not configured
+  /telegram/webhook/info:
+    get:
+      operationId: getTelegramWebhookInfo
+      tags: [telegram]
+      summary: Show the Telegram webhook's registration status
+      description: >-
+        Compares the URL currently registered with Telegram against the
+        server's own expected public URL, alongside pending update count and
+        the last delivery error, if any.
+      responses:
+        "200":
+          description: Webhook status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TelegramWebhookInfo"
+        "401":
+          description: Unauthorized
+        "403":
+          description: Admin access required
+        "503":
+          description: Telegram is not configured
+  /telegram/webhook/register:
+    post:
+      operationId: registerTelegramWebhook
+      tags: [telegram]
+      summary: Register the Telegram webhook at a given URL
+      description: >-
+        Calls Telegram's setWebhook with the server-held secret and the
+        supplied URL, then returns the freshly re-checked status.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TelegramWebhookRegisterInput"
+      responses:
+        "200":
+          description: Webhook registered; freshly re-checked status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TelegramWebhookInfo"
+        "400":
+          description: URL is not a parseable https:// URL
+        "401":
+          description: Unauthorized
+        "403":
+          description: Admin access required
+        "500":
+          description: TELEGRAM_WEBHOOK_SECRET is not configured
+        "503":
+          description: Telegram is not configured
 components:
   parameters:
     PlayerId:
@@ -308,6 +510,13 @@ components:
         type: integer
         format: int32
         minimum: 1
+    AdminEmail:
+      name: email
+      in: path
+      required: true
+      description: Granted admin's email address (lowercased, trimmed)
+      schema:
+        type: string
   schemas:
     HealthStatus:
       type: object
@@ -417,6 +626,129 @@ components:
       required:
         - status
         - messageId
+    TelegramPollInput:
+      type: object
+      properties:
+        preset:
+          type: string
+          enum: [tonight, this_friday]
+          description: >-
+            Which preset question to post. The question text itself is
+            composed server-side so the group always sees a consistent
+            phrasing.
+      required:
+        - preset
+    TelegramPollResult:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [sent]
+        messageId:
+          type: ["integer", "null"]
+      required:
+        - status
+        - messageId
+    TelegramWebhookInfo:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [ok, mismatch, unregistered]
+          description: >-
+            "ok" when the registered URL matches the server's expected URL,
+            "mismatch" when a different URL is registered, "unregistered"
+            when nothing is registered with Telegram at all.
+        registeredUrl:
+          type: string
+          description: The URL currently registered with Telegram, or empty if none.
+        expectedUrl:
+          type: string
+          description: >-
+            The URL the server derives for itself from PUBLIC_URL, or the
+            request's own forwarded origin.
+        pendingUpdateCount:
+          type: integer
+        lastErrorMessage:
+          type: ["string", "null"]
+        lastErrorDate:
+          type: ["integer", "null"]
+      required:
+        - status
+        - registeredUrl
+        - expectedUrl
+        - pendingUpdateCount
+        - lastErrorMessage
+        - lastErrorDate
+    TelegramWebhookRegisterInput:
+      type: object
+      properties:
+        url:
+          type: string
+          description: >-
+            The webhook URL to register with Telegram. Pre-filled by the
+            client with the server's expected URL, but editable so an odd
+            setup (custom domain, tunnel) still has an escape hatch.
+      required:
+        - url
+    MeStatus:
+      type: object
+      properties:
+        isAdmin:
+          type: boolean
+        isSuperAdmin:
+          type: boolean
+      required:
+        - isAdmin
+        - isSuperAdmin
+    AdminEntry:
+      type: object
+      properties:
+        email:
+          type: string
+        source:
+          type: string
+          enum: [env, table]
+          description: >-
+            "env" entries come from ADMIN_EMAILS and are read-only in the UI;
+            "table" entries were granted through the admin list card.
+        grantedBy:
+          type: ["string", "null"]
+          description: Email of the super admin who granted this. Null for "env" entries.
+        grantedAt:
+          type: ["string", "null"]
+          format: date-time
+          description: Null for "env" entries.
+      required:
+        - email
+        - source
+        - grantedBy
+        - grantedAt
+    GrantAdminInput:
+      type: object
+      properties:
+        email:
+          type: string
+          minLength: 1
+          description: Primary email of a signed-up user, from the Clerk user picker.
+      required:
+        - email
+    ClerkUserSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Clerk user ID.
+        email:
+          type: string
+          description: Primary email address.
+        name:
+          type: ["string", "null"]
+          description: Full name, if the user has set one.
+      required:
+        - id
+        - email
+        - name
     MahjongSessionInput:
       type: object
       properties:

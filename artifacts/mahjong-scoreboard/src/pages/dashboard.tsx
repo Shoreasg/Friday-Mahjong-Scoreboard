@@ -7,7 +7,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { SessionForm } from "@/components/SessionForm";
 import { format, parseISO } from "date-fns";
-import { Trophy, Plus, LogOut, Coins, Activity, Trash2, Edit2, ChevronDown, LogIn, Flame, Flower2, BarChart3, Users } from "lucide-react";
+import { Trophy, Plus, LogOut, Coins, Activity, Trash2, Edit2, ChevronDown, LogIn, Flame, Flower2, BarChart3, Users, ShieldCheck } from "lucide-react";
 import { lazy, Suspense, useState } from "react";
 import { useClerk, useUser } from "@clerk/react";
 import { toast } from "sonner";
@@ -16,7 +16,6 @@ import { Link } from "wouter";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useIsAdmin } from "@/hooks/use-is-admin";
 import { getSessionCreationNotification } from "@/lib/session-announcement";
-import { TelegramBroadcastCard } from "@/components/TelegramBroadcastCard";
 
 const PerformanceAnalytics = lazy(() =>
   import("@/components/PerformanceAnalytics").then((module) => ({
@@ -179,6 +178,14 @@ export default function Dashboard() {
                 </Link>
               </Button>
             )}
+            {isAdmin && (
+              <Button asChild variant="outline" size="sm" className="border-2 font-black uppercase tracking-widest text-xs">
+                <Link href="/app/admin" data-testid="link-admin">
+                  <ShieldCheck className="w-4 h-4 sm:mr-2" strokeWidth={3} />
+                  <span className="hidden sm:inline">Admin</span>
+                </Link>
+              </Button>
+            )}
             {isSignedIn ? (
               <Button variant="outline" size="sm" onClick={() => signOut({ redirectUrl: `${basePath}/app` || "/app" })} data-testid="button-sign-out" className="border-2 font-black uppercase tracking-widest text-xs">
                 <LogOut className="w-4 h-4 mr-2" strokeWidth={3} />
@@ -250,8 +257,6 @@ export default function Dashboard() {
             </CardContent>
           </Card>
         </section>
-
-        {isAdmin && <TelegramBroadcastCard />}
 
         <Suspense fallback={<PerformanceAnalyticsPlaceholder />}>
           <PerformanceAnalytics sessions={sessions ?? []} playerNames={playerNames} />

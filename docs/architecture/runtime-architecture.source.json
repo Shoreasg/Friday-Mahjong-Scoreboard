@@ -11,7 +11,7 @@
     ],
     "repository": {
       "url": "https://github.com/Shoreasg/Friday-Mahjong-Scoreboard",
-      "revision": "0ec3caa2ad13b23690675e2831569118b1080609"
+      "revision": "0552264fdf293ce38070f282c21b5e5c408849c0"
     },
     "views": [
       {
@@ -72,7 +72,7 @@
         },
         {
           "path": "artifacts/mahjong-scoreboard/src/App.tsx",
-          "label": "Clerk + wouter routes: scoreboard, roster"
+          "label": "Clerk + wouter routes: scoreboard, roster, admin"
         }
       ]
     },
@@ -207,7 +207,7 @@
         },
         {
           "path": "artifacts/api-server/src/routes/index.ts",
-          "label": "health, players, sessions, chip scans, telegram"
+          "label": "health, admin, players, sessions, telegram, etc."
         },
         {
           "path": "artifacts/api-server/.replit-artifact/artifact.toml",
@@ -219,7 +219,7 @@
       "id": "adminGuard",
       "type": "security",
       "label": "requireAdmin",
-      "sublabel": "ADMIN_EMAILS allowlist",
+      "sublabel": "ADMIN_EMAILS or admins table",
       "pos": [
         870,
         130
@@ -231,7 +231,11 @@
       "sources": [
         {
           "path": "artifacts/api-server/src/routes/requireAdmin.ts",
-          "label": "email allowlist check"
+          "label": "env super admins OR admins table"
+        },
+        {
+          "path": "artifacts/api-server/src/routes/admin.ts",
+          "label": "/me, admin roster grant/revoke"
         }
       ]
     },
@@ -306,7 +310,7 @@
       "id": "telegram",
       "type": "external",
       "label": "Telegram",
-      "sublabel": "Bot API · optional outbound",
+      "sublabel": "Bot API · outbound & webhook",
       "tag": "@workspace/integrations-telegram",
       "pos": [
         1110,
@@ -319,7 +323,15 @@
       "sources": [
         {
           "path": "lib/integrations-telegram/src/index.ts",
-          "label": "lazy sendMessage adapter"
+          "label": "lazy send/poll/webhook adapter"
+        },
+        {
+          "path": "artifacts/api-server/src/routes/telegramWebhook.ts",
+          "label": "inbound webhook, /help, /last, /standings"
+        },
+        {
+          "path": "artifacts/api-server/src/routes/telegram.ts",
+          "label": "admin: webhook status + register"
         }
       ]
     }
@@ -419,7 +431,7 @@
       "id": "api-to-telegram",
       "from": "api",
       "to": "telegram",
-      "label": "session announcements & admin broadcasts",
+      "label": "announcements, broadcasts, polls & webhook",
       "fromSide": "bottom",
       "toSide": "left"
     },

@@ -26,16 +26,11 @@ import {
   validateSession,
   validateStakes,
 } from "@workspace/session-rules";
-import {
-  sendTelegramMessage,
-} from "@workspace/integrations-telegram";
+import { sendTelegramMessage } from "@workspace/integrations-telegram";
 import { desc, eq, inArray, sql } from "drizzle-orm";
-import {
-  Router,
-  type IRouter,
-  type Request,
-} from "express";
+import { Router, type IRouter, type Request } from "express";
 import { requireAdmin } from "./requireAdmin";
+import { scoreboardUrl } from "./scoreboardUrl";
 import {
   getSessionSummary,
   loadAllPlayerNames,
@@ -44,6 +39,11 @@ import {
   type PlayerNames,
   type SessionRecord,
 } from "../lib/session-summary";
+import {
+  escapeTelegramHtml,
+  formatMoney,
+  formatNetPosition,
+} from "../lib/telegramFormatting";
 
 const router: IRouter = Router();
 
@@ -69,14 +69,18 @@ async function loadReferencedPlayers(
 ): Promise<PlayerNames> {
   // Serialize against player merges in the reconciliation script, so a
   // referenced player can't be merged away between this check and the write.
-  await queryDb.execute(sql`SELECT pg_advisory_xact_lock(${PLAYER_WRITE_LOCK_KEY})`);
+  await queryDb.execute(
+    sql`SELECT pg_advisory_xact_lock(${PLAYER_WRITE_LOCK_KEY})`,
+  );
 
   const playerIds = playerBalances.map((balance) => balance.playerId);
   const players = await queryDb
     .select({ id: playersTable.id, name: playersTable.name })
     .from(playersTable)
     .where(inArray(playersTable.id, playerIds));
-  const names: PlayerNames = new Map(players.map((player) => [player.id, player.name]));
+  const names: PlayerNames = new Map(
+    players.map((player) => [player.id, player.name]),
+  );
 
   const missing = playerIds.find((playerId) => !names.has(playerId));
   if (missing !== undefined) {
@@ -87,9 +91,7 @@ async function loadReferencedPlayers(
   return names;
 }
 
-function toStoredBalances(
-  playerBalances: PlayerBalance[],
-): PlayerBalance[] {
+function toStoredBalances(playerBalances: PlayerBalance[]): PlayerBalance[] {
   return playerBalances.map((balance) => ({
     playerId: balance.playerId,
     endingAmount: balance.endingAmount,
@@ -102,40 +104,14 @@ function dateOnly(value: Date): string {
   return value.toISOString().slice(0, 10);
 }
 
-function escapeTelegramHtml(value: string): string {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
-}
-
-function formatMoney(value: number): string {
-  return `$${value.toFixed(2)}`;
-}
-
-function formatNetPosition(value: number): string {
-  return `${value >= 0 ? "+" : "-"}${formatMoney(Math.abs(value))}`;
-}
-
-function scoreboardUrl(req: Request): string {
-  const configuredUrl = process.env.SCOREBOARD_URL?.trim();
-  if (configuredUrl) {
-    return configuredUrl.replace(/\/+$/, "");
-  }
-
-  const forwardedProto = req.get("x-forwarded-proto")?.split(",")[0]?.trim();
-  const protocol = forwardedProto || req.protocol;
-  return `${protocol}://${req.get("host")}`;
-}
-
 function sessionAnnouncement(
   req: Request,
   session: SessionRecord,
   names: PlayerNames,
 ): string {
   const { basePot, playerBalances: players } = normalizeSession(session);
-  const nameOf = (playerId: number) => escapeTelegramHtml(playerName(names, playerId));
+  const nameOf = (playerId: number) =>
+    escapeTelegramHtml(playerName(names, playerId));
   const playerLines = players
     .map((player) =>
       [
@@ -257,7 +233,11 @@ router.post("/sessions", async (req, res): Promise<void> => {
     throw err;
   }
 
-  const announcement = await announceSession(req, created.session, created.names);
+  const announcement = await announceSession(
+    req,
+    created.session,
+    created.names,
+  );
   res.status(201).json(
     CreateSessionResponse.parse({
       ...normalizeSession(created.session),
@@ -307,7 +287,10 @@ router.patch("/sessions/:id", async (req, res): Promise<void> => {
   try {
     transactionResult = await db.transaction(async (tx) => {
       const update: Partial<typeof mahjongSessionsTable.$inferInsert> = {};
-      if (body.data.basePot !== undefined || body.data.playerBalances !== undefined) {
+      if (
+        body.data.basePot !== undefined ||
+        body.data.playerBalances !== undefined
+      ) {
         // Either half of the money can change on its own, so the rules are
         // checked against the session as it will be after this update.
         const [existing] = await tx
@@ -324,7 +307,10 @@ router.patch("/sessions/:id", async (req, res): Promise<void> => {
         // pot can be corrected on its own; the sum-to-basePot rule only
         // applies once a session actually has balances to check it against.
         const sessionError = body.data.playerBalances
-          ? validateSession({ basePot, playerBalances: body.data.playerBalances })
+          ? validateSession({
+              basePot,
+              playerBalances: body.data.playerBalances,
+            })
           : existing.playerBalances.length === 0
             ? validateBasePot(basePot)
             : validateStakes(
@@ -372,7 +358,9 @@ router.patch("/sessions/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  res.json(UpdateSessionResponse.parse(normalizeSession(transactionResult.session)));
+  res.json(
+    UpdateSessionResponse.parse(normalizeSession(transactionResult.session)),
+  );
 });
 
 router.delete("/sessions/:id", async (req, res): Promise<void> => {

@@ -9,6 +9,71 @@ import * as zod from 'zod';
 
 
 /**
+ * Signed-in users only, never gated by admin access itself. Reports isAdmin (ADMIN_EMAILS or the admins table) and isSuperAdmin (ADMIN_EMAILS only) for the caller.
+ * @summary Report the signed-in user's own admin status
+ */
+export const GetCurrentUserResponse = zod.object({
+  "isAdmin": zod.boolean(),
+  "isSuperAdmin": zod.boolean()
+})
+
+
+/**
+ * Every admin in the admins table, plus every ADMIN_EMAILS entry shown read-only and flagged as coming from the environment. Any admin can view this list; only a super admin can grant or revoke.
+ * @summary List granted admins
+ */
+export const ListAdminsResponseItem = zod.object({
+  "email": zod.string(),
+  "source": zod.enum(['env', 'table']).describe('\"env\" entries come from ADMIN_EMAILS and are read-only in the UI; \"table\" entries were granted through the admin list card.'),
+  "grantedBy": zod.string().nullable().describe('Email of the super admin who granted this. Null for \"env\" entries.'),
+  "grantedAt": zod.coerce.date().nullable().describe('Null for \"env\" entries.')
+})
+export const ListAdminsResponse = zod.array(ListAdminsResponseItem)
+
+
+/**
+ * Super-admin only.
+ * @summary Grant admin access to a signed-up user
+ */
+
+
+
+export const GrantAdminBody = zod.object({
+  "email": zod.string().min(1).describe('Primary email of a signed-up user, from the Clerk user picker.')
+})
+
+export const GrantAdminResponse = zod.object({
+  "email": zod.string(),
+  "source": zod.enum(['env', 'table']).describe('\"env\" entries come from ADMIN_EMAILS and are read-only in the UI; \"table\" entries were granted through the admin list card.'),
+  "grantedBy": zod.string().nullable().describe('Email of the super admin who granted this. Null for \"env\" entries.'),
+  "grantedAt": zod.coerce.date().nullable().describe('Null for \"env\" entries.')
+})
+
+
+/**
+ * Super-admin only. Rejects attempts to revoke an ADMIN_EMAILS entry -- those are env-only and can't be edited from the UI.
+ * @summary Revoke a granted admin
+ */
+export const RevokeAdminParams = zod.object({
+  "email": zod.coerce.string().describe('Granted admin\'s email address (lowercased, trimmed)')
+})
+
+export const RevokeAdminResponse = zod.void()
+
+
+/**
+ * Super-admin only. Lets the grant picker show real names instead of a typed email, so typos are impossible.
+ * @summary List signed-up users for the admin grant picker
+ */
+export const ListClerkUsersResponseItem = zod.object({
+  "id": zod.string().describe('Clerk user ID.'),
+  "email": zod.string().describe('Primary email address.'),
+  "name": zod.string().nullable().describe('Full name, if the user has set one.')
+})
+export const ListClerkUsersResponse = zod.array(ListClerkUsersResponseItem)
+
+
+/**
  * Returns server health status
  * @summary Health check
  */
@@ -452,6 +517,52 @@ export const SendTelegramBroadcastBody = zod.object({
 export const SendTelegramBroadcastResponse = zod.object({
   "status": zod.enum(['sent']),
   "messageId": zod.int().nullable()
+})
+
+
+/**
+ * Posts a native, non-anonymous Telegram poll with a preset question and Yes / No / Maybe options. Telegram shows the running tally and voter names directly in the chat, so poll results are never read back or stored by this application.
+ * @summary Start a Yes / No / Maybe attendance poll in the group chat
+ */
+export const StartTelegramPollBody = zod.object({
+  "preset": zod.enum(['tonight', 'this_friday']).describe('Which preset question to post. The question text itself is composed server-side so the group always sees a consistent phrasing.')
+})
+
+export const StartTelegramPollResponse = zod.object({
+  "status": zod.enum(['sent']),
+  "messageId": zod.int().nullable()
+})
+
+
+/**
+ * Compares the URL currently registered with Telegram against the server's own expected public URL, alongside pending update count and the last delivery error, if any.
+ * @summary Show the Telegram webhook's registration status
+ */
+export const GetTelegramWebhookInfoResponse = zod.object({
+  "status": zod.enum(['ok', 'mismatch', 'unregistered']).describe('\"ok\" when the registered URL matches the server\'s expected URL, \"mismatch\" when a different URL is registered, \"unregistered\" when nothing is registered with Telegram at all.'),
+  "registeredUrl": zod.string().describe('The URL currently registered with Telegram, or empty if none.'),
+  "expectedUrl": zod.string().describe('The URL the server derives for itself from PUBLIC_URL, or the request\'s own forwarded origin.'),
+  "pendingUpdateCount": zod.int(),
+  "lastErrorMessage": zod.string().nullable(),
+  "lastErrorDate": zod.int().nullable()
+})
+
+
+/**
+ * Calls Telegram's setWebhook with the server-held secret and the supplied URL, then returns the freshly re-checked status.
+ * @summary Register the Telegram webhook at a given URL
+ */
+export const RegisterTelegramWebhookBody = zod.object({
+  "url": zod.string().describe('The webhook URL to register with Telegram. Pre-filled by the client with the server\'s expected URL, but editable so an odd setup (custom domain, tunnel) still has an escape hatch.')
+})
+
+export const RegisterTelegramWebhookResponse = zod.object({
+  "status": zod.enum(['ok', 'mismatch', 'unregistered']).describe('\"ok\" when the registered URL matches the server\'s expected URL, \"mismatch\" when a different URL is registered, \"unregistered\" when nothing is registered with Telegram at all.'),
+  "registeredUrl": zod.string().describe('The URL currently registered with Telegram, or empty if none.'),
+  "expectedUrl": zod.string().describe('The URL the server derives for itself from PUBLIC_URL, or the request\'s own forwarded origin.'),
+  "pendingUpdateCount": zod.int(),
+  "lastErrorMessage": zod.string().nullable(),
+  "lastErrorDate": zod.int().nullable()
 })
 
 

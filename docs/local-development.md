@@ -20,6 +20,10 @@ project outside Replit.
 - **Windows and Linux hosts aren't covered here.** This guide targets macOS.
   Nothing about the design should prevent other hosts from working, but it
   hasn't been verified on them.
+- **Testing inbound Telegram commands (e.g. `/help`) locally requires a
+  tunnel.** Telegram delivers webhook updates by POSTing to a public HTTPS
+  URL — it cannot reach `localhost`. See
+  [Telegram webhook](#telegram-webhook) below.
 
 ## Prerequisites
 
@@ -49,9 +53,10 @@ cp .env.example .env
 ```
 
 Open `.env` and fill in the "you must supply" section: the three Clerk
-variables above, and `ADMIN_EMAILS` / `VITE_ADMIN_EMAILS` — set both to your
-own Google account's email address so you can sign in and exercise admin
-create/edit/delete locally. Everything else in the file already works,
+variables above, and `ADMIN_EMAILS` — set it to your own Google account's
+email address so you can sign in and exercise admin create/edit/delete
+locally, and grant other admins from `/app/admin` once signed in. Everything
+else in the file already works,
 including an "optional" section at the bottom (Telegram announcements,
 `SCOREBOARD_URL`, `CORS_ALLOWED_ORIGINS`, `LOG_LEVEL`) that you can leave
 blank unless you're specifically exercising one of those integrations.
@@ -144,6 +149,35 @@ credentials), so confirm this by hand once:
 4. Sign in with a different Google account (not in `ADMIN_EMAILS`) and
    confirm admin actions are refused.
 
+## Telegram webhook
+
+Outbound Telegram features (session announcements, ad-hoc broadcasts, the
+attendance poll) only need `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`, and
+work locally with no further setup.
+
+The inbound half — the bot answering `/help` in the group chat — needs
+Telegram to deliver updates to a webhook URL it can reach over the public
+internet, which `localhost` never is. To exercise it locally:
+
+1. Set `TELEGRAM_WEBHOOK_SECRET` in `.env` to any random string.
+2. Start a tunnel to the API server, e.g. `ngrok http 5000`, and copy the
+   HTTPS URL it gives you.
+3. Register the webhook:
+   ```sh
+   docker compose exec api pnpm --filter @workspace/scripts run \
+     telegram:webhook:register -- https://<your-tunnel>.ngrok.app/api/telegram/webhook
+   ```
+4. Message the bot's group chat with `/help` and confirm it replies.
+5. Check the webhook's registration state (including the last delivery
+   error, if any) any time:
+   ```sh
+   docker compose exec api pnpm --filter @workspace/scripts run telegram:webhook:info
+   ```
+
+A stale or unregistered webhook has no error anywhere in the server logs —
+commands just silently do nothing — so `telegram:webhook:info` is the first
+thing to check if `/help` stops responding.
+
 ## Resetting and stopping
 
 ```sh
@@ -166,8 +200,7 @@ docker compose down -v
   a value, or the web container needs a restart to pick up a change:
   `docker compose up -d web`.
 - **Admin sign-in works but writes return 403.** Your signed-in email isn't
-  in `ADMIN_EMAILS` / `VITE_ADMIN_EMAILS`, or they're out of sync with each
-  other — both must list the same address.
+  in `ADMIN_EMAILS` and hasn't been granted through `/app/admin` either.
 - **Chip scanning fails with an authentication error.** Expected — see
   Known limitations above.
 - **A branch you pulled won't build / a package seems missing.**

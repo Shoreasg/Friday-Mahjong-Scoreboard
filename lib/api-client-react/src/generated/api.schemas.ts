@@ -84,6 +84,118 @@ export interface TelegramBroadcastResult {
   messageId: number | null;
 }
 
+/**
+ * Which preset question to post. The question text itself is composed server-side so the group always sees a consistent phrasing.
+ */
+export type TelegramPollInputPreset = typeof TelegramPollInputPreset[keyof typeof TelegramPollInputPreset];
+
+
+export const TelegramPollInputPreset = {
+  tonight: 'tonight',
+  this_friday: 'this_friday',
+} as const;
+
+export interface TelegramPollInput {
+  /** Which preset question to post. The question text itself is composed server-side so the group always sees a consistent phrasing. */
+  preset: TelegramPollInputPreset;
+}
+
+export type TelegramPollResultStatus = typeof TelegramPollResultStatus[keyof typeof TelegramPollResultStatus];
+
+
+export const TelegramPollResultStatus = {
+  sent: 'sent',
+} as const;
+
+export interface TelegramPollResult {
+  status: TelegramPollResultStatus;
+  /** @nullable */
+  messageId: number | null;
+}
+
+/**
+ * "ok" when the registered URL matches the server's expected URL, "mismatch" when a different URL is registered, "unregistered" when nothing is registered with Telegram at all.
+ */
+export type TelegramWebhookInfoStatus = typeof TelegramWebhookInfoStatus[keyof typeof TelegramWebhookInfoStatus];
+
+
+export const TelegramWebhookInfoStatus = {
+  ok: 'ok',
+  mismatch: 'mismatch',
+  unregistered: 'unregistered',
+} as const;
+
+export interface TelegramWebhookInfo {
+  /** "ok" when the registered URL matches the server's expected URL, "mismatch" when a different URL is registered, "unregistered" when nothing is registered with Telegram at all. */
+  status: TelegramWebhookInfoStatus;
+  /** The URL currently registered with Telegram, or empty if none. */
+  registeredUrl: string;
+  /** The URL the server derives for itself from PUBLIC_URL, or the request's own forwarded origin. */
+  expectedUrl: string;
+  pendingUpdateCount: number;
+  /** @nullable */
+  lastErrorMessage: string | null;
+  /** @nullable */
+  lastErrorDate: number | null;
+}
+
+export interface TelegramWebhookRegisterInput {
+  /** The webhook URL to register with Telegram. Pre-filled by the client with the server's expected URL, but editable so an odd setup (custom domain, tunnel) still has an escape hatch. */
+  url: string;
+}
+
+export interface MeStatus {
+  isAdmin: boolean;
+  isSuperAdmin: boolean;
+}
+
+/**
+ * "env" entries come from ADMIN_EMAILS and are read-only in the UI; "table" entries were granted through the admin list card.
+ */
+export type AdminEntrySource = typeof AdminEntrySource[keyof typeof AdminEntrySource];
+
+
+export const AdminEntrySource = {
+  env: 'env',
+  table: 'table',
+} as const;
+
+export interface AdminEntry {
+  email: string;
+  /** "env" entries come from ADMIN_EMAILS and are read-only in the UI; "table" entries were granted through the admin list card. */
+  source: AdminEntrySource;
+  /**
+     * Email of the super admin who granted this. Null for "env" entries.
+     * @nullable
+     */
+  grantedBy: string | null;
+  /**
+     * Null for "env" entries.
+     * @nullable
+     */
+  grantedAt: string | null;
+}
+
+export interface GrantAdminInput {
+  /**
+     * Primary email of a signed-up user, from the Clerk user picker.
+     * @minLength 1
+     */
+  email: string;
+}
+
+export interface ClerkUserSummary {
+  /** Clerk user ID. */
+  id: string;
+  /** Primary email address. */
+  email: string;
+  /**
+     * Full name, if the user has set one.
+     * @nullable
+     */
+  name: string | null;
+}
+
 export interface MahjongSessionInput {
   playedOn: string;
   /**

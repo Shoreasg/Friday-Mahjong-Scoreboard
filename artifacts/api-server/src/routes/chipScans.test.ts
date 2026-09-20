@@ -6,7 +6,10 @@ const mocks = vi.hoisted(() => ({
   generateContent: vi.fn(),
   getUser: vi.fn(),
   db: {
-    select: vi.fn(),
+    // requireAdmin() falls back to an admins-table lookup for any caller not
+    // on ADMIN_EMAILS. No test here exercises a table-granted admin, so this
+    // always resolves to "not found" (empty rows).
+    select: vi.fn(() => ({ from: () => ({ where: () => [] }) })),
     insert: vi.fn(),
     update: vi.fn(),
     delete: vi.fn(),
