@@ -18,8 +18,15 @@ export type TelegramSendResult =
     };
 
 export type TelegramWebhookRegistrationResult =
-  | { status: "registered" }
-  | { status: "skipped"; reason: "not_configured" };
+  { status: "registered" } | { status: "skipped"; reason: "not_configured" };
+
+export type TelegramCommand = {
+  command: string;
+  description: string;
+};
+
+export type TelegramSetCommandsResult =
+  { status: "set" } | { status: "skipped"; reason: "not_configured" };
 
 export type TelegramWebhookInfo = {
   url: string;
@@ -66,9 +73,7 @@ export function getTelegramChatId(): string | null {
   return readConfiguration()?.chatId ?? null;
 }
 
-function isTelegramResponse(
-  value: unknown,
-): value is {
+function isTelegramResponse(value: unknown): value is {
   ok: boolean;
   result?: unknown;
   description?: string;
@@ -129,7 +134,11 @@ async function callTelegramMethod(
 }
 
 function messageIdFrom(result: unknown): number | null {
-  if (typeof result !== "object" || result === null || !("message_id" in result)) {
+  if (
+    typeof result !== "object" ||
+    result === null ||
+    !("message_id" in result)
+  ) {
     return null;
   }
   const messageId = (result as { message_id?: unknown }).message_id;
@@ -200,6 +209,24 @@ export async function setTelegramWebhook(
   return { status: "registered" };
 }
 
+export async function setTelegramCommands(
+  commands: TelegramCommand[],
+): Promise<TelegramSetCommandsResult> {
+  const configuration = readConfiguration();
+  if (!configuration) {
+    return { status: "skipped", reason: "not_configured" };
+  }
+
+  await callTelegramMethod(
+    configuration.botToken,
+    "setMyCommands",
+    { commands },
+    "the command menu registration",
+  );
+
+  return { status: "set" };
+}
+
 export async function getTelegramWebhookInfo(): Promise<TelegramWebhookInfoResult> {
   const configuration = readConfiguration();
   if (!configuration) {
@@ -219,11 +246,15 @@ export async function getTelegramWebhookInfo(): Promise<TelegramWebhookInfoResul
     info: {
       url: typeof info.url === "string" ? info.url : "",
       pendingUpdateCount:
-        typeof info.pending_update_count === "number" ? info.pending_update_count : 0,
+        typeof info.pending_update_count === "number"
+          ? info.pending_update_count
+          : 0,
       lastErrorDate:
         typeof info.last_error_date === "number" ? info.last_error_date : null,
       lastErrorMessage:
-        typeof info.last_error_message === "string" ? info.last_error_message : null,
+        typeof info.last_error_message === "string"
+          ? info.last_error_message
+          : null,
     },
   };
 }

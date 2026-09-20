@@ -1,7 +1,25 @@
-import { getTelegramChatId, sendTelegramMessage } from "@workspace/integrations-telegram";
+import {
+  getTelegramChatId,
+  sendTelegramMessage,
+} from "@workspace/integrations-telegram";
+import {
+  isInProfit,
+  netWinnings,
+  perPlayerShare,
+} from "@workspace/session-rules";
 import { Router, type IRouter, type Request } from "express";
 import { z } from "@workspace/api-zod";
 import { scoreboardUrl } from "./scoreboardUrl";
+import {
+  getSessionSummary,
+  loadAllPlayerNames,
+  playerName,
+} from "../lib/session-summary";
+import {
+  escapeTelegramHtml,
+  formatMoney,
+  formatNetPosition,
+} from "../lib/telegramFormatting";
 
 const router: IRouter = Router();
 
@@ -31,9 +49,66 @@ function helpReplyText(req: Request): string {
     "",
     "Commands:",
     "/help — show this message",
+    "/last — the most recent session's result",
+    "/standings — the cumulative net winnings leaderboard",
     "",
     `Scoreboard: ${scoreboardUrl(req)}`,
   ].join("\n");
+}
+
+const NO_SESSIONS_REPLY_TEXT = "No sessions have been recorded yet.";
+
+async function lastReplyText(req: Request): Promise<string> {
+  const { latestSession } = await getSessionSummary();
+  if (!latestSession) return NO_SESSIONS_REPLY_TEXT;
+
+  const names = await loadAllPlayerNames();
+  const nameOf = (playerId: number) =>
+    escapeTelegramHtml(playerName(names, playerId));
+  const { basePot, playerBalances: players } = latestSession;
+
+  const playerLines = players
+    .map((player) =>
+      [
+        `• <b>${nameOf(player.playerId)}</b>`,
+        `${formatMoney(player.endingAmount)} (${formatNetPosition(netWinnings(player.endingAmount, basePot))})`,
+        `诈胡 ${player.zhaHuCount}`,
+        `谢谢开相 ${player.xieXieKaiXiangCount}`,
+      ].join(" · "),
+    )
+    .join("\n");
+  const winners = players
+    .filter((player) => isInProfit(player.endingAmount, basePot))
+    .map((player) => nameOf(player.playerId));
+
+  return [
+    `<b>Last session · ${escapeTelegramHtml(latestSession.playedOn)}</b>`,
+    winners.length > 0
+      ? `Winner: ${winners.join(", ")}`
+      : "Nobody finished in profit",
+    "",
+    playerLines,
+    "",
+    `<b>Rounds</b>: ${latestSession.rounds}`,
+    `<b>Base pot</b>: ${formatMoney(basePot)} (${formatMoney(perPlayerShare(basePot))} per player)`,
+    "",
+    `<a href="${escapeTelegramHtml(scoreboardUrl(req))}">Open the scoreboard</a>`,
+  ].join("\n");
+}
+
+async function standingsReplyText(): Promise<string> {
+  const { playerWinnings, profitNightCounts } = await getSessionSummary();
+  if (playerWinnings.length === 0) return NO_SESSIONS_REPLY_TEXT;
+
+  const winsByPlayer = new Map(
+    profitNightCounts.map((row) => [row.playerId, row.nights]),
+  );
+  const lines = playerWinnings.map((row, index) => {
+    const wins = winsByPlayer.get(row.playerId) ?? 0;
+    return `${index + 1}. <b>${escapeTelegramHtml(row.playerName)}</b> — ${formatNetPosition(row.netAmount)} · ${wins} win${wins === 1 ? "" : "s"}`;
+  });
+
+  return ["<b>Standings</b>", "", ...lines].join("\n");
 }
 
 function commandFrom(text: string | undefined): string | null {
@@ -48,7 +123,10 @@ async function handleUpdate(
   const message = update.message;
   if (!message) return;
 
-  if (message.migrate_to_chat_id !== undefined || message.migrate_from_chat_id !== undefined) {
+  if (
+    message.migrate_to_chat_id !== undefined ||
+    message.migrate_from_chat_id !== undefined
+  ) {
     req.log.error(
       {
         migrateToChatId: message.migrate_to_chat_id,
@@ -65,9 +143,25 @@ async function handleUpdate(
   }
 
   const command = commandFrom(message.text);
-  if (command !== "/help") return;
-
-  await sendTelegramMessage({ text: helpReplyText(req) });
+  switch (command) {
+    case "/help":
+      await sendTelegramMessage({ text: helpReplyText(req) });
+      return;
+    case "/last":
+      await sendTelegramMessage({
+        text: await lastReplyText(req),
+        parseMode: "HTML",
+      });
+      return;
+    case "/standings":
+      await sendTelegramMessage({
+        text: await standingsReplyText(),
+        parseMode: "HTML",
+      });
+      return;
+    default:
+      return;
+  }
 }
 
 router.post("/telegram/webhook", async (req, res): Promise<void> => {
@@ -83,14 +177,19 @@ router.post("/telegram/webhook", async (req, res): Promise<void> => {
     }
 
     if (req.header(WEBHOOK_SECRET_HEADER) !== configuredSecret) {
-      req.log.warn("Telegram webhook request had a missing or incorrect secret token");
+      req.log.warn(
+        "Telegram webhook request had a missing or incorrect secret token",
+      );
       res.sendStatus(401);
       return;
     }
 
     const parsed = TelegramUpdateSchema.safeParse(req.body);
     if (!parsed.success) {
-      req.log.warn({ err: parsed.error }, "Telegram webhook received a malformed update");
+      req.log.warn(
+        { err: parsed.error },
+        "Telegram webhook received a malformed update",
+      );
       res.sendStatus(200);
       return;
     }

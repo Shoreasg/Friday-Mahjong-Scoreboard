@@ -323,7 +323,7 @@
         },
         {
           "path": "artifacts/api-server/src/routes/telegramWebhook.ts",
-          "label": "inbound webhook, /help"
+          "label": "inbound webhook, /help, /last, /standings"
         }
       ]
     }
@@ -423,7 +423,7 @@
       "id": "api-to-telegram",
       "from": "api",
       "to": "telegram",
-      "label": "announcements, broadcasts, polls & /help webhook",
+      "label": "announcements, broadcasts, polls & webhook",
       "fromSide": "bottom",
       "toSide": "left"
     },
