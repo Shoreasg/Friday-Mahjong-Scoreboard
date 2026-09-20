@@ -16,6 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ListChecks, Send } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { telegramFailureMessage } from "@/lib/telegram-errors";
 
 const TELEGRAM_MESSAGE_LIMIT = 4096;
 
@@ -23,12 +24,6 @@ const POLL_PRESETS: { preset: TelegramPollInputPreset; label: string }[] = [
   { preset: "tonight", label: "Mahjong tonight?" },
   { preset: "this_friday", label: "Mahjong this Friday?" },
 ];
-
-function telegramFailureMessage(error: unknown, action: string): string {
-  const status = (error as { status?: number } | null)?.status;
-  if (status === 503) return "Telegram is not configured";
-  return action;
-}
 
 export function TelegramBroadcastCard() {
   const [message, setMessage] = useState("");

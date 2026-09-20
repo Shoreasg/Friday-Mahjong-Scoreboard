@@ -113,6 +113,37 @@ export interface TelegramPollResult {
   messageId: number | null;
 }
 
+/**
+ * "ok" when the registered URL matches the server's expected URL, "mismatch" when a different URL is registered, "unregistered" when nothing is registered with Telegram at all.
+ */
+export type TelegramWebhookInfoStatus = typeof TelegramWebhookInfoStatus[keyof typeof TelegramWebhookInfoStatus];
+
+
+export const TelegramWebhookInfoStatus = {
+  ok: 'ok',
+  mismatch: 'mismatch',
+  unregistered: 'unregistered',
+} as const;
+
+export interface TelegramWebhookInfo {
+  /** "ok" when the registered URL matches the server's expected URL, "mismatch" when a different URL is registered, "unregistered" when nothing is registered with Telegram at all. */
+  status: TelegramWebhookInfoStatus;
+  /** The URL currently registered with Telegram, or empty if none. */
+  registeredUrl: string;
+  /** The URL the server derives for itself from PUBLIC_URL, or the request's own forwarded origin. */
+  expectedUrl: string;
+  pendingUpdateCount: number;
+  /** @nullable */
+  lastErrorMessage: string | null;
+  /** @nullable */
+  lastErrorDate: number | null;
+}
+
+export interface TelegramWebhookRegisterInput {
+  /** The webhook URL to register with Telegram. Pre-filled by the client with the server's expected URL, but editable so an odd setup (custom domain, tunnel) still has an escape hatch. */
+  url: string;
+}
+
 export interface MahjongSessionInput {
   playedOn: string;
   /**

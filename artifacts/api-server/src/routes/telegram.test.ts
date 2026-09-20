@@ -1,10 +1,12 @@
 import type { Server } from "node:http";
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   getUser: vi.fn(),
   telegramSend: vi.fn(),
   telegramPoll: vi.fn(),
+  getTelegramWebhookInfo: vi.fn(),
+  setTelegramWebhook: vi.fn(),
 }));
 
 vi.mock("@clerk/express", () => ({
@@ -22,6 +24,8 @@ vi.mock("@clerk/express", () => ({
 vi.mock("@workspace/integrations-telegram", () => ({
   sendTelegramMessage: mocks.telegramSend,
   startTelegramPoll: mocks.telegramPoll,
+  getTelegramWebhookInfo: mocks.getTelegramWebhookInfo,
+  setTelegramWebhook: mocks.setTelegramWebhook,
 }));
 
 import app from "../app";
@@ -60,6 +64,18 @@ async function startPoll(preset: unknown, userId?: string) {
   );
 }
 
+async function getWebhookInfo(userId?: string) {
+  return request("/api/telegram/webhook/info", {}, userId);
+}
+
+async function registerWebhook(url: unknown, userId?: string) {
+  return request(
+    "/api/telegram/webhook/register",
+    { method: "POST", body: JSON.stringify({ url }) },
+    userId,
+  );
+}
+
 beforeAll(async () => {
   await new Promise<void>((resolve) => {
     server = app.listen(0, "127.0.0.1", () => resolve());
@@ -77,12 +93,18 @@ afterAll(async () => {
 
 beforeEach(() => {
   process.env.ADMIN_EMAILS = adminEmail;
+  process.env.TELEGRAM_WEBHOOK_SECRET = "test-webhook-secret";
   vi.clearAllMocks();
   mocks.getUser.mockImplementation(async (userId: string) => ({
     emailAddresses: [{
       emailAddress: userId === adminUserId ? adminEmail : "viewer@example.com",
     }],
   }));
+});
+
+afterEach(() => {
+  delete process.env.PUBLIC_URL;
+  delete process.env.TELEGRAM_WEBHOOK_SECRET;
 });
 
 describe("POST /telegram/broadcast", () => {
@@ -205,5 +227,173 @@ describe("POST /telegram/poll", () => {
     const response = await startPoll("tonight", adminUserId);
 
     expect(response.status).toBe(502);
+  });
+});
+
+describe("GET /telegram/webhook/info", () => {
+  it("rejects signed-out callers", async () => {
+    const response = await getWebhookInfo();
+
+    expect(response.status).toBe(401);
+  });
+
+  it("rejects non-admin callers", async () => {
+    const response = await getWebhookInfo(viewerUserId);
+
+    expect(response.status).toBe(403);
+  });
+
+  it("reports ok when the registered URL matches the expected URL", async () => {
+    process.env.PUBLIC_URL = "https://mahjong.example.com";
+    mocks.getTelegramWebhookInfo.mockResolvedValue({
+      status: "ok",
+      info: {
+        url: "https://mahjong.example.com/api/telegram/webhook",
+        pendingUpdateCount: 0,
+        lastErrorDate: null,
+        lastErrorMessage: null,
+      },
+    });
+
+    const response = await getWebhookInfo(adminUserId);
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      status: "ok",
+      registeredUrl: "https://mahjong.example.com/api/telegram/webhook",
+      expectedUrl: "https://mahjong.example.com/api/telegram/webhook",
+      pendingUpdateCount: 0,
+      lastErrorMessage: null,
+      lastErrorDate: null,
+    });
+  });
+
+  it("reports mismatch when a different URL is registered", async () => {
+    process.env.PUBLIC_URL = "https://mahjong.example.com";
+    mocks.getTelegramWebhookInfo.mockResolvedValue({
+      status: "ok",
+      info: {
+        url: "https://old-tunnel.example.com/api/telegram/webhook",
+        pendingUpdateCount: 2,
+        lastErrorDate: 1700000000,
+        lastErrorMessage: "Wrong response from the webhook: 500",
+      },
+    });
+
+    const response = await getWebhookInfo(adminUserId);
+
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.status).toBe("mismatch");
+    expect(body.pendingUpdateCount).toBe(2);
+    expect(body.lastErrorMessage).toBe("Wrong response from the webhook: 500");
+  });
+
+  it("reports unregistered when nothing is registered", async () => {
+    process.env.PUBLIC_URL = "https://mahjong.example.com";
+    mocks.getTelegramWebhookInfo.mockResolvedValue({
+      status: "ok",
+      info: { url: "", pendingUpdateCount: 0, lastErrorDate: null, lastErrorMessage: null },
+    });
+
+    const response = await getWebhookInfo(adminUserId);
+
+    expect((await response.json()).status).toBe("unregistered");
+  });
+
+  it("reports unavailability when Telegram is not configured", async () => {
+    mocks.getTelegramWebhookInfo.mockResolvedValue({
+      status: "skipped",
+      reason: "not_configured",
+    });
+
+    const response = await getWebhookInfo(adminUserId);
+
+    expect(response.status).toBe(503);
+  });
+});
+
+describe("POST /telegram/webhook/register", () => {
+  it("rejects signed-out callers", async () => {
+    const response = await registerWebhook("https://mahjong.example.com/api/telegram/webhook");
+
+    expect(response.status).toBe(401);
+    expect(mocks.setTelegramWebhook).not.toHaveBeenCalled();
+  });
+
+  it("rejects non-admin callers", async () => {
+    const response = await registerWebhook(
+      "https://mahjong.example.com/api/telegram/webhook",
+      viewerUserId,
+    );
+
+    expect(response.status).toBe(403);
+    expect(mocks.setTelegramWebhook).not.toHaveBeenCalled();
+  });
+
+  it("registers the given URL and returns the freshly re-checked status", async () => {
+    process.env.PUBLIC_URL = "https://mahjong.example.com";
+    mocks.setTelegramWebhook.mockResolvedValue({ status: "registered" });
+    mocks.getTelegramWebhookInfo.mockResolvedValue({
+      status: "ok",
+      info: {
+        url: "https://mahjong.example.com/api/telegram/webhook",
+        pendingUpdateCount: 0,
+        lastErrorDate: null,
+        lastErrorMessage: null,
+      },
+    });
+
+    const response = await registerWebhook(
+      "https://mahjong.example.com/api/telegram/webhook",
+      adminUserId,
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.setTelegramWebhook).toHaveBeenCalledWith(
+      "https://mahjong.example.com/api/telegram/webhook",
+      "test-webhook-secret",
+    );
+    expect((await response.json()).status).toBe("ok");
+  });
+
+  it("rejects a non-https URL", async () => {
+    const response = await registerWebhook("http://mahjong.example.com/api/telegram/webhook", adminUserId);
+
+    expect(response.status).toBe(400);
+    expect(mocks.setTelegramWebhook).not.toHaveBeenCalled();
+  });
+
+  it("rejects an unparseable URL", async () => {
+    const response = await registerWebhook("not a url", adminUserId);
+
+    expect(response.status).toBe(400);
+    expect(mocks.setTelegramWebhook).not.toHaveBeenCalled();
+  });
+
+  it("fails clearly when the webhook secret is not configured", async () => {
+    delete process.env.TELEGRAM_WEBHOOK_SECRET;
+
+    const response = await registerWebhook(
+      "https://mahjong.example.com/api/telegram/webhook",
+      adminUserId,
+    );
+
+    expect(response.status).toBe(500);
+    expect(mocks.setTelegramWebhook).not.toHaveBeenCalled();
+  });
+
+  it("reports unavailability when Telegram is not configured", async () => {
+    mocks.setTelegramWebhook.mockResolvedValue({
+      status: "skipped",
+      reason: "not_configured",
+    });
+
+    const response = await registerWebhook(
+      "https://mahjong.example.com/api/telegram/webhook",
+      adminUserId,
+    );
+
+    expect(response.status).toBe(503);
   });
 });

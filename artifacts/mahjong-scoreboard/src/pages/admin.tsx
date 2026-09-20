@@ -4,6 +4,7 @@ import { ArrowLeft, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { TelegramBroadcastCard } from "@/components/TelegramBroadcastCard";
+import { TelegramWebhookCard } from "@/components/TelegramWebhookCard";
 import { useIsAdmin } from "@/hooks/use-is-admin";
 
 export default function Admin() {
@@ -48,6 +49,7 @@ export default function Admin() {
         </div>
 
         <TelegramBroadcastCard />
+        <TelegramWebhookCard />
       </main>
     </div>
   );

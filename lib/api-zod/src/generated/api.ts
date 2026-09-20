@@ -469,3 +469,35 @@ export const StartTelegramPollResponse = zod.object({
 })
 
 
+/**
+ * Compares the URL currently registered with Telegram against the server's own expected public URL, alongside pending update count and the last delivery error, if any.
+ * @summary Show the Telegram webhook's registration status
+ */
+export const GetTelegramWebhookInfoResponse = zod.object({
+  "status": zod.enum(['ok', 'mismatch', 'unregistered']).describe('\"ok\" when the registered URL matches the server\'s expected URL, \"mismatch\" when a different URL is registered, \"unregistered\" when nothing is registered with Telegram at all.'),
+  "registeredUrl": zod.string().describe('The URL currently registered with Telegram, or empty if none.'),
+  "expectedUrl": zod.string().describe('The URL the server derives for itself from PUBLIC_URL, or the request\'s own forwarded origin.'),
+  "pendingUpdateCount": zod.int(),
+  "lastErrorMessage": zod.string().nullable(),
+  "lastErrorDate": zod.int().nullable()
+})
+
+
+/**
+ * Calls Telegram's setWebhook with the server-held secret and the supplied URL, then returns the freshly re-checked status.
+ * @summary Register the Telegram webhook at a given URL
+ */
+export const RegisterTelegramWebhookBody = zod.object({
+  "url": zod.string().describe('The webhook URL to register with Telegram. Pre-filled by the client with the server\'s expected URL, but editable so an odd setup (custom domain, tunnel) still has an escape hatch.')
+})
+
+export const RegisterTelegramWebhookResponse = zod.object({
+  "status": zod.enum(['ok', 'mismatch', 'unregistered']).describe('\"ok\" when the registered URL matches the server\'s expected URL, \"mismatch\" when a different URL is registered, \"unregistered\" when nothing is registered with Telegram at all.'),
+  "registeredUrl": zod.string().describe('The URL currently registered with Telegram, or empty if none.'),
+  "expectedUrl": zod.string().describe('The URL the server derives for itself from PUBLIC_URL, or the request\'s own forwarded origin.'),
+  "pendingUpdateCount": zod.int(),
+  "lastErrorMessage": zod.string().nullable(),
+  "lastErrorDate": zod.int().nullable()
+})
+
+

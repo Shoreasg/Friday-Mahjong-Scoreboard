@@ -324,6 +324,10 @@
         {
           "path": "artifacts/api-server/src/routes/telegramWebhook.ts",
           "label": "inbound webhook, /help, /last, /standings"
+        },
+        {
+          "path": "artifacts/api-server/src/routes/telegram.ts",
+          "label": "admin: webhook status + register"
         }
       ]
     }

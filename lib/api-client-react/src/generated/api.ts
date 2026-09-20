@@ -35,7 +35,9 @@ import type {
   TelegramBroadcastInput,
   TelegramBroadcastResult,
   TelegramPollInput,
-  TelegramPollResult
+  TelegramPollResult,
+  TelegramWebhookInfo,
+  TelegramWebhookRegisterInput
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -1035,5 +1037,155 @@ export const useStartTelegramPoll = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getStartTelegramPollMutationOptions(options));
+    }
+
+export const getGetTelegramWebhookInfoUrl = () => {
+
+
+
+
+  return `/api/telegram/webhook/info`
+}
+
+/**
+ * Compares the URL currently registered with Telegram against the server's own expected public URL, alongside pending update count and the last delivery error, if any.
+ * @summary Show the Telegram webhook's registration status
+ */
+export const getTelegramWebhookInfo = async ( options?: Parameters<typeof customFetch>[1]): Promise<TelegramWebhookInfo> => {
+
+  return customFetch<TelegramWebhookInfo>(getGetTelegramWebhookInfoUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetTelegramWebhookInfoQueryKey = () => {
+    return [
+    `/api/telegram/webhook/info`
+    ] as const;
+    }
+
+
+export const getGetTelegramWebhookInfoQueryOptions = <TData = Awaited<ReturnType<typeof getTelegramWebhookInfo>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTelegramWebhookInfo>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetTelegramWebhookInfoQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getTelegramWebhookInfo>>> = ({ signal }) => getTelegramWebhookInfo({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getTelegramWebhookInfo>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetTelegramWebhookInfoQueryResult = NonNullable<Awaited<ReturnType<typeof getTelegramWebhookInfo>>>
+export type GetTelegramWebhookInfoQueryError = ErrorType<void>
+
+
+/**
+ * @summary Show the Telegram webhook's registration status
+ */
+
+export function useGetTelegramWebhookInfo<TData = Awaited<ReturnType<typeof getTelegramWebhookInfo>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTelegramWebhookInfo>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetTelegramWebhookInfoQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getRegisterTelegramWebhookUrl = () => {
+
+
+
+
+  return `/api/telegram/webhook/register`
+}
+
+/**
+ * Calls Telegram's setWebhook with the server-held secret and the supplied URL, then returns the freshly re-checked status.
+ * @summary Register the Telegram webhook at a given URL
+ */
+export const registerTelegramWebhook = async (telegramWebhookRegisterInput: TelegramWebhookRegisterInput, options?: Parameters<typeof customFetch>[1]): Promise<TelegramWebhookInfo> => {
+
+  return customFetch<TelegramWebhookInfo>(getRegisterTelegramWebhookUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(telegramWebhookRegisterInput)
+  }
+);}
+
+
+
+
+
+export const getRegisterTelegramWebhookMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof registerTelegramWebhook>>, TError,{data: BodyType<TelegramWebhookRegisterInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof registerTelegramWebhook>>, TError,{data: BodyType<TelegramWebhookRegisterInput>}, TContext> => {
+
+const mutationKey = ['registerTelegramWebhook'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof registerTelegramWebhook>>, {data: BodyType<TelegramWebhookRegisterInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  registerTelegramWebhook(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RegisterTelegramWebhookMutationResult = NonNullable<Awaited<ReturnType<typeof registerTelegramWebhook>>>
+    export type RegisterTelegramWebhookMutationBody = BodyType<TelegramWebhookRegisterInput>
+    export type RegisterTelegramWebhookMutationError = ErrorType<void>
+
+    /**
+ * @summary Register the Telegram webhook at a given URL
+ */
+export const useRegisterTelegramWebhook = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof registerTelegramWebhook>>, TError,{data: BodyType<TelegramWebhookRegisterInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof registerTelegramWebhook>>,
+        TError,
+        {data: BodyType<TelegramWebhookRegisterInput>},
+        TContext
+      > => {
+      return useMutation(getRegisterTelegramWebhookMutationOptions(options));
     }
 

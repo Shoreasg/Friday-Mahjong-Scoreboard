@@ -33,5 +33,8 @@ export * from './telegramPollInput';
 export * from './telegramPollInputPreset';
 export * from './telegramPollResult';
 export * from './telegramPollResultStatus';
+export * from './telegramWebhookInfo';
+export * from './telegramWebhookInfoStatus';
+export * from './telegramWebhookRegisterInput';
 export * from './xieXieKaiXiangCount';
 export * from './zhaHuCount';
