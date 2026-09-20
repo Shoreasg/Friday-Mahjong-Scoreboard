@@ -84,6 +84,35 @@ export interface TelegramBroadcastResult {
   messageId: number | null;
 }
 
+/**
+ * Which preset question to post. The question text itself is composed server-side so the group always sees a consistent phrasing.
+ */
+export type TelegramPollInputPreset = typeof TelegramPollInputPreset[keyof typeof TelegramPollInputPreset];
+
+
+export const TelegramPollInputPreset = {
+  tonight: 'tonight',
+  this_friday: 'this_friday',
+} as const;
+
+export interface TelegramPollInput {
+  /** Which preset question to post. The question text itself is composed server-side so the group always sees a consistent phrasing. */
+  preset: TelegramPollInputPreset;
+}
+
+export type TelegramPollResultStatus = typeof TelegramPollResultStatus[keyof typeof TelegramPollResultStatus];
+
+
+export const TelegramPollResultStatus = {
+  sent: 'sent',
+} as const;
+
+export interface TelegramPollResult {
+  status: TelegramPollResultStatus;
+  /** @nullable */
+  messageId: number | null;
+}
+
 export interface MahjongSessionInput {
   playedOn: string;
   /**

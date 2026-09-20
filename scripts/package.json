@@ -10,12 +10,15 @@
     "reconcile:players": "tsx ./src/reconcile-duplicate-players.ts",
     "migrate:sessions": "tsx ./src/migrate-session-shape.ts",
     "migrate:sessions:after-push": "tsx ./src/migrate-session-shape.ts --after-push",
+    "telegram:webhook:register": "tsx ./src/telegram-webhook-register.ts",
+    "telegram:webhook:info": "tsx ./src/telegram-webhook-info.ts",
     "test": "vitest run",
     "test:integration": "vitest run -c vitest.integration.config.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@workspace/db": "workspace:*",
+    "@workspace/integrations-telegram": "workspace:*",
     "@workspace/session-rules": "workspace:*",
     "drizzle-orm": "catalog:",
     "pg": "^8.22.0"

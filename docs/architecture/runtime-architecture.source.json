@@ -11,7 +11,7 @@
     ],
     "repository": {
       "url": "https://github.com/Shoreasg/Friday-Mahjong-Scoreboard",
-      "revision": "0ec3caa2ad13b23690675e2831569118b1080609"
+      "revision": "abf739f56f5cb46775e7b2f6b70b4781a97c26f7"
     },
     "views": [
       {
@@ -306,7 +306,7 @@
       "id": "telegram",
       "type": "external",
       "label": "Telegram",
-      "sublabel": "Bot API · optional outbound",
+      "sublabel": "Bot API · outbound & webhook",
       "tag": "@workspace/integrations-telegram",
       "pos": [
         1110,
@@ -319,7 +319,11 @@
       "sources": [
         {
           "path": "lib/integrations-telegram/src/index.ts",
-          "label": "lazy sendMessage adapter"
+          "label": "lazy send/poll/webhook adapter"
+        },
+        {
+          "path": "artifacts/api-server/src/routes/telegramWebhook.ts",
+          "label": "inbound webhook, /help"
         }
       ]
     }
@@ -419,7 +423,7 @@
       "id": "api-to-telegram",
       "from": "api",
       "to": "telegram",
-      "label": "session announcements & admin broadcasts",
+      "label": "announcements, broadcasts, polls & /help webhook",
       "fromSide": "bottom",
       "toSide": "left"
     },
