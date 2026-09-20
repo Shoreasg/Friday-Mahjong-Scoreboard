@@ -72,7 +72,7 @@
         },
         {
           "path": "artifacts/mahjong-scoreboard/src/App.tsx",
-          "label": "Clerk + wouter routes: scoreboard, roster"
+          "label": "Clerk + wouter routes: scoreboard, roster, admin"
         }
       ]
     },
