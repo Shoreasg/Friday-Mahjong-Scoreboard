@@ -15,6 +15,7 @@ import {
 } from "@workspace/api-client-react";
 import { queryClient } from "@/lib/queryClient";
 import { reservationSignInPath } from "@/lib/reservation-routing";
+import { getReservationViewModel } from "@/lib/reservation-view-model";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useUser } from "@clerk/react";
@@ -356,11 +357,8 @@ export function ReservationEventPage() {
     mutations.run(() => mutations.update.mutate({ eventId, data: { date, startTime } }));
     setEditing(false);
   };
-  const lockReason = event?.status === "cancelled"
-    ? "This event is cancelled. Its participant history is preserved, but seats can no longer change."
-    : event?.status === "started"
-      ? "This event has started. Reservations and time changes are locked."
-      : null;
+  const view = event ? getReservationViewModel(event) : null;
+  const lockReason = view?.lockReason ?? null;
 
   return (
     <div className="min-h-[100dvh] bg-background pb-16">
@@ -416,7 +414,7 @@ export function ReservationEventPage() {
                 </div>
                 {lockReason && <div className="mt-6"><Notice tone="info"><p>{lockReason}</p></Notice></div>}
                 {event.callerState === "confirmed" && <p className="mt-5 inline-flex items-center gap-2 border-2 border-ink bg-primary px-3 py-2 text-sm font-black uppercase brutal-shadow-sm"><Check className="h-4 w-4" strokeWidth={3} /> Your seat is confirmed</p>}
-                {event.callerState === "waiting" && <p className="mt-5 inline-flex items-center gap-2 border-2 border-ink bg-accent px-3 py-2 text-sm font-black uppercase brutal-shadow-sm"><Users className="h-4 w-4" strokeWidth={3} /> You are on the waitlist · position {event.waiting.find((person) => person.isCaller)?.position ?? "—"}</p>}
+                {event.callerState === "waiting" && <p className="mt-5 inline-flex items-center gap-2 border-2 border-ink bg-accent px-3 py-2 text-sm font-black uppercase brutal-shadow-sm"><Users className="h-4 w-4" strokeWidth={3} /> You are on the waitlist · position {view?.callerWaitPosition ?? "—"}</p>}
                 {!isSignedIn && <p className="mt-5 text-sm font-bold text-muted-foreground">Sign in to reserve your own seat. Opening this link never joins you automatically.</p>}
               </CardContent>
             </Card>
@@ -463,8 +461,8 @@ export function ReservationEventPage() {
                 <Card className="bg-secondary">
                   <div className="border-b-2 border-ink px-5 py-4"><p className="font-mono text-[10px] font-bold uppercase tracking-[0.2em]">Your reservation</p><h2 className="text-xl font-black uppercase">Take your place</h2></div>
                   <CardContent className="space-y-3 p-5">
-                    {event.allowedActions.join && event.callerState === "none" && <Button disabled={busy || !isSignedIn} onClick={() => mutations.run(() => mutations.join.mutate({ eventId }))} className="h-12 w-full border-2 border-ink text-sm font-black uppercase tracking-wider brutal-shadow-sm" data-testid="button-join-event">{mutations.join.isPending ? "Reserving…" : event.confirmed.length < 4 ? "Reserve a seat" : "Join the waitlist"}</Button>}
-                    {event.allowedActions.leave && event.callerState !== "none" && <Button disabled={busy || !isSignedIn} variant="outline" onClick={() => mutations.run(() => mutations.leave.mutate({ eventId }))} className="h-12 w-full border-2 border-ink bg-tile text-sm font-black uppercase tracking-wider brutal-shadow-sm" data-testid="button-leave-event">{mutations.leave.isPending ? "Updating…" : "Leave reservation"}</Button>}
+                    {view?.canJoin && <Button disabled={busy || !isSignedIn} onClick={() => mutations.run(() => mutations.join.mutate({ eventId }))} className="h-12 w-full border-2 border-ink text-sm font-black uppercase tracking-wider brutal-shadow-sm" data-testid="button-join-event">{mutations.join.isPending ? "Reserving…" : event.confirmed.length < 4 ? "Reserve a seat" : "Join the waitlist"}</Button>}
+                    {view?.canLeave && <Button disabled={busy || !isSignedIn} variant="outline" onClick={() => mutations.run(() => mutations.leave.mutate({ eventId }))} className="h-12 w-full border-2 border-ink bg-tile text-sm font-black uppercase tracking-wider brutal-shadow-sm" data-testid="button-leave-event">{mutations.leave.isPending ? "Updating…" : "Leave reservation"}</Button>}
                     {!isSignedIn && <Link href={authDestination(`/app/reservations/${eventId}`)} className="flex h-12 items-center justify-center gap-2 border-2 border-ink bg-tile text-sm font-black uppercase tracking-wider brutal-shadow-sm"><LogIn className="h-4 w-4" /> Sign in to reserve</Link>}
                     {!lockReason && event.callerState === "none" && !event.allowedActions.join && <p className="text-center text-xs font-bold text-muted-foreground">A reservation is not available for your account right now.</p>}
                     {lockReason && <p className="text-center text-xs font-bold text-muted-foreground">The event is locked; no reservation changes can be made.</p>}
@@ -472,20 +470,19 @@ export function ReservationEventPage() {
                   </CardContent>
                 </Card>
 
-                {(event.allowedActions.edit || event.allowedActions.cancel) && (
+                    {(view?.canEdit || view?.canCancel) && (
                   <Card className="bg-card">
                     <div className="border-b-2 border-ink px-5 py-4"><p className="font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Creator / admin</p><h2 className="text-lg font-black uppercase">Event controls</h2></div>
                     <CardContent className="space-y-3 p-5">
-                      {event.allowedActions.edit && !editing && <Button type="button" variant="outline" onClick={beginEdit} disabled={busy} className="h-11 w-full border-2 border-ink font-black uppercase tracking-wider" data-testid="button-edit-event">Change date or time</Button>}
-                      {editing && event.allowedActions.edit && (
+                          {view?.canEdit && !editing && <Button type="button" variant="outline" onClick={beginEdit} disabled={busy} className="h-11 w-full border-2 border-ink font-black uppercase tracking-wider" data-testid="button-edit-event">Change date or time</Button>}
+                          {editing && view?.canEdit && (
                         <form onSubmit={saveEdit} className="space-y-3" data-testid="form-edit-event">
                           <label className="block text-xs font-black uppercase tracking-widest">Singapore date<input required type="date" min={singaporeDate()} value={date} onChange={(e) => setDate(e.target.value)} className="mt-1 h-11 w-full border-2 border-ink bg-tile px-3 font-mono font-bold" /></label>
                           <label className="block text-xs font-black uppercase tracking-widest">Start time · SGT<input required type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className="mt-1 h-11 w-full border-2 border-ink bg-tile px-3 font-mono font-bold" /></label>
                           <div className="flex gap-2"><Button type="submit" disabled={busy} className="flex-1 border-2 border-ink font-black uppercase">Save time</Button><Button type="button" variant="outline" onClick={() => setEditing(false)} className="border-2 border-ink font-black uppercase">Close</Button></div>
                         </form>
                       )}
-                      {event.allowedActions.cancel && event.status !== "cancelled" && <Button type="button" variant="destructive" disabled={busy} onClick={() => { if (window.confirm("Cancel this Mahjong event? Participant history will remain visible, but no further seat changes will be allowed.")) mutations.run(() => mutations.cancel.mutate({ eventId })); }} className="h-11 w-full border-2 border-ink font-black uppercase tracking-wider brutal-shadow-sm" data-testid="button-cancel-event">{mutations.cancel.isPending ? "Cancelling…" : "Cancel event"}</Button>}
-                      {event.allowedActions.cancel && event.status === "cancelled" && <p className="text-xs font-bold text-muted-foreground">This event is already cancelled.</p>}
+                          {view?.canCancel && <Button type="button" variant="destructive" disabled={busy} onClick={() => { if (window.confirm("Cancel this Mahjong event? Participant history will remain visible, but no further seat changes will be allowed.")) mutations.run(() => mutations.cancel.mutate({ eventId })); }} className="h-11 w-full border-2 border-ink font-black uppercase tracking-wider brutal-shadow-sm" data-testid="button-cancel-event">{mutations.cancel.isPending ? "Cancelling…" : "Cancel event"}</Button>}
                     </CardContent>
                   </Card>
                 )}
