@@ -5,6 +5,186 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+export type ReservationErrorCode = typeof ReservationErrorCode[keyof typeof ReservationErrorCode];
+
+
+export const ReservationErrorCode = {
+  UNAUTHORIZED: 'UNAUTHORIZED',
+  INVALID_INPUT: 'INVALID_INPUT',
+  INVALID_TIME: 'INVALID_TIME',
+  START_NOT_FUTURE: 'START_NOT_FUTURE',
+  EVENT_NOT_FOUND: 'EVENT_NOT_FOUND',
+  NOTIFICATION_NOT_FOUND: 'NOTIFICATION_NOT_FOUND',
+  MANAGER_REQUIRED: 'MANAGER_REQUIRED',
+  EVENT_STARTED: 'EVENT_STARTED',
+  EVENT_CANCELLED: 'EVENT_CANCELLED',
+  IDEMPOTENCY_CONFLICT: 'IDEMPOTENCY_CONFLICT',
+  NOT_RETRYABLE: 'NOT_RETRYABLE',
+} as const;
+
+export interface ReservationError {
+  error: string;
+  code: ReservationErrorCode;
+}
+
+export interface ReservationTimeInput {
+  /**
+     * Real Singapore calendar date, YYYY-MM-DD
+     * @pattern ^\d{4}-\d{2}-\d{2}$
+     */
+  date: string;
+  /**
+     * Asia/Singapore local time, HH:mm in 24-hour format
+     * @pattern ^(?:[01]\d|2[0-3]):[0-5]\d$
+     */
+  startTime: string;
+}
+
+export interface ReservationEventInput {
+  /** @pattern ^\d{4}-\d{2}-\d{2}$ */
+  date: string;
+  /** @pattern ^(?:[01]\d|2[0-3]):[0-5]\d$ */
+  startTime: string;
+  enrollCreator?: boolean;
+}
+
+export interface ReservationParticipant {
+  enrollmentId: number;
+  /** Safe display name snapshot; never an email or account ID */
+  displayName: string;
+  isCaller: boolean;
+  joinedAt: string;
+}
+
+export type ReservationConfirmedParticipant = ReservationParticipant & {
+  /**
+     * @minimum 1
+     * @maximum 4
+     */
+  seat: number;
+};
+
+export type ReservationWaitingParticipant = ReservationParticipant & {
+  /**
+     * One-based active FIFO position; recalculated after departures
+     * @minimum 1
+     */
+  position: number;
+};
+
+export type ReservationNotificationKind = typeof ReservationNotificationKind[keyof typeof ReservationNotificationKind];
+
+
+export const ReservationNotificationKind = {
+  created: 'created',
+  promoted: 'promoted',
+  cancelled: 'cancelled',
+} as const;
+
+/**
+ * Pending is durable but not delivered; sent requires provider acknowledgement
+ */
+export type ReservationNotificationStatus = typeof ReservationNotificationStatus[keyof typeof ReservationNotificationStatus];
+
+
+export const ReservationNotificationStatus = {
+  pending: 'pending',
+  processing: 'processing',
+  sent: 'sent',
+  failed: 'failed',
+} as const;
+
+/**
+ * @nullable
+ */
+export type ReservationNotificationFailureCode = typeof ReservationNotificationFailureCode[keyof typeof ReservationNotificationFailureCode] | null;
+
+
+export const ReservationNotificationFailureCode = {
+  DELIVERY_FAILED: 'DELIVERY_FAILED',
+} as const;
+
+export interface ReservationNotification {
+  id: number;
+  kind: ReservationNotificationKind;
+  /** Pending is durable but not delivered; sent requires provider acknowledgement */
+  status: ReservationNotificationStatus;
+  /** @minimum 0 */
+  attempts: number;
+  createdAt: string;
+  /** @nullable */
+  sentAt: string | null;
+  /** @nullable */
+  failureCode: ReservationNotificationFailureCode;
+  canRetry: boolean;
+}
+
+export type ReservationEventTimeZone = typeof ReservationEventTimeZone[keyof typeof ReservationEventTimeZone];
+
+
+export const ReservationEventTimeZone = {
+  'Asia/Singapore': 'Asia/Singapore',
+} as const;
+
+export type ReservationEventStatus = typeof ReservationEventStatus[keyof typeof ReservationEventStatus];
+
+
+export const ReservationEventStatus = {
+  open: 'open',
+  started: 'started',
+  cancelled: 'cancelled',
+} as const;
+
+export type ReservationEventCapacity = typeof ReservationEventCapacity[keyof typeof ReservationEventCapacity];
+
+
+export const ReservationEventCapacity = {
+  NUMBER_4: 4,
+} as const;
+
+export type ReservationEventCreator = {
+  displayName: string;
+  isCaller: boolean;
+};
+
+export type ReservationEventCallerState = typeof ReservationEventCallerState[keyof typeof ReservationEventCallerState];
+
+
+export const ReservationEventCallerState = {
+  none: 'none',
+  confirmed: 'confirmed',
+  waiting: 'waiting',
+} as const;
+
+export type ReservationEventAllowedActions = {
+  join: boolean;
+  leave: boolean;
+  edit: boolean;
+  cancel: boolean;
+  retryNotification: boolean;
+};
+
+export interface ReservationEvent {
+  id: number;
+  date: string;
+  startTime: string;
+  timeZone: ReservationEventTimeZone;
+  /** Unambiguous UTC instant, corresponding to date/startTime in Asia/Singapore */
+  startsAt: string;
+  createdAt: string;
+  /** @nullable */
+  cancelledAt: string | null;
+  status: ReservationEventStatus;
+  capacity: ReservationEventCapacity;
+  creator: ReservationEventCreator;
+  /** @maxItems 4 */
+  confirmed: ReservationConfirmedParticipant[];
+  waiting: ReservationWaitingParticipant[];
+  callerState: ReservationEventCallerState;
+  allowedActions: ReservationEventAllowedActions;
+  notifications: ReservationNotification[];
+}
+
 export interface HealthStatus {
   status: string;
 }
@@ -375,6 +555,41 @@ export interface SessionSummary {
   xieXieKaiXiangCounts: XieXieKaiXiangCount[];
   playerWinnings: PlayerWinnings[];
 }
+
+/**
+ * Current event, caller-specific actions and actual notification delivery states
+ */
+export type ReservationEventResultResponse = ReservationEvent;
+
+/**
+ * Invalid input, request key, ID, Singapore date/time, or non-future start
+ */
+export type ReservationInvalidResponse = ReservationError;
+
+/**
+ * Sign-in required
+ */
+export type ReservationUnauthorizedResponse = ReservationError;
+
+/**
+ * Only creator or existing admin may manage this event
+ */
+export type ReservationForbiddenResponse = ReservationError;
+
+/**
+ * Event or notification not found
+ */
+export type ReservationNotFoundResponse = ReservationError;
+
+/**
+ * Started/cancelled event, non-retryable notification, or reused key with different operation/input
+ */
+export type ReservationConflictResponse = ReservationError;
+
+/**
+ * UUID unique per account and logical operation; reuse unchanged for transport retries only
+ */
+export type ReservationRequestKeyParameter = string;
 
 export type ListPlayersParams = {
 /**

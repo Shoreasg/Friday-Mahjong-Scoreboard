@@ -23,7 +23,7 @@
           "api",
           "db"
         ],
-        "note": "Browser SPA calls /api through the Replit router into Express and Drizzle for sessions and players."
+        "note": "Browser SPA calls /api through the Replit router into Express and Postgres. Sessions and roster players remain separate from authenticated account reservations, whose queue transitions use per-event row locks."
       },
       {
         "id": "identity",
@@ -35,7 +35,7 @@
           "adminGuard",
           "clerk"
         ],
-        "note": "Same-origin Clerk proxy plus the ADMIN_EMAILS allowlist that gates every write."
+        "note": "Same-origin Clerk identity. Scoreboard writes require admins; reservations require sign-in, with creator/admin-only management. Existing admins come from ADMIN_EMAILS or the admins table."
       },
       {
         "id": "contract",
@@ -207,7 +207,11 @@
         },
         {
           "path": "artifacts/api-server/src/routes/index.ts",
-          "label": "health, admin, players, sessions, telegram, etc."
+          "label": "health, admin, players, sessions, reservations, telegram"
+        },
+        {
+          "path": "artifacts/api-server/src/routes/reservations.ts",
+          "label": "signed-in bookings and creator/admin management"
         },
         {
           "path": "artifacts/api-server/.replit-artifact/artifact.toml",
@@ -257,7 +261,7 @@
       "id": "db",
       "type": "database",
       "label": "PostgreSQL",
-      "sublabel": "players, mahjong_sessions, Drizzle",
+      "sublabel": "sessions, players + reservations",
       "tag": "DATABASE_URL",
       "brand": "postgresql",
       "pos": [
@@ -280,6 +284,14 @@
         {
           "path": "lib/db/src/schema/mahjong-sessions.ts",
           "label": "base_pot + player_balances keyed by player id"
+        },
+        {
+          "path": "lib/db/src/reservations.ts",
+          "label": "event row locks, FIFO seats, atomic notification intents"
+        },
+        {
+          "path": "lib/db/src/schema/reservation-notifications.ts",
+          "label": "durable pending intents; no reservation delivery worker yet"
         }
       ]
     },

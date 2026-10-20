@@ -20,7 +20,195 @@ tags:
     description: Telegram group chat integration
   - name: admin
     description: Admin roles and the signed-in user's own admin status
+  - name: reservations
+    description: Authenticated account reservations, separate from scored sessions and roster players
 paths:
+  /reservation-events:
+    get:
+      operationId: listReservationEvents
+      tags: [reservations]
+      summary: List events and their participant queues (sign-in required)
+      description: Includes cancelled and started events. Ordered by startsAt then id. Account identifiers and emails are never included.
+      responses:
+        "200":
+          description: Event list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ReservationEvent"
+        "401":
+          $ref: "#/components/responses/ReservationUnauthorized"
+    post:
+      operationId: createReservationEvent
+      tags: [reservations]
+      summary: Create a future Mahjong event (any signed-in user)
+      description: >-
+        Date and HH:mm startTime are interpreted in Asia/Singapore (UTC+08:00).
+        enrollCreator defaults false; true atomically books seat one. A successful
+        reservation persists a pending creation notification, not a sent message.
+        Idempotency-Key is a caller-generated UUID reused only for transport retries.
+        Replays return the current event without applying the operation again.
+      parameters:
+        - $ref: "#/components/parameters/ReservationRequestKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReservationEventInput"
+      responses:
+        "201":
+          $ref: "#/components/responses/ReservationEventResult"
+        "400":
+          $ref: "#/components/responses/ReservationInvalid"
+        "401":
+          $ref: "#/components/responses/ReservationUnauthorized"
+        "409":
+          $ref: "#/components/responses/ReservationConflict"
+  /reservation-events/{eventId}:
+    parameters:
+      - $ref: "#/components/parameters/ReservationEventId"
+    get:
+      operationId: getReservationEvent
+      tags: [reservations]
+      summary: Get an event and ordered participants (sign-in required)
+      responses:
+        "200":
+          $ref: "#/components/responses/ReservationEventResult"
+        "400":
+          $ref: "#/components/responses/ReservationInvalid"
+        "401":
+          $ref: "#/components/responses/ReservationUnauthorized"
+        "404":
+          $ref: "#/components/responses/ReservationNotFound"
+    patch:
+      operationId: updateReservationEvent
+      tags: [reservations]
+      summary: Change date and time before the original start (creator or admin)
+      description: Both date and startTime are required. The old and new start must be in the future. Does not generate a notification.
+      parameters:
+        - $ref: "#/components/parameters/ReservationRequestKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReservationTimeInput"
+      responses:
+        "200":
+          $ref: "#/components/responses/ReservationEventResult"
+        "400":
+          $ref: "#/components/responses/ReservationInvalid"
+        "401":
+          $ref: "#/components/responses/ReservationUnauthorized"
+        "403":
+          $ref: "#/components/responses/ReservationForbidden"
+        "404":
+          $ref: "#/components/responses/ReservationNotFound"
+        "409":
+          $ref: "#/components/responses/ReservationConflict"
+  /reservation-events/{eventId}/join:
+    post:
+      operationId: joinReservationEvent
+      tags: [reservations]
+      summary: Reserve the caller's own seat or append to the FIFO queue
+      description: >-
+        Four confirmed seats maximum. Server enrollment IDs determine FIFO order.
+        Already enrolled callers are unchanged. No body or client account ID is accepted.
+        At or after start, or after cancellation, fails without changing reservations.
+        No notification is generated.
+      parameters:
+        - $ref: "#/components/parameters/ReservationEventId"
+        - $ref: "#/components/parameters/ReservationRequestKey"
+      responses:
+        "200":
+          $ref: "#/components/responses/ReservationEventResult"
+        "400":
+          $ref: "#/components/responses/ReservationInvalid"
+        "401":
+          $ref: "#/components/responses/ReservationUnauthorized"
+        "404":
+          $ref: "#/components/responses/ReservationNotFound"
+        "409":
+          $ref: "#/components/responses/ReservationConflict"
+  /reservation-events/{eventId}/leave:
+    post:
+      operationId: leaveReservationEvent
+      tags: [reservations]
+      summary: Leave the caller's own reservation and atomically promote the earliest waiter
+      description: >-
+        No body accepted. Leaving when not enrolled is a no-op. Leaving and then
+        rejoining with a new request key appends a new queue entry. Promotions
+        persist pending notification intents; ordinary departures do not.
+        At or after start, or after cancellation, fails without changes.
+      parameters:
+        - $ref: "#/components/parameters/ReservationEventId"
+        - $ref: "#/components/parameters/ReservationRequestKey"
+      responses:
+        "200":
+          $ref: "#/components/responses/ReservationEventResult"
+        "400":
+          $ref: "#/components/responses/ReservationInvalid"
+        "401":
+          $ref: "#/components/responses/ReservationUnauthorized"
+        "404":
+          $ref: "#/components/responses/ReservationNotFound"
+        "409":
+          $ref: "#/components/responses/ReservationConflict"
+  /reservation-events/{eventId}/cancel:
+    post:
+      operationId: cancelReservationEvent
+      tags: [reservations]
+      summary: Persist cancellation (creator or admin)
+      description: >-
+        Allowed even after start. Repeated cancellation is a no-op. No body accepted.
+        Preserves enrollment history, prevents all joins/leaves/promotions and
+        persists one pending cancellation notification. Never deletes the event.
+      parameters:
+        - $ref: "#/components/parameters/ReservationEventId"
+        - $ref: "#/components/parameters/ReservationRequestKey"
+      responses:
+        "200":
+          $ref: "#/components/responses/ReservationEventResult"
+        "400":
+          $ref: "#/components/responses/ReservationInvalid"
+        "401":
+          $ref: "#/components/responses/ReservationUnauthorized"
+        "403":
+          $ref: "#/components/responses/ReservationForbidden"
+        "404":
+          $ref: "#/components/responses/ReservationNotFound"
+        "409":
+          $ref: "#/components/responses/ReservationConflict"
+  /reservation-events/{eventId}/notifications/{notificationId}/retry:
+    post:
+      operationId: retryReservationNotification
+      tags: [reservations]
+      summary: Requeue a failed notification (creator or admin); does not send it
+      description: >-
+        Failed to pending only. Pending, processing and sent intents cannot be retried.
+        No body accepted. Does not modify membership or require Telegram configuration.
+        Reservation success is independent of notification delivery. Only a delivery
+        worker may mark sent after provider acknowledgement; sentAt stays null otherwise.
+      parameters:
+        - $ref: "#/components/parameters/ReservationEventId"
+        - $ref: "#/components/parameters/ReservationNotificationId"
+        - $ref: "#/components/parameters/ReservationRequestKey"
+      responses:
+        "200":
+          $ref: "#/components/responses/ReservationEventResult"
+        "400":
+          $ref: "#/components/responses/ReservationInvalid"
+        "401":
+          $ref: "#/components/responses/ReservationUnauthorized"
+        "403":
+          $ref: "#/components/responses/ReservationForbidden"
+        "404":
+          $ref: "#/components/responses/ReservationNotFound"
+        "409":
+          $ref: "#/components/responses/ReservationConflict"
   /me:
     get:
       operationId: getCurrentUser
@@ -491,7 +679,68 @@ paths:
         "503":
           description: Telegram is not configured
 components:
+  responses:
+    ReservationEventResult:
+      description: Current event, caller-specific actions and actual notification delivery states
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ReservationEvent"
+    ReservationInvalid:
+      description: Invalid input, request key, ID, Singapore date/time, or non-future start
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ReservationError"
+    ReservationUnauthorized:
+      description: Sign-in required
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ReservationError"
+    ReservationForbidden:
+      description: Only creator or existing admin may manage this event
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ReservationError"
+    ReservationNotFound:
+      description: Event or notification not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ReservationError"
+    ReservationConflict:
+      description: Started/cancelled event, non-retryable notification, or reused key with different operation/input
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ReservationError"
   parameters:
+    ReservationEventId:
+      name: eventId
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 2147483647
+    ReservationNotificationId:
+      name: notificationId
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 2147483647
+    ReservationRequestKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: UUID unique per account and logical operation; reuse unchanged for transport retries only
+      schema:
+        type: string
+        format: uuid
     PlayerId:
       name: id
       in: path
@@ -518,6 +767,170 @@ components:
       schema:
         type: string
   schemas:
+    ReservationError:
+      type: object
+      required: [error, code]
+      properties:
+        error:
+          type: string
+        code:
+          type: string
+          enum: [UNAUTHORIZED, INVALID_INPUT, INVALID_TIME, START_NOT_FUTURE, EVENT_NOT_FOUND, NOTIFICATION_NOT_FOUND, MANAGER_REQUIRED, EVENT_STARTED, EVENT_CANCELLED, IDEMPOTENCY_CONFLICT, NOT_RETRYABLE]
+    ReservationTimeInput:
+      type: object
+      additionalProperties: false
+      required: [date, startTime]
+      properties:
+        date:
+          type: string
+          pattern: '^\d{4}-\d{2}-\d{2}$'
+          description: Real Singapore calendar date, YYYY-MM-DD
+        startTime:
+          type: string
+          pattern: '^(?:[01]\d|2[0-3]):[0-5]\d$'
+          description: Asia/Singapore local time, HH:mm in 24-hour format
+    ReservationEventInput:
+      type: object
+      additionalProperties: false
+      required: [date, startTime]
+      properties:
+        date:
+          type: string
+          pattern: '^\d{4}-\d{2}-\d{2}$'
+        startTime:
+          type: string
+          pattern: '^(?:[01]\d|2[0-3]):[0-5]\d$'
+        enrollCreator:
+          type: boolean
+          default: false
+    ReservationParticipant:
+      type: object
+      required: [enrollmentId, displayName, isCaller, joinedAt]
+      properties:
+        enrollmentId:
+          type: integer
+        displayName:
+          type: string
+          description: Safe display name snapshot; never an email or account ID
+        isCaller:
+          type: boolean
+        joinedAt:
+          type: string
+          format: date-time
+    ReservationConfirmedParticipant:
+      allOf:
+        - $ref: "#/components/schemas/ReservationParticipant"
+        - type: object
+          required: [seat]
+          properties:
+            seat:
+              type: integer
+              minimum: 1
+              maximum: 4
+    ReservationWaitingParticipant:
+      allOf:
+        - $ref: "#/components/schemas/ReservationParticipant"
+        - type: object
+          required: [position]
+          properties:
+            position:
+              type: integer
+              minimum: 1
+              description: One-based active FIFO position; recalculated after departures
+    ReservationNotification:
+      type: object
+      required: [id, kind, status, attempts, createdAt, sentAt, failureCode, canRetry]
+      properties:
+        id:
+          type: integer
+        kind:
+          type: string
+          enum: [created, promoted, cancelled]
+        status:
+          type: string
+          enum: [pending, processing, sent, failed]
+          description: Pending is durable but not delivered; sent requires provider acknowledgement
+        attempts:
+          type: integer
+          minimum: 0
+        createdAt:
+          type: string
+          format: date-time
+        sentAt:
+          type: [string, "null"]
+          format: date-time
+        failureCode:
+          type: [string, "null"]
+          enum: [DELIVERY_FAILED, null]
+        canRetry:
+          type: boolean
+    ReservationEvent:
+      type: object
+      required: [id, date, startTime, timeZone, startsAt, createdAt, cancelledAt, status, capacity, creator, confirmed, waiting, callerState, allowedActions, notifications]
+      properties:
+        id:
+          type: integer
+        date:
+          type: string
+        startTime:
+          type: string
+        timeZone:
+          type: string
+          enum: [Asia/Singapore]
+        startsAt:
+          type: string
+          format: date-time
+          description: Unambiguous UTC instant, corresponding to date/startTime in Asia/Singapore
+        createdAt:
+          type: string
+          format: date-time
+        cancelledAt:
+          type: [string, "null"]
+          format: date-time
+        status:
+          type: string
+          enum: [open, started, cancelled]
+        capacity:
+          type: integer
+          enum: [4]
+        creator:
+          type: object
+          required: [displayName, isCaller]
+          properties:
+            displayName:
+              type: string
+            isCaller:
+              type: boolean
+        confirmed:
+          type: array
+          maxItems: 4
+          items:
+            $ref: "#/components/schemas/ReservationConfirmedParticipant"
+        waiting:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReservationWaitingParticipant"
+        callerState:
+          type: string
+          enum: [none, confirmed, waiting]
+        allowedActions:
+          type: object
+          required: [join, leave, edit, cancel, retryNotification]
+          properties:
+            join:
+              type: boolean
+            leave:
+              type: boolean
+            edit:
+              type: boolean
+            cancel:
+              type: boolean
+            retryNotification:
+              type: boolean
+        notifications:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReservationNotification"
     HealthStatus:
       type: object
       properties:
