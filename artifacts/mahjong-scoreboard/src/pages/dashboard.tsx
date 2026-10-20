@@ -7,7 +7,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { SessionForm } from "@/components/SessionForm";
 import { format, parseISO } from "date-fns";
-import { Trophy, Plus, LogOut, Coins, Activity, Trash2, Edit2, ChevronDown, LogIn, Flame, Flower2, BarChart3, Users, ShieldCheck } from "lucide-react";
+import { Trophy, Plus, LogOut, Coins, Activity, Trash2, Edit2, ChevronDown, LogIn, Flame, Flower2, BarChart3, Users, ShieldCheck, CalendarDays } from "lucide-react";
 import { lazy, Suspense, useState } from "react";
 import { useClerk, useUser } from "@clerk/react";
 import { toast } from "sonner";
@@ -170,6 +170,12 @@ export default function Dashboard() {
           </div>
           <div className="flex items-center gap-3">
             <ThemeToggle />
+            <Button asChild variant="outline" size="sm" className="border-2 font-black uppercase tracking-widest text-xs">
+              <Link href="/app/reservations" data-testid="link-reservations">
+                <CalendarDays className="w-4 h-4 sm:mr-2" strokeWidth={3} />
+                <span className="hidden sm:inline">Seats</span>
+              </Link>
+            </Button>
             {isAdmin && (
               <Button asChild variant="outline" size="sm" className="border-2 font-black uppercase tracking-widest text-xs">
                 <Link href="/app/players" data-testid="link-roster">

@@ -13,6 +13,7 @@ import Roster from "./pages/roster";
 import Admin from "./pages/admin";
 import SignInPage from "./pages/sign-in";
 import SignUpPage from "./pages/sign-up";
+import { ReservationEventPage, ReservationsPage } from "./pages/reservations";
 import { Button } from "@/components/ui/button";
 
 // Ensure Clerk key is available
@@ -153,6 +154,8 @@ function ClerkProviderWithRoutes() {
         <Switch>
           <Route path="/" component={HomeRedirect} />
           <Route path="/app" component={Dashboard} />
+          <Route path="/app/reservations" component={ReservationsPage} />
+          <Route path="/app/reservations/:eventId" component={ReservationEventPage} />
           <Route path="/app/players" component={Roster} />
           <Route path="/app/admin" component={Admin} />
           <Route path="/sign-in/*?" component={SignInPage} />
