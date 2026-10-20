@@ -34,6 +34,15 @@ import type {
   Player,
   PlayerInput,
   PlayerUpdate,
+  ReservationConflictResponse,
+  ReservationEvent,
+  ReservationEventInput,
+  ReservationEventResultResponse,
+  ReservationForbiddenResponse,
+  ReservationInvalidResponse,
+  ReservationNotFoundResponse,
+  ReservationTimeInput,
+  ReservationUnauthorizedResponse,
   SessionCreationResponse,
   SessionSummary,
   TelegramBroadcastInput,
@@ -70,6 +79,596 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
+
+export const getListReservationEventsUrl = () => {
+
+
+
+
+  return `/api/reservation-events`
+}
+
+/**
+ * Includes cancelled and started events. Ordered by startsAt then id. Account identifiers and emails are never included.
+ * @summary List events and their participant queues (sign-in required)
+ */
+export const listReservationEvents = async ( options?: Parameters<typeof customFetch>[1]): Promise<ReservationEvent[]> => {
+
+  return customFetch<ReservationEvent[]>(getListReservationEventsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListReservationEventsQueryKey = () => {
+    return [
+    `/api/reservation-events`
+    ] as const;
+    }
+
+
+export const getListReservationEventsQueryOptions = <TData = Awaited<ReturnType<typeof listReservationEvents>>, TError = ErrorType<ReservationUnauthorizedResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listReservationEvents>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListReservationEventsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listReservationEvents>>> = ({ signal }) => listReservationEvents({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listReservationEvents>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListReservationEventsQueryResult = NonNullable<Awaited<ReturnType<typeof listReservationEvents>>>
+export type ListReservationEventsQueryError = ErrorType<ReservationUnauthorizedResponse>
+
+
+/**
+ * @summary List events and their participant queues (sign-in required)
+ */
+
+export function useListReservationEvents<TData = Awaited<ReturnType<typeof listReservationEvents>>, TError = ErrorType<ReservationUnauthorizedResponse>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listReservationEvents>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListReservationEventsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateReservationEventUrl = () => {
+
+
+
+
+  return `/api/reservation-events`
+}
+
+/**
+ * Date and HH:mm startTime are interpreted in Asia/Singapore (UTC+08:00). enrollCreator defaults false; true atomically books seat one. A successful reservation persists a pending creation notification, not a sent message. Idempotency-Key is a caller-generated UUID reused only for transport retries. Replays return the current event without applying the operation again.
+ * @summary Create a future Mahjong event (any signed-in user)
+ */
+export const createReservationEvent = async (reservationEventInput: ReservationEventInput, options?: Parameters<typeof customFetch>[1]): Promise<ReservationEventResultResponse> => {
+
+  return customFetch<ReservationEventResultResponse>(getCreateReservationEventUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(reservationEventInput)
+  }
+);}
+
+
+
+
+
+export const getCreateReservationEventMutationOptions = <TError = ErrorType<ReservationInvalidResponse | ReservationUnauthorizedResponse | ReservationConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createReservationEvent>>, TError,{data: BodyType<ReservationEventInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createReservationEvent>>, TError,{data: BodyType<ReservationEventInput>}, TContext> => {
+
+const mutationKey = ['createReservationEvent'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createReservationEvent>>, {data: BodyType<ReservationEventInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createReservationEvent(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateReservationEventMutationResult = NonNullable<Awaited<ReturnType<typeof createReservationEvent>>>
+    export type CreateReservationEventMutationBody = BodyType<ReservationEventInput>
+    export type CreateReservationEventMutationError = ErrorType<ReservationInvalidResponse | ReservationUnauthorizedResponse | ReservationConflictResponse>
+
+    /**
+ * @summary Create a future Mahjong event (any signed-in user)
+ */
+export const useCreateReservationEvent = <TError = ErrorType<ReservationInvalidResponse | ReservationUnauthorizedResponse | ReservationConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createReservationEvent>>, TError,{data: BodyType<ReservationEventInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createReservationEvent>>,
+        TError,
+        {data: BodyType<ReservationEventInput>},
+        TContext
+      > => {
+      return useMutation(getCreateReservationEventMutationOptions(options));
+    }
+
+export const getGetReservationEventUrl = (eventId: number,) => {
+
+
+
+
+  return `/api/reservation-events/${eventId}`
+}
+
+/**
+ * @summary Get an event and ordered participants (sign-in required)
+ */
+export const getReservationEvent = async (eventId: number, options?: Parameters<typeof customFetch>[1]): Promise<ReservationEventResultResponse> => {
+
+  return customFetch<ReservationEventResultResponse>(getGetReservationEventUrl(eventId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetReservationEventQueryKey = (eventId: number,) => {
+    return [
+    `/api/reservation-events/${eventId}`
+    ] as const;
+    }
+
+
+export const getGetReservationEventQueryOptions = <TData = Awaited<ReturnType<typeof getReservationEvent>>, TError = ErrorType<ReservationInvalidResponse | ReservationUnauthorizedResponse | ReservationNotFoundResponse>>(eventId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getReservationEvent>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetReservationEventQueryKey(eventId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getReservationEvent>>> = ({ signal }) => getReservationEvent(eventId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: eventId !== null && eventId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getReservationEvent>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetReservationEventQueryResult = NonNullable<Awaited<ReturnType<typeof getReservationEvent>>>
+export type GetReservationEventQueryError = ErrorType<ReservationInvalidResponse | ReservationUnauthorizedResponse | ReservationNotFoundResponse>
+
+
+/**
+ * @summary Get an event and ordered participants (sign-in required)
+ */
+
+export function useGetReservationEvent<TData = Awaited<ReturnType<typeof getReservationEvent>>, TError = ErrorType<ReservationInvalidResponse | ReservationUnauthorizedResponse | ReservationNotFoundResponse>>(
+ eventId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getReservationEvent>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetReservationEventQueryOptions(eventId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateReservationEventUrl = (eventId: number,) => {
+
+
+
+
+  return `/api/reservation-events/${eventId}`
+}
+
+/**
+ * Both date and startTime are required. The old and new start must be in the future. Does not generate a notification.
+ * @summary Change date and time before the original start (creator or admin)
+ */
+export const updateReservationEvent = async (eventId: number,
+    reservationTimeInput: ReservationTimeInput, options?: Parameters<typeof customFetch>[1]): Promise<ReservationEventResultResponse> => {
+
+  return customFetch<ReservationEventResultResponse>(getUpdateReservationEventUrl(eventId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(reservationTimeInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateReservationEventMutationOptions = <TError = ErrorType<ReservationInvalidResponse | ReservationUnauthorizedResponse | ReservationForbiddenResponse | ReservationNotFoundResponse | ReservationConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateReservationEvent>>, TError,{eventId: number;data: BodyType<ReservationTimeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateReservationEvent>>, TError,{eventId: number;data: BodyType<ReservationTimeInput>}, TContext> => {
+
+const mutationKey = ['updateReservationEvent'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateReservationEvent>>, {eventId: number;data: BodyType<ReservationTimeInput>}> = (props) => {
+          const {eventId,data} = props ?? {};
+
+          return  updateReservationEvent(eventId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateReservationEventMutationResult = NonNullable<Awaited<ReturnType<typeof updateReservationEvent>>>
+    export type UpdateReservationEventMutationBody = BodyType<ReservationTimeInput>
+    export type UpdateReservationEventMutationError = ErrorType<ReservationInvalidResponse | ReservationUnauthorizedResponse | ReservationForbiddenResponse | ReservationNotFoundResponse | ReservationConflictResponse>
+
+    /**
+ * @summary Change date and time before the original start (creator or admin)
+ */
+export const useUpdateReservationEvent = <TError = ErrorType<ReservationInvalidResponse | ReservationUnauthorizedResponse | ReservationForbiddenResponse | ReservationNotFoundResponse | ReservationConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateReservationEvent>>, TError,{eventId: number;data: BodyType<ReservationTimeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateReservationEvent>>,
+        TError,
+        {eventId: number;data: BodyType<ReservationTimeInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateReservationEventMutationOptions(options));
+    }
+
+export const getJoinReservationEventUrl = (eventId: number,) => {
+
+
+
+
+  return `/api/reservation-events/${eventId}/join`
+}
+
+/**
+ * Four confirmed seats maximum. Server enrollment IDs determine FIFO order. Already enrolled callers are unchanged. No body or client account ID is accepted. At or after start, or after cancellation, fails without changing reservations. No notification is generated.
+ * @summary Reserve the caller's own seat or append to the FIFO queue
+ */
+export const joinReservationEvent = async (eventId: number, options?: Parameters<typeof customFetch>[1]): Promise<ReservationEventResultResponse> => {
+
+  return customFetch<ReservationEventResultResponse>(getJoinReservationEventUrl(eventId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getJoinReservationEventMutationOptions = <TError = ErrorType<ReservationInvalidResponse | ReservationUnauthorizedResponse | ReservationNotFoundResponse | ReservationConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof joinReservationEvent>>, TError,{eventId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof joinReservationEvent>>, TError,{eventId: number}, TContext> => {
+
+const mutationKey = ['joinReservationEvent'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof joinReservationEvent>>, {eventId: number}> = (props) => {
+          const {eventId} = props ?? {};
+
+          return  joinReservationEvent(eventId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type JoinReservationEventMutationResult = NonNullable<Awaited<ReturnType<typeof joinReservationEvent>>>
+
+    export type JoinReservationEventMutationError = ErrorType<ReservationInvalidResponse | ReservationUnauthorizedResponse | ReservationNotFoundResponse | ReservationConflictResponse>
+
+    /**
+ * @summary Reserve the caller's own seat or append to the FIFO queue
+ */
+export const useJoinReservationEvent = <TError = ErrorType<ReservationInvalidResponse | ReservationUnauthorizedResponse | ReservationNotFoundResponse | ReservationConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof joinReservationEvent>>, TError,{eventId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof joinReservationEvent>>,
+        TError,
+        {eventId: number},
+        TContext
+      > => {
+      return useMutation(getJoinReservationEventMutationOptions(options));
+    }
+
+export const getLeaveReservationEventUrl = (eventId: number,) => {
+
+
+
+
+  return `/api/reservation-events/${eventId}/leave`
+}
+
+/**
+ * No body accepted. Leaving when not enrolled is a no-op. Leaving and then rejoining with a new request key appends a new queue entry. Promotions persist pending notification intents; ordinary departures do not. At or after start, or after cancellation, fails without changes.
+ * @summary Leave the caller's own reservation and atomically promote the earliest waiter
+ */
+export const leaveReservationEvent = async (eventId: number, options?: Parameters<typeof customFetch>[1]): Promise<ReservationEventResultResponse> => {
+
+  return customFetch<ReservationEventResultResponse>(getLeaveReservationEventUrl(eventId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getLeaveReservationEventMutationOptions = <TError = ErrorType<ReservationInvalidResponse | ReservationUnauthorizedResponse | ReservationNotFoundResponse | ReservationConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof leaveReservationEvent>>, TError,{eventId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof leaveReservationEvent>>, TError,{eventId: number}, TContext> => {
+
+const mutationKey = ['leaveReservationEvent'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof leaveReservationEvent>>, {eventId: number}> = (props) => {
+          const {eventId} = props ?? {};
+
+          return  leaveReservationEvent(eventId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type LeaveReservationEventMutationResult = NonNullable<Awaited<ReturnType<typeof leaveReservationEvent>>>
+
+    export type LeaveReservationEventMutationError = ErrorType<ReservationInvalidResponse | ReservationUnauthorizedResponse | ReservationNotFoundResponse | ReservationConflictResponse>
+
+    /**
+ * @summary Leave the caller's own reservation and atomically promote the earliest waiter
+ */
+export const useLeaveReservationEvent = <TError = ErrorType<ReservationInvalidResponse | ReservationUnauthorizedResponse | ReservationNotFoundResponse | ReservationConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof leaveReservationEvent>>, TError,{eventId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof leaveReservationEvent>>,
+        TError,
+        {eventId: number},
+        TContext
+      > => {
+      return useMutation(getLeaveReservationEventMutationOptions(options));
+    }
+
+export const getCancelReservationEventUrl = (eventId: number,) => {
+
+
+
+
+  return `/api/reservation-events/${eventId}/cancel`
+}
+
+/**
+ * Allowed even after start. Repeated cancellation is a no-op. No body accepted. Preserves enrollment history, prevents all joins/leaves/promotions and persists one pending cancellation notification. Never deletes the event.
+ * @summary Persist cancellation (creator or admin)
+ */
+export const cancelReservationEvent = async (eventId: number, options?: Parameters<typeof customFetch>[1]): Promise<ReservationEventResultResponse> => {
+
+  return customFetch<ReservationEventResultResponse>(getCancelReservationEventUrl(eventId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getCancelReservationEventMutationOptions = <TError = ErrorType<ReservationInvalidResponse | ReservationUnauthorizedResponse | ReservationForbiddenResponse | ReservationNotFoundResponse | ReservationConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelReservationEvent>>, TError,{eventId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof cancelReservationEvent>>, TError,{eventId: number}, TContext> => {
+
+const mutationKey = ['cancelReservationEvent'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof cancelReservationEvent>>, {eventId: number}> = (props) => {
+          const {eventId} = props ?? {};
+
+          return  cancelReservationEvent(eventId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CancelReservationEventMutationResult = NonNullable<Awaited<ReturnType<typeof cancelReservationEvent>>>
+
+    export type CancelReservationEventMutationError = ErrorType<ReservationInvalidResponse | ReservationUnauthorizedResponse | ReservationForbiddenResponse | ReservationNotFoundResponse | ReservationConflictResponse>
+
+    /**
+ * @summary Persist cancellation (creator or admin)
+ */
+export const useCancelReservationEvent = <TError = ErrorType<ReservationInvalidResponse | ReservationUnauthorizedResponse | ReservationForbiddenResponse | ReservationNotFoundResponse | ReservationConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelReservationEvent>>, TError,{eventId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof cancelReservationEvent>>,
+        TError,
+        {eventId: number},
+        TContext
+      > => {
+      return useMutation(getCancelReservationEventMutationOptions(options));
+    }
+
+export const getRetryReservationNotificationUrl = (eventId: number,
+    notificationId: number,) => {
+
+
+
+
+  return `/api/reservation-events/${eventId}/notifications/${notificationId}/retry`
+}
+
+/**
+ * Failed to pending only. Pending, processing and sent intents cannot be retried. No body accepted. Does not modify membership or require Telegram configuration. Reservation success is independent of notification delivery. Only a delivery worker may mark sent after provider acknowledgement; sentAt stays null otherwise.
+ * @summary Requeue a failed notification (creator or admin); does not send it
+ */
+export const retryReservationNotification = async (eventId: number,
+    notificationId: number, options?: Parameters<typeof customFetch>[1]): Promise<ReservationEventResultResponse> => {
+
+  return customFetch<ReservationEventResultResponse>(getRetryReservationNotificationUrl(eventId,notificationId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getRetryReservationNotificationMutationOptions = <TError = ErrorType<ReservationInvalidResponse | ReservationUnauthorizedResponse | ReservationForbiddenResponse | ReservationNotFoundResponse | ReservationConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof retryReservationNotification>>, TError,{eventId: number;notificationId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof retryReservationNotification>>, TError,{eventId: number;notificationId: number}, TContext> => {
+
+const mutationKey = ['retryReservationNotification'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof retryReservationNotification>>, {eventId: number;notificationId: number}> = (props) => {
+          const {eventId,notificationId} = props ?? {};
+
+          return  retryReservationNotification(eventId,notificationId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RetryReservationNotificationMutationResult = NonNullable<Awaited<ReturnType<typeof retryReservationNotification>>>
+
+    export type RetryReservationNotificationMutationError = ErrorType<ReservationInvalidResponse | ReservationUnauthorizedResponse | ReservationForbiddenResponse | ReservationNotFoundResponse | ReservationConflictResponse>
+
+    /**
+ * @summary Requeue a failed notification (creator or admin); does not send it
+ */
+export const useRetryReservationNotification = <TError = ErrorType<ReservationInvalidResponse | ReservationUnauthorizedResponse | ReservationForbiddenResponse | ReservationNotFoundResponse | ReservationConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof retryReservationNotification>>, TError,{eventId: number;notificationId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof retryReservationNotification>>,
+        TError,
+        {eventId: number;notificationId: number},
+        TContext
+      > => {
+      return useMutation(getRetryReservationNotificationMutationOptions(options));
+    }
 
 export const getGetCurrentUserUrl = () => {
 

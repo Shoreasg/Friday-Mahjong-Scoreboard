@@ -9,6 +9,612 @@ import * as zod from 'zod';
 
 
 /**
+ * Includes cancelled and started events. Ordered by startsAt then id. Account identifiers and emails are never included.
+ * @summary List events and their participant queues (sign-in required)
+ */
+export const listReservationEventsResponseConfirmedItemTwoSeatMax = 4;
+
+export const listReservationEventsResponseConfirmedMax = 4;
+
+
+export const listReservationEventsResponseNotificationsItemAttemptsMin = 0;
+
+
+
+export const ListReservationEventsResponseItem = zod.object({
+  "id": zod.int(),
+  "date": zod.string(),
+  "startTime": zod.string(),
+  "timeZone": zod.enum(['Asia/Singapore']),
+  "startsAt": zod.coerce.date().describe('Unambiguous UTC instant, corresponding to date\/startTime in Asia\/Singapore'),
+  "createdAt": zod.coerce.date(),
+  "cancelledAt": zod.coerce.date().nullable(),
+  "status": zod.enum(['open', 'started', 'cancelled']),
+  "capacity": zod.literal(4),
+  "creator": zod.object({
+  "displayName": zod.string(),
+  "isCaller": zod.boolean()
+}),
+  "confirmed": zod.array(zod.object({
+  "enrollmentId": zod.int(),
+  "displayName": zod.string().describe('Safe display name snapshot; never an email or account ID'),
+  "isCaller": zod.boolean(),
+  "joinedAt": zod.coerce.date()
+}).and(zod.object({
+  "seat": zod.int().min(1).max(listReservationEventsResponseConfirmedItemTwoSeatMax)
+}))).max(listReservationEventsResponseConfirmedMax),
+  "waiting": zod.array(zod.object({
+  "enrollmentId": zod.int(),
+  "displayName": zod.string().describe('Safe display name snapshot; never an email or account ID'),
+  "isCaller": zod.boolean(),
+  "joinedAt": zod.coerce.date()
+}).and(zod.object({
+  "position": zod.int().min(1).describe('One-based active FIFO position; recalculated after departures')
+}))),
+  "callerState": zod.enum(['none', 'confirmed', 'waiting']),
+  "allowedActions": zod.object({
+  "join": zod.boolean(),
+  "leave": zod.boolean(),
+  "edit": zod.boolean(),
+  "cancel": zod.boolean(),
+  "retryNotification": zod.boolean()
+}),
+  "notifications": zod.array(zod.object({
+  "id": zod.int(),
+  "kind": zod.enum(['created', 'promoted', 'cancelled']),
+  "status": zod.enum(['pending', 'processing', 'sent', 'failed']).describe('Pending is durable but not delivered; sent requires provider acknowledgement'),
+  "attempts": zod.int().min(listReservationEventsResponseNotificationsItemAttemptsMin),
+  "createdAt": zod.coerce.date(),
+  "sentAt": zod.coerce.date().nullable(),
+  "failureCode": zod.union([zod.literal('DELIVERY_FAILED'),zod.literal(null)]).nullable(),
+  "canRetry": zod.boolean()
+}))
+})
+export const ListReservationEventsResponse = zod.array(ListReservationEventsResponseItem)
+
+
+/**
+ * Date and HH:mm startTime are interpreted in Asia/Singapore (UTC+08:00). enrollCreator defaults false; true atomically books seat one. A successful reservation persists a pending creation notification, not a sent message. Idempotency-Key is a caller-generated UUID reused only for transport retries. Replays return the current event without applying the operation again.
+ * @summary Create a future Mahjong event (any signed-in user)
+ */
+export const CreateReservationEventHeader = zod.object({
+  "Idempotency-Key": zod.uuid().describe('UUID unique per account and logical operation; reuse unchanged for transport retries only')
+})
+
+export const createReservationEventBodyDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const createReservationEventBodyStartTimeRegExp = new RegExp('^(?:[01]\\d|2[0-3]):[0-5]\\d$');
+export const createReservationEventBodyEnrollCreatorDefault = false;
+
+export const CreateReservationEventBody = zod.object({
+  "date": zod.string().regex(createReservationEventBodyDateRegExp),
+  "startTime": zod.string().regex(createReservationEventBodyStartTimeRegExp),
+  "enrollCreator": zod.boolean().default(createReservationEventBodyEnrollCreatorDefault)
+})
+
+export const createReservationEventResponseConfirmedItemTwoSeatMax = 4;
+
+export const createReservationEventResponseConfirmedMax = 4;
+
+
+export const createReservationEventResponseNotificationsItemAttemptsMin = 0;
+
+
+
+export const CreateReservationEventResponse = zod.object({
+  "id": zod.int(),
+  "date": zod.string(),
+  "startTime": zod.string(),
+  "timeZone": zod.enum(['Asia/Singapore']),
+  "startsAt": zod.coerce.date().describe('Unambiguous UTC instant, corresponding to date\/startTime in Asia\/Singapore'),
+  "createdAt": zod.coerce.date(),
+  "cancelledAt": zod.coerce.date().nullable(),
+  "status": zod.enum(['open', 'started', 'cancelled']),
+  "capacity": zod.literal(4),
+  "creator": zod.object({
+  "displayName": zod.string(),
+  "isCaller": zod.boolean()
+}),
+  "confirmed": zod.array(zod.object({
+  "enrollmentId": zod.int(),
+  "displayName": zod.string().describe('Safe display name snapshot; never an email or account ID'),
+  "isCaller": zod.boolean(),
+  "joinedAt": zod.coerce.date()
+}).and(zod.object({
+  "seat": zod.int().min(1).max(createReservationEventResponseConfirmedItemTwoSeatMax)
+}))).max(createReservationEventResponseConfirmedMax),
+  "waiting": zod.array(zod.object({
+  "enrollmentId": zod.int(),
+  "displayName": zod.string().describe('Safe display name snapshot; never an email or account ID'),
+  "isCaller": zod.boolean(),
+  "joinedAt": zod.coerce.date()
+}).and(zod.object({
+  "position": zod.int().min(1).describe('One-based active FIFO position; recalculated after departures')
+}))),
+  "callerState": zod.enum(['none', 'confirmed', 'waiting']),
+  "allowedActions": zod.object({
+  "join": zod.boolean(),
+  "leave": zod.boolean(),
+  "edit": zod.boolean(),
+  "cancel": zod.boolean(),
+  "retryNotification": zod.boolean()
+}),
+  "notifications": zod.array(zod.object({
+  "id": zod.int(),
+  "kind": zod.enum(['created', 'promoted', 'cancelled']),
+  "status": zod.enum(['pending', 'processing', 'sent', 'failed']).describe('Pending is durable but not delivered; sent requires provider acknowledgement'),
+  "attempts": zod.int().min(createReservationEventResponseNotificationsItemAttemptsMin),
+  "createdAt": zod.coerce.date(),
+  "sentAt": zod.coerce.date().nullable(),
+  "failureCode": zod.union([zod.literal('DELIVERY_FAILED'),zod.literal(null)]).nullable(),
+  "canRetry": zod.boolean()
+}))
+})
+
+
+/**
+ * @summary Get an event and ordered participants (sign-in required)
+ */
+export const getReservationEventPathEventIdMax = 2147483647;
+
+
+
+export const GetReservationEventParams = zod.object({
+  "eventId": zod.coerce.number().int().min(1).max(getReservationEventPathEventIdMax)
+})
+
+export const getReservationEventResponseConfirmedItemTwoSeatMax = 4;
+
+export const getReservationEventResponseConfirmedMax = 4;
+
+
+export const getReservationEventResponseNotificationsItemAttemptsMin = 0;
+
+
+
+export const GetReservationEventResponse = zod.object({
+  "id": zod.int(),
+  "date": zod.string(),
+  "startTime": zod.string(),
+  "timeZone": zod.enum(['Asia/Singapore']),
+  "startsAt": zod.coerce.date().describe('Unambiguous UTC instant, corresponding to date\/startTime in Asia\/Singapore'),
+  "createdAt": zod.coerce.date(),
+  "cancelledAt": zod.coerce.date().nullable(),
+  "status": zod.enum(['open', 'started', 'cancelled']),
+  "capacity": zod.literal(4),
+  "creator": zod.object({
+  "displayName": zod.string(),
+  "isCaller": zod.boolean()
+}),
+  "confirmed": zod.array(zod.object({
+  "enrollmentId": zod.int(),
+  "displayName": zod.string().describe('Safe display name snapshot; never an email or account ID'),
+  "isCaller": zod.boolean(),
+  "joinedAt": zod.coerce.date()
+}).and(zod.object({
+  "seat": zod.int().min(1).max(getReservationEventResponseConfirmedItemTwoSeatMax)
+}))).max(getReservationEventResponseConfirmedMax),
+  "waiting": zod.array(zod.object({
+  "enrollmentId": zod.int(),
+  "displayName": zod.string().describe('Safe display name snapshot; never an email or account ID'),
+  "isCaller": zod.boolean(),
+  "joinedAt": zod.coerce.date()
+}).and(zod.object({
+  "position": zod.int().min(1).describe('One-based active FIFO position; recalculated after departures')
+}))),
+  "callerState": zod.enum(['none', 'confirmed', 'waiting']),
+  "allowedActions": zod.object({
+  "join": zod.boolean(),
+  "leave": zod.boolean(),
+  "edit": zod.boolean(),
+  "cancel": zod.boolean(),
+  "retryNotification": zod.boolean()
+}),
+  "notifications": zod.array(zod.object({
+  "id": zod.int(),
+  "kind": zod.enum(['created', 'promoted', 'cancelled']),
+  "status": zod.enum(['pending', 'processing', 'sent', 'failed']).describe('Pending is durable but not delivered; sent requires provider acknowledgement'),
+  "attempts": zod.int().min(getReservationEventResponseNotificationsItemAttemptsMin),
+  "createdAt": zod.coerce.date(),
+  "sentAt": zod.coerce.date().nullable(),
+  "failureCode": zod.union([zod.literal('DELIVERY_FAILED'),zod.literal(null)]).nullable(),
+  "canRetry": zod.boolean()
+}))
+})
+
+
+/**
+ * Both date and startTime are required. The old and new start must be in the future. Does not generate a notification.
+ * @summary Change date and time before the original start (creator or admin)
+ */
+export const updateReservationEventPathEventIdMax = 2147483647;
+
+
+
+export const UpdateReservationEventParams = zod.object({
+  "eventId": zod.coerce.number().int().min(1).max(updateReservationEventPathEventIdMax)
+})
+
+export const UpdateReservationEventHeader = zod.object({
+  "Idempotency-Key": zod.uuid().describe('UUID unique per account and logical operation; reuse unchanged for transport retries only')
+})
+
+export const updateReservationEventBodyDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const updateReservationEventBodyStartTimeRegExp = new RegExp('^(?:[01]\\d|2[0-3]):[0-5]\\d$');
+
+
+export const UpdateReservationEventBody = zod.object({
+  "date": zod.string().regex(updateReservationEventBodyDateRegExp).describe('Real Singapore calendar date, YYYY-MM-DD'),
+  "startTime": zod.string().regex(updateReservationEventBodyStartTimeRegExp).describe('Asia\/Singapore local time, HH:mm in 24-hour format')
+})
+
+export const updateReservationEventResponseConfirmedItemTwoSeatMax = 4;
+
+export const updateReservationEventResponseConfirmedMax = 4;
+
+
+export const updateReservationEventResponseNotificationsItemAttemptsMin = 0;
+
+
+
+export const UpdateReservationEventResponse = zod.object({
+  "id": zod.int(),
+  "date": zod.string(),
+  "startTime": zod.string(),
+  "timeZone": zod.enum(['Asia/Singapore']),
+  "startsAt": zod.coerce.date().describe('Unambiguous UTC instant, corresponding to date\/startTime in Asia\/Singapore'),
+  "createdAt": zod.coerce.date(),
+  "cancelledAt": zod.coerce.date().nullable(),
+  "status": zod.enum(['open', 'started', 'cancelled']),
+  "capacity": zod.literal(4),
+  "creator": zod.object({
+  "displayName": zod.string(),
+  "isCaller": zod.boolean()
+}),
+  "confirmed": zod.array(zod.object({
+  "enrollmentId": zod.int(),
+  "displayName": zod.string().describe('Safe display name snapshot; never an email or account ID'),
+  "isCaller": zod.boolean(),
+  "joinedAt": zod.coerce.date()
+}).and(zod.object({
+  "seat": zod.int().min(1).max(updateReservationEventResponseConfirmedItemTwoSeatMax)
+}))).max(updateReservationEventResponseConfirmedMax),
+  "waiting": zod.array(zod.object({
+  "enrollmentId": zod.int(),
+  "displayName": zod.string().describe('Safe display name snapshot; never an email or account ID'),
+  "isCaller": zod.boolean(),
+  "joinedAt": zod.coerce.date()
+}).and(zod.object({
+  "position": zod.int().min(1).describe('One-based active FIFO position; recalculated after departures')
+}))),
+  "callerState": zod.enum(['none', 'confirmed', 'waiting']),
+  "allowedActions": zod.object({
+  "join": zod.boolean(),
+  "leave": zod.boolean(),
+  "edit": zod.boolean(),
+  "cancel": zod.boolean(),
+  "retryNotification": zod.boolean()
+}),
+  "notifications": zod.array(zod.object({
+  "id": zod.int(),
+  "kind": zod.enum(['created', 'promoted', 'cancelled']),
+  "status": zod.enum(['pending', 'processing', 'sent', 'failed']).describe('Pending is durable but not delivered; sent requires provider acknowledgement'),
+  "attempts": zod.int().min(updateReservationEventResponseNotificationsItemAttemptsMin),
+  "createdAt": zod.coerce.date(),
+  "sentAt": zod.coerce.date().nullable(),
+  "failureCode": zod.union([zod.literal('DELIVERY_FAILED'),zod.literal(null)]).nullable(),
+  "canRetry": zod.boolean()
+}))
+})
+
+
+/**
+ * Four confirmed seats maximum. Server enrollment IDs determine FIFO order. Already enrolled callers are unchanged. No body or client account ID is accepted. At or after start, or after cancellation, fails without changing reservations. No notification is generated.
+ * @summary Reserve the caller's own seat or append to the FIFO queue
+ */
+export const joinReservationEventPathEventIdMax = 2147483647;
+
+
+
+export const JoinReservationEventParams = zod.object({
+  "eventId": zod.coerce.number().int().min(1).max(joinReservationEventPathEventIdMax)
+})
+
+export const JoinReservationEventHeader = zod.object({
+  "Idempotency-Key": zod.uuid().describe('UUID unique per account and logical operation; reuse unchanged for transport retries only')
+})
+
+export const joinReservationEventResponseConfirmedItemTwoSeatMax = 4;
+
+export const joinReservationEventResponseConfirmedMax = 4;
+
+
+export const joinReservationEventResponseNotificationsItemAttemptsMin = 0;
+
+
+
+export const JoinReservationEventResponse = zod.object({
+  "id": zod.int(),
+  "date": zod.string(),
+  "startTime": zod.string(),
+  "timeZone": zod.enum(['Asia/Singapore']),
+  "startsAt": zod.coerce.date().describe('Unambiguous UTC instant, corresponding to date\/startTime in Asia\/Singapore'),
+  "createdAt": zod.coerce.date(),
+  "cancelledAt": zod.coerce.date().nullable(),
+  "status": zod.enum(['open', 'started', 'cancelled']),
+  "capacity": zod.literal(4),
+  "creator": zod.object({
+  "displayName": zod.string(),
+  "isCaller": zod.boolean()
+}),
+  "confirmed": zod.array(zod.object({
+  "enrollmentId": zod.int(),
+  "displayName": zod.string().describe('Safe display name snapshot; never an email or account ID'),
+  "isCaller": zod.boolean(),
+  "joinedAt": zod.coerce.date()
+}).and(zod.object({
+  "seat": zod.int().min(1).max(joinReservationEventResponseConfirmedItemTwoSeatMax)
+}))).max(joinReservationEventResponseConfirmedMax),
+  "waiting": zod.array(zod.object({
+  "enrollmentId": zod.int(),
+  "displayName": zod.string().describe('Safe display name snapshot; never an email or account ID'),
+  "isCaller": zod.boolean(),
+  "joinedAt": zod.coerce.date()
+}).and(zod.object({
+  "position": zod.int().min(1).describe('One-based active FIFO position; recalculated after departures')
+}))),
+  "callerState": zod.enum(['none', 'confirmed', 'waiting']),
+  "allowedActions": zod.object({
+  "join": zod.boolean(),
+  "leave": zod.boolean(),
+  "edit": zod.boolean(),
+  "cancel": zod.boolean(),
+  "retryNotification": zod.boolean()
+}),
+  "notifications": zod.array(zod.object({
+  "id": zod.int(),
+  "kind": zod.enum(['created', 'promoted', 'cancelled']),
+  "status": zod.enum(['pending', 'processing', 'sent', 'failed']).describe('Pending is durable but not delivered; sent requires provider acknowledgement'),
+  "attempts": zod.int().min(joinReservationEventResponseNotificationsItemAttemptsMin),
+  "createdAt": zod.coerce.date(),
+  "sentAt": zod.coerce.date().nullable(),
+  "failureCode": zod.union([zod.literal('DELIVERY_FAILED'),zod.literal(null)]).nullable(),
+  "canRetry": zod.boolean()
+}))
+})
+
+
+/**
+ * No body accepted. Leaving when not enrolled is a no-op. Leaving and then rejoining with a new request key appends a new queue entry. Promotions persist pending notification intents; ordinary departures do not. At or after start, or after cancellation, fails without changes.
+ * @summary Leave the caller's own reservation and atomically promote the earliest waiter
+ */
+export const leaveReservationEventPathEventIdMax = 2147483647;
+
+
+
+export const LeaveReservationEventParams = zod.object({
+  "eventId": zod.coerce.number().int().min(1).max(leaveReservationEventPathEventIdMax)
+})
+
+export const LeaveReservationEventHeader = zod.object({
+  "Idempotency-Key": zod.uuid().describe('UUID unique per account and logical operation; reuse unchanged for transport retries only')
+})
+
+export const leaveReservationEventResponseConfirmedItemTwoSeatMax = 4;
+
+export const leaveReservationEventResponseConfirmedMax = 4;
+
+
+export const leaveReservationEventResponseNotificationsItemAttemptsMin = 0;
+
+
+
+export const LeaveReservationEventResponse = zod.object({
+  "id": zod.int(),
+  "date": zod.string(),
+  "startTime": zod.string(),
+  "timeZone": zod.enum(['Asia/Singapore']),
+  "startsAt": zod.coerce.date().describe('Unambiguous UTC instant, corresponding to date\/startTime in Asia\/Singapore'),
+  "createdAt": zod.coerce.date(),
+  "cancelledAt": zod.coerce.date().nullable(),
+  "status": zod.enum(['open', 'started', 'cancelled']),
+  "capacity": zod.literal(4),
+  "creator": zod.object({
+  "displayName": zod.string(),
+  "isCaller": zod.boolean()
+}),
+  "confirmed": zod.array(zod.object({
+  "enrollmentId": zod.int(),
+  "displayName": zod.string().describe('Safe display name snapshot; never an email or account ID'),
+  "isCaller": zod.boolean(),
+  "joinedAt": zod.coerce.date()
+}).and(zod.object({
+  "seat": zod.int().min(1).max(leaveReservationEventResponseConfirmedItemTwoSeatMax)
+}))).max(leaveReservationEventResponseConfirmedMax),
+  "waiting": zod.array(zod.object({
+  "enrollmentId": zod.int(),
+  "displayName": zod.string().describe('Safe display name snapshot; never an email or account ID'),
+  "isCaller": zod.boolean(),
+  "joinedAt": zod.coerce.date()
+}).and(zod.object({
+  "position": zod.int().min(1).describe('One-based active FIFO position; recalculated after departures')
+}))),
+  "callerState": zod.enum(['none', 'confirmed', 'waiting']),
+  "allowedActions": zod.object({
+  "join": zod.boolean(),
+  "leave": zod.boolean(),
+  "edit": zod.boolean(),
+  "cancel": zod.boolean(),
+  "retryNotification": zod.boolean()
+}),
+  "notifications": zod.array(zod.object({
+  "id": zod.int(),
+  "kind": zod.enum(['created', 'promoted', 'cancelled']),
+  "status": zod.enum(['pending', 'processing', 'sent', 'failed']).describe('Pending is durable but not delivered; sent requires provider acknowledgement'),
+  "attempts": zod.int().min(leaveReservationEventResponseNotificationsItemAttemptsMin),
+  "createdAt": zod.coerce.date(),
+  "sentAt": zod.coerce.date().nullable(),
+  "failureCode": zod.union([zod.literal('DELIVERY_FAILED'),zod.literal(null)]).nullable(),
+  "canRetry": zod.boolean()
+}))
+})
+
+
+/**
+ * Allowed even after start. Repeated cancellation is a no-op. No body accepted. Preserves enrollment history, prevents all joins/leaves/promotions and persists one pending cancellation notification. Never deletes the event.
+ * @summary Persist cancellation (creator or admin)
+ */
+export const cancelReservationEventPathEventIdMax = 2147483647;
+
+
+
+export const CancelReservationEventParams = zod.object({
+  "eventId": zod.coerce.number().int().min(1).max(cancelReservationEventPathEventIdMax)
+})
+
+export const CancelReservationEventHeader = zod.object({
+  "Idempotency-Key": zod.uuid().describe('UUID unique per account and logical operation; reuse unchanged for transport retries only')
+})
+
+export const cancelReservationEventResponseConfirmedItemTwoSeatMax = 4;
+
+export const cancelReservationEventResponseConfirmedMax = 4;
+
+
+export const cancelReservationEventResponseNotificationsItemAttemptsMin = 0;
+
+
+
+export const CancelReservationEventResponse = zod.object({
+  "id": zod.int(),
+  "date": zod.string(),
+  "startTime": zod.string(),
+  "timeZone": zod.enum(['Asia/Singapore']),
+  "startsAt": zod.coerce.date().describe('Unambiguous UTC instant, corresponding to date\/startTime in Asia\/Singapore'),
+  "createdAt": zod.coerce.date(),
+  "cancelledAt": zod.coerce.date().nullable(),
+  "status": zod.enum(['open', 'started', 'cancelled']),
+  "capacity": zod.literal(4),
+  "creator": zod.object({
+  "displayName": zod.string(),
+  "isCaller": zod.boolean()
+}),
+  "confirmed": zod.array(zod.object({
+  "enrollmentId": zod.int(),
+  "displayName": zod.string().describe('Safe display name snapshot; never an email or account ID'),
+  "isCaller": zod.boolean(),
+  "joinedAt": zod.coerce.date()
+}).and(zod.object({
+  "seat": zod.int().min(1).max(cancelReservationEventResponseConfirmedItemTwoSeatMax)
+}))).max(cancelReservationEventResponseConfirmedMax),
+  "waiting": zod.array(zod.object({
+  "enrollmentId": zod.int(),
+  "displayName": zod.string().describe('Safe display name snapshot; never an email or account ID'),
+  "isCaller": zod.boolean(),
+  "joinedAt": zod.coerce.date()
+}).and(zod.object({
+  "position": zod.int().min(1).describe('One-based active FIFO position; recalculated after departures')
+}))),
+  "callerState": zod.enum(['none', 'confirmed', 'waiting']),
+  "allowedActions": zod.object({
+  "join": zod.boolean(),
+  "leave": zod.boolean(),
+  "edit": zod.boolean(),
+  "cancel": zod.boolean(),
+  "retryNotification": zod.boolean()
+}),
+  "notifications": zod.array(zod.object({
+  "id": zod.int(),
+  "kind": zod.enum(['created', 'promoted', 'cancelled']),
+  "status": zod.enum(['pending', 'processing', 'sent', 'failed']).describe('Pending is durable but not delivered; sent requires provider acknowledgement'),
+  "attempts": zod.int().min(cancelReservationEventResponseNotificationsItemAttemptsMin),
+  "createdAt": zod.coerce.date(),
+  "sentAt": zod.coerce.date().nullable(),
+  "failureCode": zod.union([zod.literal('DELIVERY_FAILED'),zod.literal(null)]).nullable(),
+  "canRetry": zod.boolean()
+}))
+})
+
+
+/**
+ * Failed to pending only. Pending, processing and sent intents cannot be retried. No body accepted. Does not modify membership or require Telegram configuration. Reservation success is independent of notification delivery. Only a delivery worker may mark sent after provider acknowledgement; sentAt stays null otherwise.
+ * @summary Requeue a failed notification (creator or admin); does not send it
+ */
+export const retryReservationNotificationPathEventIdMax = 2147483647;
+
+export const retryReservationNotificationPathNotificationIdMax = 2147483647;
+
+
+
+export const RetryReservationNotificationParams = zod.object({
+  "eventId": zod.coerce.number().int().min(1).max(retryReservationNotificationPathEventIdMax),
+  "notificationId": zod.coerce.number().int().min(1).max(retryReservationNotificationPathNotificationIdMax)
+})
+
+export const RetryReservationNotificationHeader = zod.object({
+  "Idempotency-Key": zod.uuid().describe('UUID unique per account and logical operation; reuse unchanged for transport retries only')
+})
+
+export const retryReservationNotificationResponseConfirmedItemTwoSeatMax = 4;
+
+export const retryReservationNotificationResponseConfirmedMax = 4;
+
+
+export const retryReservationNotificationResponseNotificationsItemAttemptsMin = 0;
+
+
+
+export const RetryReservationNotificationResponse = zod.object({
+  "id": zod.int(),
+  "date": zod.string(),
+  "startTime": zod.string(),
+  "timeZone": zod.enum(['Asia/Singapore']),
+  "startsAt": zod.coerce.date().describe('Unambiguous UTC instant, corresponding to date\/startTime in Asia\/Singapore'),
+  "createdAt": zod.coerce.date(),
+  "cancelledAt": zod.coerce.date().nullable(),
+  "status": zod.enum(['open', 'started', 'cancelled']),
+  "capacity": zod.literal(4),
+  "creator": zod.object({
+  "displayName": zod.string(),
+  "isCaller": zod.boolean()
+}),
+  "confirmed": zod.array(zod.object({
+  "enrollmentId": zod.int(),
+  "displayName": zod.string().describe('Safe display name snapshot; never an email or account ID'),
+  "isCaller": zod.boolean(),
+  "joinedAt": zod.coerce.date()
+}).and(zod.object({
+  "seat": zod.int().min(1).max(retryReservationNotificationResponseConfirmedItemTwoSeatMax)
+}))).max(retryReservationNotificationResponseConfirmedMax),
+  "waiting": zod.array(zod.object({
+  "enrollmentId": zod.int(),
+  "displayName": zod.string().describe('Safe display name snapshot; never an email or account ID'),
+  "isCaller": zod.boolean(),
+  "joinedAt": zod.coerce.date()
+}).and(zod.object({
+  "position": zod.int().min(1).describe('One-based active FIFO position; recalculated after departures')
+}))),
+  "callerState": zod.enum(['none', 'confirmed', 'waiting']),
+  "allowedActions": zod.object({
+  "join": zod.boolean(),
+  "leave": zod.boolean(),
+  "edit": zod.boolean(),
+  "cancel": zod.boolean(),
+  "retryNotification": zod.boolean()
+}),
+  "notifications": zod.array(zod.object({
+  "id": zod.int(),
+  "kind": zod.enum(['created', 'promoted', 'cancelled']),
+  "status": zod.enum(['pending', 'processing', 'sent', 'failed']).describe('Pending is durable but not delivered; sent requires provider acknowledgement'),
+  "attempts": zod.int().min(retryReservationNotificationResponseNotificationsItemAttemptsMin),
+  "createdAt": zod.coerce.date(),
+  "sentAt": zod.coerce.date().nullable(),
+  "failureCode": zod.union([zod.literal('DELIVERY_FAILED'),zod.literal(null)]).nullable(),
+  "canRetry": zod.boolean()
+}))
+})
+
+
+/**
  * Signed-in users only, never gated by admin access itself. Reports isAdmin (ADMIN_EMAILS or the admins table) and isSuperAdmin (ADMIN_EMAILS only) for the caller.
  * @summary Report the signed-in user's own admin status
  */

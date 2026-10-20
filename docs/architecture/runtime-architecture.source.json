@@ -11,7 +11,7 @@
     ],
     "repository": {
       "url": "https://github.com/Shoreasg/Friday-Mahjong-Scoreboard",
-      "revision": "0552264fdf293ce38070f282c21b5e5c408849c0"
+      "revision": "4ae637d8d95485c5ffc99ade546fe226270ed917"
     },
     "views": [
       {
@@ -23,7 +23,7 @@
           "api",
           "db"
         ],
-        "note": "Browser SPA calls /api through the Replit router into Express and Drizzle for sessions and players."
+        "note": "SPA calls /api through Replit into Express/Postgres. Account reservations use locked FIFO queues, separate from scored sessions and players."
       },
       {
         "id": "identity",
@@ -35,7 +35,7 @@
           "adminGuard",
           "clerk"
         ],
-        "note": "Same-origin Clerk proxy plus the ADMIN_EMAILS allowlist that gates every write."
+        "note": "Clerk: admins write scores; signed-in accounts reserve seats. Creators/admins manage events. Admins use env or DB grants."
       },
       {
         "id": "contract",
@@ -207,11 +207,11 @@
         },
         {
           "path": "artifacts/api-server/src/routes/index.ts",
-          "label": "health, admin, players, sessions, telegram, etc."
+          "label": "scoreboard, reservations, admin, Telegram"
         },
         {
-          "path": "artifacts/api-server/.replit-artifact/artifact.toml",
-          "label": "production run + health"
+          "path": "artifacts/api-server/src/routes/reservations.ts",
+          "label": "signed-in bookings and creator/admin management"
         }
       ]
     },
@@ -257,7 +257,7 @@
       "id": "db",
       "type": "database",
       "label": "PostgreSQL",
-      "sublabel": "players, mahjong_sessions, Drizzle",
+      "sublabel": "sessions, players + reservations",
       "tag": "DATABASE_URL",
       "brand": "postgresql",
       "pos": [
@@ -274,12 +274,12 @@
           "label": "pg Pool + drizzle"
         },
         {
-          "path": "lib/db/src/schema/players.ts",
-          "label": "players roster table"
+          "path": "lib/db/src/schema/index.ts",
+          "label": "sessions, players, admins, reservation tables"
         },
         {
-          "path": "lib/db/src/schema/mahjong-sessions.ts",
-          "label": "base_pot + player_balances keyed by player id"
+          "path": "lib/db/src/reservations.ts",
+          "label": "locked FIFO seats + atomic notification intents"
         }
       ]
     },

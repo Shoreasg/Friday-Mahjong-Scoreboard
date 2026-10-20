@@ -39,6 +39,7 @@ only prerequisite.
 - `artifacts/api-server/src/routes/sessions.ts` — public-read, admin-write Mahjong session API
 - `lib/api-spec/openapi.yaml` — API contract and generated-client source of truth
 - `lib/db/src/schema/mahjong-sessions.ts` — persistent session schema
+- `docs/reservations.md` — reservation backend contract, queue rules, notification-worker boundary and development migration commands
 
 ## Architecture decisions
 
