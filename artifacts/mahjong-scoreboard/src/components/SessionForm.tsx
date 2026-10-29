@@ -252,7 +252,7 @@ export function SessionForm({
                 key={`player-slot-${index}`}
                 className={cn(
                   "grid grid-cols-1 items-end gap-4 border-4 border-ink bg-tile p-5 brutal-shadow sm:grid-cols-[1fr_9rem_7rem_9rem]",
-                  compact && "grid-cols-3 gap-4 p-4 sm:grid-cols-3",
+                  compact && "grid-cols-2 gap-4 p-4 sm:grid-cols-3",
                 )}
               >
                 <div className="flex items-center justify-between col-span-full mb-1">
@@ -267,7 +267,7 @@ export function SessionForm({
                   control={form.control}
                   name={`playerBalances.${index}.playerId`}
                   render={({ field }) => (
-                    <FormItem className={cn(compact && "col-span-3")}>
+                    <FormItem className={cn(compact && "col-span-2 sm:col-span-3")}>
                       <FormLabel className="font-black uppercase tracking-wide text-xs">Player</FormLabel>
                       <FormControl>
                         <PlayerPicker
