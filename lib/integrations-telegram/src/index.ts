@@ -45,12 +45,13 @@ type TelegramConfiguration = {
 };
 
 export class TelegramTransportError extends Error {
-  readonly cause?: unknown;
-
-  constructor(message: string, cause?: unknown) {
+  constructor(
+    message: string,
+    readonly delivery: "rejected" | "uncertain" = "uncertain",
+    readonly providerStatus: number | null = null,
+  ) {
     super(message);
     this.name = "TelegramTransportError";
-    this.cause = cause;
   }
 }
 
@@ -76,9 +77,13 @@ export function getTelegramChatId(): string | null {
 function isTelegramResponse(value: unknown): value is {
   ok: boolean;
   result?: unknown;
-  description?: string;
 } {
-  return typeof value === "object" && value !== null && "ok" in value;
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "ok" in value &&
+    typeof value.ok === "boolean"
+  );
 }
 
 async function callTelegramMethod(
@@ -104,20 +109,23 @@ async function callTelegramMethod(
     let payload: unknown;
     try {
       payload = await response.json();
-    } catch (error) {
+    } catch {
       throw new TelegramTransportError(
         `Telegram returned an invalid response (${response.status})`,
-        error,
+        "uncertain",
+        response.status,
       );
     }
 
     if (!response.ok || !isTelegramResponse(payload) || !payload.ok) {
-      const description =
-        isTelegramResponse(payload) && payload.description
-          ? `: ${payload.description}`
-          : "";
+      // Provider descriptions can echo poll text, recipient details, or other
+      // sensitive request data. Keep logs limited to status and certainty.
       throw new TelegramTransportError(
-        `Telegram rejected ${rejectionLabel} (${response.status})${description}`,
+        `Telegram rejected ${rejectionLabel} (${response.status})`,
+        isTelegramResponse(payload) && payload.ok === false
+          ? "rejected"
+          : "uncertain",
+        response.status,
       );
     }
 
@@ -127,7 +135,8 @@ async function callTelegramMethod(
       throw error;
     }
 
-    throw new TelegramTransportError("Telegram request failed", error);
+    // Do not retain fetch errors: they can include the credential-bearing URL.
+    throw new TelegramTransportError("Telegram request failed");
   } finally {
     clearTimeout(timeout);
   }
