@@ -6,6 +6,7 @@ import {
   setTelegramCommands,
   setTelegramWebhook,
   startTelegramPoll,
+  TelegramTransportError,
 } from "./index";
 
 const originalEnvironment = {
@@ -74,22 +75,32 @@ describe("Telegram transport", () => {
     );
   });
 
-  it("maps Telegram API rejection to a transport error", async () => {
+  it("maps Telegram API rejection to safe status and delivery metadata", async () => {
     process.env.TELEGRAM_BOT_TOKEN = "test-token";
     process.env.TELEGRAM_CHAT_ID = "-100123";
     vi.mocked(fetch).mockResolvedValue(
       new Response(
         JSON.stringify({
           ok: false,
-          description: "Bad Request: can't parse entities",
+          description: "private@example.com test-token poll text",
         }),
         { status: 400 },
       ),
     );
 
-    await expect(sendTelegramMessage({ text: "invalid" })).rejects.toThrow(
-      "Telegram rejected the message (400)",
+    const error = await sendTelegramMessage({ text: "invalid" }).catch(
+      (caught: unknown) => caught,
     );
+    expect(error).toBeInstanceOf(TelegramTransportError);
+    expect(error).toMatchObject({
+      delivery: "rejected",
+      providerStatus: 400,
+      message: "Telegram rejected the message (400)",
+    });
+    expect(error).not.toHaveProperty("cause");
+    expect(String(error)).not.toContain("private@example.com");
+    expect(String(error)).not.toContain("test-token");
+    expect(String(error)).not.toContain("poll text");
   });
 
   it("aborts requests after the bounded timeout", async () => {
@@ -111,6 +122,27 @@ describe("Telegram transport", () => {
     await vi.advanceTimersByTimeAsync(5_000);
 
     await request;
+  });
+
+  it("does not retain credential-bearing causes for network failures", async () => {
+    process.env.TELEGRAM_BOT_TOKEN = "test-token";
+    process.env.TELEGRAM_CHAT_ID = "-100123";
+    vi.mocked(fetch).mockRejectedValue(
+      new Error("https://api.telegram.org/bottest-token/sendPoll"),
+    );
+
+    const error = await startTelegramPoll("Mahjong tonight?").catch(
+      (caught: unknown) => caught,
+    );
+
+    expect(error).toBeInstanceOf(TelegramTransportError);
+    expect(error).toMatchObject({
+      delivery: "uncertain",
+      providerStatus: null,
+      message: "Telegram request failed",
+    });
+    expect(error).not.toHaveProperty("cause");
+    expect(String(error)).not.toContain("test-token");
   });
 
   it("reports the configured chat id, or null when unconfigured", () => {

@@ -7,6 +7,11 @@ const mocks = vi.hoisted(() => ({
   telegramPoll: vi.fn(),
   getTelegramWebhookInfo: vi.fn(),
   setTelegramWebhook: vi.fn(),
+  requestLog: {
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  },
 }));
 
 vi.mock("@clerk/express", () => ({
@@ -21,12 +26,32 @@ vi.mock("@clerk/express", () => ({
   getAuth: (req: { testAuth?: unknown }) => req.testAuth ?? {},
 }));
 
-vi.mock("@workspace/integrations-telegram", () => ({
-  sendTelegramMessage: mocks.telegramSend,
-  startTelegramPoll: mocks.telegramPoll,
-  getTelegramWebhookInfo: mocks.getTelegramWebhookInfo,
-  setTelegramWebhook: mocks.setTelegramWebhook,
+vi.mock("pino-http", () => ({
+  default: () => (
+    req: {
+      id?: string;
+      log?: typeof mocks.requestLog;
+    },
+    _res: unknown,
+    next: () => void,
+  ) => {
+    req.id = "test-request-id";
+    req.log = mocks.requestLog;
+    next();
+  },
 }));
+
+vi.mock("@workspace/integrations-telegram", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@workspace/integrations-telegram")>();
+  return {
+    ...actual,
+    sendTelegramMessage: mocks.telegramSend,
+    startTelegramPoll: mocks.telegramPoll,
+    getTelegramWebhookInfo: mocks.getTelegramWebhookInfo,
+    setTelegramWebhook: mocks.setTelegramWebhook,
+  };
+});
 
 // requireAdmin() falls back to an admins-table lookup for any caller not on
 // ADMIN_EMAILS. No test here exercises a table-granted admin, so every
@@ -48,6 +73,7 @@ vi.mock("@workspace/db", async (importOriginal) => {
 });
 
 import app from "../app";
+import { TelegramTransportError } from "@workspace/integrations-telegram";
 
 const adminUserId = "admin-user";
 const viewerUserId = "viewer-user";
@@ -193,6 +219,14 @@ describe("POST /telegram/poll", () => {
 
     expect(response.status).toBe(401);
     expect(mocks.telegramPoll).not.toHaveBeenCalled();
+    expect(mocks.requestLog.warn).toHaveBeenCalledWith(
+      {
+        requestId: "test-request-id",
+        outcome: "unauthenticated",
+        httpStatus: 401,
+      },
+      "Telegram poll request rejected",
+    );
   });
 
   it("rejects non-admin callers", async () => {
@@ -200,6 +234,14 @@ describe("POST /telegram/poll", () => {
 
     expect(response.status).toBe(403);
     expect(mocks.telegramPoll).not.toHaveBeenCalled();
+    expect(mocks.requestLog.warn).toHaveBeenCalledWith(
+      {
+        requestId: "test-request-id",
+        outcome: "admin_denied",
+        httpStatus: 403,
+      },
+      "Telegram poll request rejected",
+    );
   });
 
   it("starts the 'tonight' preset poll", async () => {
@@ -210,6 +252,10 @@ describe("POST /telegram/poll", () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ status: "sent", messageId: 11 });
     expect(mocks.telegramPoll).toHaveBeenCalledWith("Mahjong tonight?");
+    expect(mocks.requestLog.info).toHaveBeenCalledWith(
+      { requestId: "test-request-id", outcome: "telegram_accepted" },
+      "Telegram poll accepted",
+    );
   });
 
   it("starts the 'this_friday' preset poll", async () => {
@@ -227,6 +273,14 @@ describe("POST /telegram/poll", () => {
 
     expect(response.status).toBe(400);
     expect(mocks.telegramPoll).not.toHaveBeenCalled();
+    expect(mocks.requestLog.warn).toHaveBeenCalledWith(
+      {
+        requestId: "test-request-id",
+        outcome: "invalid_input",
+        httpStatus: 400,
+      },
+      "Telegram poll request rejected",
+    );
   });
 
   it("reports unavailability when Telegram is not configured", async () => {
@@ -238,6 +292,14 @@ describe("POST /telegram/poll", () => {
     const response = await startPoll("tonight", adminUserId);
 
     expect(response.status).toBe(503);
+    expect(mocks.requestLog.warn).toHaveBeenCalledWith(
+      {
+        requestId: "test-request-id",
+        outcome: "not_configured",
+        httpStatus: 503,
+      },
+      "Telegram poll not sent",
+    );
   });
 
   it("surfaces a failure to start the poll instead of swallowing it", async () => {
@@ -246,6 +308,55 @@ describe("POST /telegram/poll", () => {
     const response = await startPoll("tonight", adminUserId);
 
     expect(response.status).toBe(502);
+    expect(mocks.requestLog.error).toHaveBeenCalledWith(
+      { requestId: "test-request-id", outcome: "unexpected_error" },
+      "Telegram poll failed",
+    );
+  });
+
+  it("logs provider rejection metadata without sensitive error details", async () => {
+    mocks.telegramPoll.mockRejectedValue(
+      new TelegramTransportError(
+        "Telegram rejected the poll (403): private text and token",
+        "rejected",
+        403,
+      ),
+    );
+
+    const response = await startPoll("tonight", adminUserId);
+
+    expect(response.status).toBe(502);
+    expect(mocks.requestLog.warn).toHaveBeenCalledWith(
+      {
+        requestId: "test-request-id",
+        outcome: "telegram_rejected",
+        delivery: "rejected",
+        telegramStatusCode: 403,
+      },
+      "Telegram poll failed",
+    );
+    expect(JSON.stringify(mocks.requestLog.warn.mock.calls)).not.toContain(
+      "private text and token",
+    );
+  });
+
+  it("logs uncertain delivery without inventing a provider status", async () => {
+    mocks.telegramPoll.mockRejectedValue(
+      new TelegramTransportError("Telegram request failed", "uncertain"),
+    );
+
+    const response = await startPoll("tonight", adminUserId);
+
+    expect(response.status).toBe(502);
+    expect(mocks.requestLog.warn).toHaveBeenCalledWith(
+      {
+        requestId: "test-request-id",
+        outcome: "transport_uncertain",
+        delivery: "uncertain",
+        telegramStatusCode: null,
+      },
+      "Telegram poll failed",
+    );
   });
 });
 

@@ -8,6 +8,7 @@ import {
   StartTelegramPollResponse,
 } from "@workspace/api-zod";
 import {
+  TelegramTransportError,
   getTelegramWebhookInfo,
   sendTelegramMessage,
   setTelegramWebhook,
@@ -76,10 +77,30 @@ router.post("/telegram/broadcast", async (req, res): Promise<void> => {
 
 router.post("/telegram/poll", async (req, res): Promise<void> => {
   const userId = await requireAdmin(req, res);
-  if (!userId) return;
+  if (!userId) {
+    const httpStatus = res.statusCode;
+    req.log.warn(
+      {
+        requestId: req.id,
+        outcome:
+          httpStatus === 401
+            ? "unauthenticated"
+            : httpStatus === 403
+              ? "admin_denied"
+              : "admin_check_failed",
+        httpStatus,
+      },
+      "Telegram poll request rejected",
+    );
+    return;
+  }
 
   const parsed = StartTelegramPollBody.safeParse(req.body);
   if (!parsed.success) {
+    req.log.warn(
+      { requestId: req.id, outcome: "invalid_input", httpStatus: 400 },
+      "Telegram poll request rejected",
+    );
     res.status(400).json({ error: parsed.error.message });
     return;
   }
@@ -87,13 +108,39 @@ router.post("/telegram/poll", async (req, res): Promise<void> => {
   try {
     const result = await startTelegramPoll(POLL_QUESTIONS[parsed.data.preset]);
     if (result.status === "skipped") {
+      req.log.warn(
+        { requestId: req.id, outcome: "not_configured", httpStatus: 503 },
+        "Telegram poll not sent",
+      );
       res.status(503).json({ error: "Telegram is not configured" });
       return;
     }
 
+    req.log.info(
+      { requestId: req.id, outcome: "telegram_accepted" },
+      "Telegram poll accepted",
+    );
     res.json(StartTelegramPollResponse.parse(result));
   } catch (error) {
-    req.log.warn({ err: error }, "Telegram poll failed");
+    if (error instanceof TelegramTransportError) {
+      req.log.warn(
+        {
+          requestId: req.id,
+          outcome:
+            error.delivery === "rejected"
+              ? "telegram_rejected"
+              : "transport_uncertain",
+          delivery: error.delivery,
+          telegramStatusCode: error.providerStatus,
+        },
+        "Telegram poll failed",
+      );
+    } else {
+      req.log.error(
+        { requestId: req.id, outcome: "unexpected_error" },
+        "Telegram poll failed",
+      );
+    }
     res.status(502).json({ error: "Failed to start poll" });
   }
 });
